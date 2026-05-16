@@ -17,6 +17,9 @@ class InteractionManager:
         self.picker_queue = CollisionHandlerQueue()
         self.picker_node = CollisionNode('mouseRay')
         self.picker_np = self.base.camera.attachNewNode(self.picker_node)
+
+        self.picker_node.setIntoCollideMask(0) 
+
         self.picker_node.setFromCollideMask(CollisionNode.getDefaultCollideMask())
         self.picker_ray = CollisionRay()
         self.picker_node.addSolid(self.picker_ray)
