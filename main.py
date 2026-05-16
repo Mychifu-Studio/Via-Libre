@@ -7,7 +7,7 @@ from direct.gui.DirectGui import DirectFrame, DirectButton
 
 from vialibre.player import Player
 from vialibre.multiplayer import MultiplayerManager
-from vialibre.resource_system import ResourceSystem
+from vialibre.ressource_system import ResourceSystem
 from vialibre.inventory_ui import InventoryUI
 from vialibre.popup_ui import PopupUI
 
