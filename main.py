@@ -1,27 +1,29 @@
 from direct.showbase.ShowBase import ShowBase
-from panda3d.core import WindowProperties
-from panda3d.core import load_prc_file_data
-from panda3d.core import DirectionalLight
-# from direct.gui.OnscreenImage import OnscreenImage
-# from panda3d.core import TransparencyAttrib
-
-from panda3d.core import CardMaker, PNMImage, Texture
+from panda3d.core import WindowProperties, load_prc_file_data, DirectionalLight
+from panda3d.core import CardMaker, PNMImage, Texture, AntialiasAttrib
 import random
-from panda3d.core import AntialiasAttrib
+
+from direct.gui.DirectGui import DirectFrame, DirectButton
 
 from vialibre.player import Player
+from vialibre.multiplayer import MultiplayerManager
+from vialibre.resource_system import ResourceSystem
+from vialibre.inventory_ui import InventoryUI
+from vialibre.popup_ui import PopupUI
+
 
 load_prc_file_data('', 'sync-video f\nshow-frame-rate-meter t')
-load_prc_file_data('','win-size 1280 720')
+load_prc_file_data('', 'win-size 1280 720')
 load_prc_file_data('', 'client-sleep 0.001')
 load_prc_file_data('', 'framebuffer-multisample 1\nmultisamples 2')
+load_prc_file_data("", "load-file-type p3assimp")
+
 
 class Test(ShowBase):
     def __init__(self, fStartDirect=True, windowType=None):
         super().__init__(fStartDirect, windowType)
 
         self.render.setAntialias(AntialiasAttrib.MMultisample)
-
         self.disable_mouse()
 
         self.player = Player()
@@ -30,40 +32,90 @@ class Test(ShowBase):
         props.setCursorHidden(True)
         self.win.requestProperties(props)
 
-        self.accept("escape", self.userExit)
+        self.accept("escape", self.menu)
 
         self.generateGround()
-
         self.smooth_dt = None
-
         self.setupLights()
+
+        ### NETWORK ###
+        self.multiplayer = MultiplayerManager(self, self.player)
+        ###############
+
+        ### MENU ###
+        self.escMenuFrame = DirectFrame(
+            frameColor=(0, 0, 0, 0.8),
+            frameSize=(-0.5, 0.5, -0.4, 0.4),
+            pos=(0, 0, 0)
+        )
+        self.escMenuFrame.hide()
+
+        self.leaveBtn = DirectButton(
+            parent=self.escMenuFrame,
+            text="Leave",
+            scale=0.1,
+            pos=(0, 0, 0),
+            pad=(0.2, 0.2),
+            command=self.exit
+        )
+
+        self.is_esc = False
+        ##############
+
+        self.win.setCloseRequestEvent('window-close')
+        self.accept('window-close', self.exit)
+
+        self.inventory = {
+            "ressource": 0
+        }
+
+        self.inventory_ui = InventoryUI(self)
+        self.popup_ui = PopupUI(self)
+
+        self.resource_system = ResourceSystem(
+            game=self,
+            inventory_ui=self.inventory_ui,
+            popup_ui=self.popup_ui
+        )
+        self.resource_system.setup_player_collider(self.player)
+
+        self.game_started = True
+        self.resource_system.generate_random_zones(8)
 
         self.taskMgr.add(self.update, 'update')
 
-    def smoothDt(self, dt):
-        if self.smooth_dt is None:
-            self.smooth_dt = dt
-        else:
-            self.smooth_dt += (dt - self.smooth_dt) * 0.05
-        return self.smooth_dt
-
     def update(self, task):
-        # dt = self.smoothDt(globalClock.getDt())
-        dt = globalClock.getDt() # pyright: ignore[reportUndefinedVariable]
+        dt = globalClock.getDt()  # pyright: ignore[reportUndefinedVariable]
 
         self.player.update(dt)
+        self.multiplayer.update()
+        self.resource_system.update()
 
         return task.cont
 
+    def menu(self):
+        self.is_esc = not self.is_esc
+        if self.is_esc:
+            self.escMenuFrame.show()
+            self.player.is_paused = True
+        else:
+            self.escMenuFrame.hide()
+            self.player.camera.mouse.centerMouse()
+            self.player.is_paused = False
+
+    def exit(self):
+        self.taskMgr.remove('update')
+        self.multiplayer.exit()
+        self.userExit()
+
     def generateGround(self):
-        size = 256  # texture resolution
+        size = 256
         img = PNMImage(size, size)
 
         for x in range(size):
             for y in range(size):
-
                 r = 0.25 + random.uniform(-0.05, 0.05)
-                g = 0.7  + random.uniform(-0.1, 0.1)
+                g = 0.7 + random.uniform(-0.1, 0.1)
                 b = 0.25 + random.uniform(-0.05, 0.05)
 
                 r = min(max(r, 0), 1)
@@ -93,11 +145,6 @@ class Test(ShowBase):
         dlnp.setHpr(0, -60, 0)
         self.render.setLight(dlnp)
 
-    # def setResolution(self):
-    #     properties = WindowProperties()
-    #     properties.setSize(self.pipe.getDisplayWidth(), self.pipe.getDisplayHeight())
-    #     properties.setUndecorated(True)
-    #     self.win.requestProperties(properties)
 
 app = Test()
 app.run()

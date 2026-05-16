@@ -91,3 +91,10 @@ wheels/
 .installed.cfg
 *.egg
 MANIFEST
+
+
+# CUSTOM
+*.iss
+certif/
+.venv/
+server/
