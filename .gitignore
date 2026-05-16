@@ -98,3 +98,4 @@ MANIFEST
 certif/
 .venv/
 server/
+*.nix
