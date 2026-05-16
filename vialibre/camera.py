@@ -111,8 +111,8 @@ class Camera(DirectObject):
                 self.mouse.captureMouse()
            
             # Centrage immédiat pour éviter un bond de caméra au changement de mode
-            if self.mode == 1:
-                self.mouse.centerMouse()
+            # if self.mode == 1:
+            #     self.mouse.centerMouse()
 
 
     def setPos(self, pos: Point3):
@@ -170,7 +170,7 @@ class Camera(DirectObject):
                 # self.orbitPitch = max(-80, min(80, self.orbitPitch))
 
 
-                self.mouse.centerMouse()
+                # self.mouse.centerMouse()
                
         else:
             self.lastMode = 0

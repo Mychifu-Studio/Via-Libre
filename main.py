@@ -100,7 +100,7 @@ class Test(ShowBase):
             self.player.is_paused = True
         else:
             self.escMenuFrame.hide()
-            self.player.camera.mouse.centerMouse()
+            # self.player.camera.mouse.centerMouse()
             self.player.is_paused = False
 
     def exit(self):

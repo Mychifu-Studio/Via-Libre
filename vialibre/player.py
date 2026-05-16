@@ -239,8 +239,8 @@ class Player(DirectObject):
 
     def updateKeyMap(self, key, value):
         self.keyMap[key] = value
-        if key == 'ctrl' and value == False:
-            self.camera.mouse.centerMouse()
+        # if key == 'ctrl' and value == False:
+            # self.camera.mouse.centerMouse()
 
     def gerer_surbrillance_interactions(self):
         """Gère l'affichage visuel des objets interactifs autour du joueur"""
