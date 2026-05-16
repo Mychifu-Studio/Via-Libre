@@ -1,0 +1,519 @@
+
+@import url('https://fonts.googleapis.com/css2?family=Oswald:wght@400;700&family=Roboto:wght@300;400;700&display=swap');
+
+:root {
+    --primary: #d32f2f;
+    --primary-hover: #b71c1c;
+    --bg-dark: #050505;
+    --bg-surface: #121212;
+    --bg-card: #1a1a1a;
+    --text-main: #f5f5f5;
+    --text-muted: #aaaaaa;
+    --accent: #ffb300;
+    --sidebar-width: 320px;
+}
+
+* { box-sizing: border-box; margin: 0; padding: 0; }
+
+html {
+    font-size: 15px;
+    scroll-behavior: smooth;
+}
+
+body {
+    font-family: 'Roboto', sans-serif;
+    background-color: var(--bg-dark);
+    color: var(--text-main);
+    line-height: 1.8;
+    overflow-x: hidden;
+    display: flex;
+}
+
+h1, h2, h3, h4 {
+    font-family: 'Oswald', sans-serif;
+    text-transform: uppercase;
+    letter-spacing: 2px;
+}
+
+/* Sidebar Permanente */
+.sidebar {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: var(--sidebar-width);
+    height: 100vh;
+    background-color: var(--bg-surface);
+    border-right: 3px solid var(--primary);
+    padding: 3rem 2rem;
+    display: flex;
+    flex-direction: column;
+    z-index: 1000;
+    box-shadow: 5px 0 20px rgba(0,0,0,0.8);
+}
+
+.sidebar-logo-container {
+    text-align: center;
+    margin-bottom: 3rem;
+}
+
+.sidebar-logo-container img {
+    width: 120px;
+    height: auto;
+    border-radius: 10px;
+    margin-bottom: 1.5rem;
+    box-shadow: 0 4px 15px rgba(0,0,0,0.5);
+    transition: transform 0.3s;
+}
+
+.sidebar-logo-container img:hover {
+    transform: scale(1.05);
+}
+
+.sidebar-logo-container h2 {
+    color: var(--primary);
+    font-size: 1.8rem;
+}
+
+.sidebar-nav {
+    list-style: none;
+    display: flex;
+    flex-direction: column;
+    gap: 1.5rem;
+}
+
+.sidebar-nav a {
+    color: var(--text-muted);
+    text-decoration: none;
+    font-family: 'Oswald', sans-serif;
+    font-size: 1.4rem;
+    display: block;
+    padding: 0.5rem 1rem;
+    border-radius: 5px;
+    transition: all 0.3s ease;
+    border-left: 4px solid transparent;
+}
+
+.sidebar-nav a:hover, .sidebar-nav a.active {
+    color: var(--text-main);
+    background-color: rgba(211, 47, 47, 0.1);
+    border-left: 4px solid var(--primary);
+    padding-left: 1.5rem;
+}
+
+.sidebar-footer {
+    margin-top: auto;
+    text-align: center;
+    font-size: 0.9rem;
+    color: var(--text-muted);
+}
+
+/* Contenu Principal */
+.main-content {
+    margin-left: var(--sidebar-width);
+    width: calc(100% - var(--sidebar-width));
+    min-height: 100vh;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+}
+
+/* Sections */
+section { 
+    width: 100%;
+    max-width: 1200px;
+    padding: 6rem 3rem; 
+}
+
+.surface { 
+    background-color: var(--bg-surface); 
+    border: 1px solid #222; 
+    border-radius: 8px; 
+    box-shadow: 0 15px 40px rgba(0,0,0,0.8); 
+    padding: 4rem; 
+}
+
+.section-title { 
+    font-size: 3.5rem; 
+    border-left: 8px solid var(--primary); 
+    padding-left: 1.5rem; 
+    margin-bottom: 2.5rem; 
+    color: #fff;
+}
+
+/* Nouveauté : Séparateurs et colonnes de texte pour éviter les lignes trop longues */
+.text-columns {
+    column-count: 2;
+    column-gap: 3rem;
+    column-rule: 1px solid #333;
+}
+
+.text-columns p {
+    margin-top: 0;
+}
+
+@media (max-width: 1000px) {
+    .text-columns { column-count: 1; column-rule: none; }
+}
+
+h3 {
+    font-size: 2rem;
+    color: var(--primary);
+    margin-bottom: 1.5rem;
+    margin-top: 2rem;
+}
+
+p {
+    font-size: 1.25rem;
+    margin-bottom: 1.5rem;
+    text-align: justify;
+}
+
+/* Hero Section */
+.hero {
+    width: 100%;
+    height: 85vh;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    align-items: center;
+    text-align: center;
+    background: linear-gradient(rgba(0,0,0,0.7), rgba(0,0,0,0.95)), url('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" width="100" height="100"><rect width="100" height="100" fill="%230a0a0a"/></svg>');
+    background-size: cover;
+    background-attachment: fixed;
+    padding: 3rem;
+    border-bottom: 5px solid var(--primary);
+}
+
+.hero img {
+    max-width: 400px;
+    margin-bottom: 2.5rem;
+    border-radius: 12px;
+    box-shadow: 0 10px 30px rgba(0,0,0,0.8);
+}
+
+.hero h1 {
+    font-size: 5rem;
+    color: var(--primary);
+    text-shadow: 3px 3px 10px rgba(0,0,0,0.9);
+}
+
+.hero p { 
+    font-size: 1.8rem; 
+    max-width: 900px; 
+    color: #fff; 
+    text-align: center;
+}
+
+/* Grids - Centered */
+/* On utilise flex + wrap avec justify-content: center pour s'assurer que la dernière ligne orpheline sera toujours centrée */
+.grid-flex {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: center;
+    gap: 2.5rem;
+}
+
+.grid-flex > .card { width: 300px; flex: 0 0 auto; }
+
+/* Cards */
+.card { 
+    background: var(--bg-card); 
+    border: 1px solid #333; 
+    border-radius: 8px; 
+    padding: 2.5rem; 
+    transition: transform 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275), box-shadow 0.4s; 
+    position: relative; 
+    overflow: hidden; 
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+}
+.card::before { 
+    content: ''; 
+    position: absolute; 
+    top: 0; left: 0; 
+    width: 100%; height: 4px; 
+    background: var(--primary); 
+    transform: scaleX(0); 
+    transform-origin: left; 
+    transition: transform 0.4s ease; 
+}
+.card:hover { 
+    transform: translateY(-10px); 
+    box-shadow: 0 15px 30px rgba(0,0,0,0.7);
+    border-color: var(--primary);
+}
+.card:hover::before { transform: scaleX(1); }
+.card h3 { color: var(--primary); margin-bottom: 1rem; border-bottom: 1px dotted #444; padding-bottom: 1rem; margin-top: 0; text-align: center; line-height: 1.2; }
+.card h4 { color: #fff; margin-bottom: 1rem; font-size: 1.4rem; text-align: center; font-style: italic;}
+.card p { font-size: 1.1rem; text-align: justify; }
+
+/* Photo de Profil dans les cartes équipe */
+.profile-pic-placeholder {
+    width: 100%; /* Prend toute la largeur de la carte (moins le padding) */
+    aspect-ratio: 1 / 1; /* Force le ratio carré */
+    background-color: #222;
+    border-radius: 12px; /* Coins arrondis */
+    margin: 0 auto 1.5rem auto; /* Centré */
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: #555;
+    font-size: 1rem;
+    border: 2px solid var(--primary);
+    overflow: hidden;
+}
+
+.profile-pic-placeholder img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    border-radius: 13px; /* Légèrement moins pour fitter la bordure */
+}
+
+/* Blockquote */
+blockquote {
+    font-style: italic;
+    font-size: 1.5rem;
+    border-left: 5px solid var(--accent);
+    padding-left: 1.5rem;
+    margin: 3rem 0;
+    color: var(--text-muted);
+}
+
+/* Animations au Scroll */
+.reveal { opacity: 0; transform: translateY(60px); transition: all 1s ease-out; }
+.reveal.active { opacity: 1; transform: translateY(0); }
+
+.reveal-left { opacity: 0; transform: translateX(-80px); transition: all 1s ease-out; }
+.reveal-left.active { opacity: 1; transform: translateX(0); }
+
+.reveal-right { opacity: 0; transform: translateX(80px); transition: all 1s ease-out; }
+.reveal-right.active { opacity: 1; transform: translateX(0); }
+
+.reveal-scale { opacity: 0; transform: scale(0.85); transition: all 1s cubic-bezier(0.175, 0.885, 0.32, 1.275); }
+.reveal-scale.active { opacity: 1; transform: scale(1); }
+
+/* Tabs */
+.tab-buttons { display: flex; gap: 1.5rem; margin-bottom: 2.5rem; border-bottom: 2px solid #333; flex-wrap: wrap; justify-content: center;}
+.tab-btn { background: none; border: none; color: var(--text-muted); font-family: 'Oswald'; font-size: 1.5rem; cursor: pointer; padding: 1rem 2rem; transition: 0.3s; }
+.tab-btn:hover { color: #fff; }
+.tab-btn.active { color: var(--primary); border-bottom: 4px solid var(--primary); margin-bottom: -3px; }
+.tab-content { display: none; animation: slideUp 0.6s ease; }
+.tab-content.active { display: block; }
+@keyframes slideUp { from { opacity: 0; transform: translateY(30px);} to { opacity: 1; transform: translateY(0);} }
+
+/* Tag */
+.tag { background: var(--primary); color: white; padding: 0.5rem 1rem; border-radius: 4px; font-size: 1rem; font-weight: bold; margin: 0.5rem; display: inline-block; text-transform: uppercase; box-shadow: 0 4px 10px rgba(211,47,47,0.4);}
+
+/* Fix: Alignement parfait des cartes de l'équipe */
+.team-card h3, .team-card h4 {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    text-align: center;
+    width: 100%;
+}
+
+.team-card h3 {
+    height: 90px; /* Hauteur fixe augmentée pour absorber les noms longs (3 lignes) */
+    padding-bottom: 1rem;
+    margin-bottom: 1.5rem;
+}
+
+.team-card h4 {
+    height: 70px; /* Hauteur fixe pour absorber les rôles sur 1 ou 2 lignes */
+    margin: 1rem 0 0 0;
+    line-height: 1.4;
+}
+
+/* Fix: L'image remplira correctement la bordure sans déborder */
+.profile-pic-placeholder img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    border-radius: 9px;
+}
+
+
+/* ==========================================================================
+   RESPONSIVE DESIGN & MOBILE VERSION
+   ========================================================================== */
+
+/* Bouton Hamburger (caché sur PC) */
+.mobile-toggle {
+    display: none;
+    background: none;
+    border: none;
+    cursor: pointer;
+    flex-direction: column;
+    gap: 6px;
+    z-index: 1002;
+    padding: 10px;
+}
+
+.mobile-toggle span {
+    display: block;
+    width: 30px;
+    height: 3px;
+    background-color: var(--text-main);
+    transition: all 0.3s ease-in-out;
+    border-radius: 2px;
+}
+
+@media (max-width: 1000px) {
+    /* La sidebar devient une barre de navigation en haut */
+    .sidebar {
+        position: fixed;
+        top: 0;
+        left: 0;
+        width: 100%;
+        height: 80px;
+        padding: 0 1.5rem;
+        flex-direction: row;
+        border-right: none;
+        border-bottom: 3px solid var(--primary);
+        z-index: 1001;
+        background-color: rgba(18, 18, 18, 0.98);
+        backdrop-filter: blur(10px);
+    }
+
+    .sidebar-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        width: 100%;
+    }
+
+    .sidebar-logo-container {
+        margin-bottom: 0;
+        display: flex;
+        align-items: center;
+        gap: 15px;
+        flex-direction: row;
+    }
+
+    .sidebar-logo-container img {
+        width: 45px;
+        margin-bottom: 0;
+    }
+
+    .sidebar-logo-container h2 {
+        font-size: 1.5rem;
+        margin: 0;
+    }
+
+    .mobile-toggle {
+        display: flex;
+    }
+
+    /* Animation du hamburger en croix */
+    .mobile-toggle.active span:nth-child(1) {
+        transform: translateY(9px) rotate(45deg);
+    }
+    .mobile-toggle.active span:nth-child(2) {
+        opacity: 0;
+    }
+    .mobile-toggle.active span:nth-child(3) {
+        transform: translateY(-9px) rotate(-45deg);
+    }
+
+    /* Le menu se cache sur la gauche et prend tout l'écran */
+    .sidebar-nav {
+        position: fixed;
+        top: 80px;
+        left: -100%;
+        width: 100%;
+        height: calc(100vh - 80px);
+        background-color: rgba(18, 18, 18, 0.98);
+        backdrop-filter: blur(10px);
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        gap: 2.5rem;
+        transition: left 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+        margin: 0;
+        padding: 0;
+        z-index: 1000;
+        border-top: 1px solid #333;
+    }
+
+    .sidebar-nav.active {
+        left: 0;
+    }
+
+    .sidebar-nav a {
+        font-size: 2rem;
+        border-left: none;
+        padding: 1rem;
+        text-align: center;
+    }
+
+    .sidebar-nav a:hover, .sidebar-nav a.active {
+        border-left: none;
+        background: none;
+        color: var(--primary);
+    }
+
+    .sidebar-footer {
+        display: none;
+    }
+
+    /* Le contenu principal prend toute la largeur */
+    .main-content {
+        margin-left: 0;
+        width: 100%;
+    }
+
+    /* Ajustements des marges et typographies pour écrans réduits */
+    section {
+        padding: 4rem 1.5rem;
+    }
+
+    .surface {
+        padding: 2.5rem 1.5rem;
+    }
+
+    .hero {
+        min-height: 100vh;
+        height: auto;
+        padding-top: 100px; /* Compense la nav fixe */
+    }
+
+    .hero img.reveal-scale {
+        max-width: 250px;
+    }
+
+    .hero h1 {
+        font-size: 3rem;
+    }
+
+    .hero p {
+        font-size: 1.2rem;
+    }
+
+    .section-title {
+        font-size: 2.5rem;
+        margin-bottom: 2rem;
+    }
+
+    .grid-2 {
+        grid-template-columns: 1fr;
+    }
+
+    /* Permet aux cartes de s'écraser un peu si l'écran mobile est < 350px (ex: vieil iPhone) */
+    .grid-flex > .card {
+        max-width: 100%; 
+    }
+
+    blockquote {
+        font-size: 1.2rem;
+        margin: 2rem 0;
+    }
+
+    .tab-btn {
+        font-size: 1.2rem;
+        padding: 0.5rem 1rem;
+    }
+}

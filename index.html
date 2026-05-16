@@ -1,342 +1,97 @@
-<!doctype html>
+<!DOCTYPE html>
 <html lang="fr">
 <head>
-  <meta charset="utf-8" />
-  <meta name="viewport" content="width=device-width,initial-scale=1" />
-  <title>¡Via Libre! — Mychifu Entertainment</title>
-  <meta name="description" content="¡Via Libre! — Action Tower Defense multijoueur avec coopération, imposteur et missions variées." />
-
-  <link rel="icon" type="image/png" href="assets/game_logo.png" />
-
-  <link rel="preconnect" href="https://fonts.googleapis.com">
-  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Oswald:wght@400;600;700&family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="styles.css" />
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Mychifu Entertainment - Studio Indépendant</title>
+    <link rel="stylesheet" href="css/style.css">
 </head>
 <body>
-  <header class="topbar">
-    <a class="brand" href="#top" aria-label="Retour en haut">
-      <img class="brand-logo" src="assets/studio_logo.png" alt="Mychifu Entertainment — logo du studio">
-      <span class="brand-name">MYCHIFU ENTERTAINMENT</span>
-    </a>
-
-    <button class="nav-toggle" aria-label="Ouvrir le menu" aria-expanded="false">
-      <span></span><span></span><span></span>
-    </button>
-
-    <nav class="nav" aria-label="Navigation principale">
-      <a href="#jeu">Le jeu</a>
-      <a href="#gameplay">Gameplay</a>
-      <a href="#imposteur">Imposteur</a>
-      <a href="#univers">Univers</a>
-      <a href="#media">Liens</a>
-      <a href="#equipe">Équipe</a>
+    <nav class="sidebar">
+        <div class="sidebar-header">
+            <div class="sidebar-logo-container">
+                <a href="index.html">
+                    <img src="img/mychifu_logo.jpg" alt="Mychifu Logo">
+                </a>
+                <h2>MYCHIFU</h2>
+            </div>
+            <button class="mobile-toggle" aria-label="Ouvrir le menu">
+                <span></span>
+                <span></span>
+                <span></span>
+            </button>
+        </div>
+        <ul class="sidebar-nav">
+            <li><a href="index.html" class="active">Le Studio</a></li>
+            <li><a href="game.html" >Via Libre ! (Le Jeu)</a></li>
+            <li><a href="lore.html" >Univers & Lore</a></li>
+        </ul>
+        <div class="sidebar-footer">
+            <p>&copy; 2026 Mychifu Ent.<br>Tous droits réservés.</p>
+        </div>
     </nav>
-  </header>
 
-  <main id="top">
-    <!-- HERO -->
-    <section class="hero">
-      <div class="hero-grid">
-        <div class="hero-copy">
-          <p class="kicker">Mychifu Entertainment présente</p>
+    <main class="main-content">
+        <header class="hero">
+            <img src="img/mychifu_logo.jpg" alt="Mychifu Entertainment Logo" class="reveal-scale" style="background: white; padding: 5px;">
+            <h1 class="reveal">Mychifu Entertainment</h1>
+            <p class="reveal">Créateurs d'expériences multijoueurs intenses. Là où la coopération rencontre la trahison.</p>
+        </header>
 
-          <div class="hero-logos" aria-label="Logos">
-            <img src="assets/game_logo.png" alt="Logo du jeu ¡Via Libre!" loading="eager">
-            <img src="assets/studio_logo.png" alt="Logo du studio Mychifu Entertainment" loading="eager">
-          </div>
+        <section>
+            <div class="surface reveal-up">
+                <h2 class="section-title reveal-left">Notre Philosophie</h2>
 
-          <h1 class="title">¡Via Libre!</h1>
-          <p class="subtitle">
-            Action–Tower Defense multijoueur : coopération, missions variées et <strong>imposteur</strong>
-            caché dans l’équipe.
-          </p>
+                <div class="text-columns">
+                    <p class="reveal">Mychifu Entertainment n'est pas né d'une simple envie de créer des jeux, mais d'une volonté farouche de <strong>casser les codes</strong> des genres établis. Fondé par cinq étudiants développeurs passionnés, le studio explore la psychologie des joueurs autant que leurs réflexes.</p>
 
-          <div class="cta-row">
-            <a class="btn primary" href="#jeu">Découvrir le jeu</a>
-            <a class="btn" href="#media">Télécharger le diapo</a>
-          </div>
+                    <p class="reveal">Avec notre premier projet d'envergure, <em>Via Libre !</em>, nous avons fusionné la gestion stratégique d'un Tower Defense classique avec l'intensité paranoïaque des jeux de déduction sociale.</p>
+                </div>
 
-          <ul class="quickfacts" aria-label="Points clés">
-            <li><span>Genre</span><strong>Tower Defense / Action</strong></li>
-            <li><span>Mode</span><strong>Multijoueur (coop + imposteur)</strong></li>
-            <li><span>Objectif</span><strong>Révolutionnaires vs Junte militaire</strong></li>
-          </ul>
-        </div>
+                <blockquote class="reveal-scale">
+                    "Un bon jeu multijoueur ne doit pas seulement vous faire combattre vos ennemis, il doit aussi vous faire douter de vos amis."
+                </blockquote>
 
-        <aside class="hero-art" aria-label="Badge du jeu">
-          <div class="stamp">
-            <img class="stamp-game" src="assets/game_logo.png" alt="">
-            <div class="stamp-line"></div>
-            <img class="stamp-studio" src="assets/studio_logo.png" alt="">
-            <p class="muted">Tower Defense coop + imposteur</p>
-          </div>
-        </aside>
-      </div>
-
-      <div class="star-band" aria-hidden="true"></div>
-    </section>
-
-    <!-- LE JEU -->
-    <section id="jeu" class="section">
-      <div class="container">
-        <h2>Le jeu</h2>
-        <div class="two-col">
-          <div>
-            <p>
-              Dans <strong>¡Via Libre!</strong>, vous incarnez un <strong>groupe de révolutionnaires</strong> face à une
-              <strong>junte militaire</strong>. Les parties sont rythmées par des <strong>missions variées</strong> où vous devez
-              organiser votre défense, construire, saboter… et survivre.
-            </p>
-
-            <div class="card">
-              <h3>Missions variées</h3>
-              <ul>
-                <li>Défendre le quartier général</li>
-                <li>Libérer des camps de prisonniers</li>
-                <li>Construire une bombe</li>
-                <li>Faire exploser des raffineries</li>
-              </ul>
+                <div class="text-columns">
+                    <p class="reveal">Le tout est enrobé dans un discours politique lourd de sens. Le choix de développer sur <strong>Panda3D en Python</strong> nous a poussés à relever des défis techniques immenses.</p>
+                    <p class="reveal">Notre objectif principal était de garantir un environnement client-serveur autoritaire robuste, indispensable pour soutenir les mécaniques de sabotage de l'Imposteur sans compromettre l'expérience coopérative.</p>
+                </div>
             </div>
-          </div>
+        </section>
 
-          <div class="poster-card">
-            <img class="poster-logo" src="assets/game_logo.png" alt="Logo ¡Via Libre!">
-            <p class="poster-kicker">Action Tower Defense multijoueur</p>
-            <p class="poster-muted">Coopération • Missions • Sabotage</p>
-          </div>
-        </div>
-      </div>
-    </section>
+        <section>
+            <h2 class="section-title reveal-left" style="text-align: center; border: none;">Les Architectes</h2>
+            <p class="reveal" style="text-align: center; max-width: 800px; margin: 0 auto 4rem;">L'équipe Mychifu rassemble des talents multidisciplinaires. Chacun apporte une pierre fondamentale à l'édifice, de la programmation réseau à la narration.</p>
 
-    <!-- GAMEPLAY -->
-    <section id="gameplay" class="section alt">
-      <div class="container">
-        <h2>Gameplay : Tower Defense, en équipe</h2>
-        <div class="grid-3">
-          <div class="card">
-            <h3>Construire</h3>
-            <p>Placez vos défenses, sécurisez des zones clés et préparez vos lignes de front.</p>
-          </div>
-          <div class="card">
-            <h3>Coordonner</h3>
-            <p>Répartissez les rôles, enchaînez les objectifs et adaptez votre stratégie à la mission.</p>
-          </div>
-          <div class="card">
-            <h3>Résister</h3>
-            <p>Tenez face aux attaques de la junte et gardez le contrôle du terrain.</p>
-          </div>
-        </div>
-
-        <div class="callout">
-          <div>
-            <h3>Un rythme “mission”</h3>
-            <p>
-              Chaque partie alterne préparation et action. Les objectifs (défense, libération, sabotage…)
-              imposent des priorités différentes et rendent chaque run unique.
-            </p>
-          </div>
-          <span class="badge">COOP</span>
-        </div>
-      </div>
-    </section>
-
-    <!-- IMPOSTEUR -->
-    <section id="imposteur" class="section">
-      <div class="container">
-        <h2>Mode imposteur : El Chivato</h2>
-        <div class="two-col">
-          <div class="card">
-            <p>
-              Pendant que votre équipe réalise les missions, un joueur est secrètement <strong>El Chivato</strong>,
-              l’informateur de la junte. Son but : faire échouer la révolution.
-            </p>
-            <h3>Objectifs d’El Chivato</h3>
-            <ul>
-              <li>Saboter les machines</li>
-              <li>Empêcher l’équipe de réussir les missions</li>
-              <li>Si possible, assassiner</li>
-            </ul>
-            <p class="muted">Basé sur votre diapo.</p>
-          </div>
-
-          <div class="poster-card alt-poster">
-            <img class="poster-logo" src="assets/studio_logo.png" alt="Logo studio">
-            <p class="poster-kicker">Tension & suspicion</p>
-            <p class="poster-muted">L’ennemi est peut-être dans l’équipe.</p>
-          </div>
-        </div>
-
-        <div class="grid-3" style="margin-top: 18px;">
-          <div class="card">
-            <h3>Suspicion</h3>
-            <p>Observez les comportements, les trajectoires et les “accidents”.</p>
-          </div>
-          <div class="card">
-            <h3>Communication</h3>
-            <p>Un bon plan se fait à plusieurs… mais trop parler peut vous trahir.</p>
-          </div>
-          <div class="card">
-            <h3>Tension</h3>
-            <p>La menace n’est pas seulement extérieure : elle est parmi vous.</p>
-          </div>
-        </div>
-      </div>
-    </section>
-
-    <!-- UNIVERS -->
-    <section id="univers" class="section alt">
-      <div class="container">
-        <h2>Univers : Valparaíso & inspirations</h2>
-
-        <div class="two-col">
-          <div>
-            <p>
-              L’univers s’inspire de mouvements révolutionnaires et de dictatures militaires en Amérique latine,
-              avec un cadre affiché : <strong>Valparaíso</strong>.
-            </p>
-
-            <div class="card">
-              <h3>Références (diapo)</h3>
-              <ul class="tags" aria-label="Liste de références">
-                <li>M 26-7 (Cuba)</li>
-                <li>Dictature militaire en Argentine (1976–1983)</li>
-                <li>Dictature d’Augusto Pinochet (Chili)</li>
-                <li>Ernesto “Che” Guevara</li>
-                <li>Fidel Castro &amp; Camilo Cienfuegos</li>
-                <li>Fulgencio Batista</li>
-                <li>Jorge Rafael Videla</li>
-              </ul>
+            <div class="grid-flex">
+                <div class="card team-card reveal-scale">
+                    <h3>Noé Lopes</h3>
+                    <div class="profile-pic-placeholder"><img src="img/noe.png" alt="Photo de Noé Lopes"></div>
+                    <h4>Game Designer<br>& Compositeur</h4>
+                </div>
+                <div class="card team-card reveal-scale" style="transition-delay: 0.1s;">
+                    <h3>Ilyes Crouigneau</h3>
+                    <div class="profile-pic-placeholder"><img src="img/ilyes.png" alt="Photo de Ilyes Crouigneau"></div>
+                    <h4>Lead Gameplay<br>Programmer</h4>
+                </div>
+                <div class="card team-card reveal-scale" style="transition-delay: 0.2s;">
+                    <h3>Marada Issa</h3>
+                    <div class="profile-pic-placeholder"><img src="img/marada.png" alt="Photo de Marada Issa"></div>
+                    <h4>Directrice Artistique<br>& Audio</h4>
+                </div>
+                <div class="card team-card reveal-scale" style="transition-delay: 0.3s;">
+                    <h3>Bastien Guidetti</h3>
+                    <div class="profile-pic-placeholder"><img src="img/bastien.png" alt="Photo de Bastien Guidetti"></div>
+                    <h4>Lead Programmeur<br>Moteur</h4>
+                </div>
+                <div class="card team-card reveal-scale" style="transition-delay: 0.4s;">
+                    <h3>Nicolas Acrich Ecker</h3>
+                    <div class="profile-pic-placeholder"><img src="img/nicolas.png" alt="Photo de Nicolas Acrich Ecker"></div>
+                    <h4>Narrative<br>& Game Designer</h4>
+                </div>
             </div>
-
-            <div class="callout">
-              <div>
-                <h3>Clin d’œil ciné</h3>
-                <p>
-                  <em>Inglourious Basterds</em> (Quentin Tarantino, 2009) est une inspiration.
-                </p>
-              </div>
-              <span class="badge">INSPIRATION</span>
-            </div>
-          </div>
-
-          <div class="poster-card">
-            <img class="poster-logo" src="assets/game_logo.png" alt="Logo ¡Via Libre!">
-            <p class="poster-kicker">Valparaíso</p>
-            <p class="poster-muted">Une ville en état de siège. Une révolution à organiser.</p>
-          </div>
-        </div>
-      </div>
-    </section>
-
-    <!-- LIENS -->
-    <section id="media" class="section">
-      <div class="container">
-        <h2>Liens & ressources</h2>
-        <p class="muted"> </p>
-
-        <div class="grid-3">
-          <a class="card linkcard" href="assets/via_libre_diapo.pdf" target="_blank" rel="noreferrer">
-            <h3>Diapo (PDF)</h3>
-            <p>Télécharger / ouvrir la présentation.</p>
-            <span class="chip">PDF</span>
-          </a>
-
-          <div class="card linkcard">
-            <h3>Trailer</h3>
-            <p class="muted">/</p>
-            <span class="chip">Bientôt</span>
-          </div>
-
-          <div class="card linkcard">
-            <h3>Press kit</h3>
-            <p class="muted">/</p>
-            <span class="chip">Bientôt</span>
-          </div>
-        </div>
-
-        <div class="logo-row" aria-label="Logos">
-          <div class="logo-tile">
-            <img src="assets/studio_logo.png" alt="Logo Mychifu Entertainment">
-            <div>
-              <strong>Mychifu Entertainment</strong>
-              <div class="muted">Logo du studio</div>
-            </div>
-          </div>
-          <div class="logo-tile">
-            <img src="assets/game_logo.png" alt="Logo ¡Via Libre!">
-            <div>
-              <strong>¡Via Libre!</strong>
-              <div class="muted">Logo du jeu</div>
-            </div>
-          </div>
-        </div>
-      </div>
-    </section>
-
-    <!-- EQUIPE -->
-    <section id="equipe" class="section alt">
-      <div class="container">
-        <h2>Équipe</h2>
-        <div class="grid-3">
-          <div class="card">
-            <h3>Noé Lopes</h3>
-            <p>Game Designer, Compositeur</p>
-          </div>
-          <div class="card">
-            <h3>Ilyes Crouigneau</h3>
-            <p>Lead Gameplay Programmeur, Responsable équilibrage</p>
-          </div>
-          <div class="card">
-            <h3>Marada Issa</h3>
-            <p>Directrice Artistique, Sound Designeuse</p>
-          </div>
-          <div class="card">
-            <h3>Bastien Guidetti</h3>
-            <p>Lead Moteur Programmeur, Sound Designeur</p>
-          </div>
-          <div class="card">
-            <h3>Nicolas Acrich Ecker</h3>
-            <p>Game Designer, Narrative Designer</p>
-          </div>
-          <div class="card">
-            <h3>Contact / liens</h3>
-            <p class="muted"><a href="mailto:mychifu.studio@gmail.com">mychifu.studio@gmail.com</a></p>
-            <a class="btn small" href="#top">Retour en haut</a>
-          </div>
-        </div>
-      </div>
-    </section>
-
-    <!-- FOOTER -->
-    <footer class="footer">
-      <div class="container footer-grid">
-        <div class="footer-brand">
-          <img src="assets/game_logo.png" alt="" aria-hidden="true">
-          <div>
-            <strong>¡Via Libre!</strong><br/>
-            <span class="muted">© Mychifu Entertainment</span>
-          </div>
-        </div>
-
-        <div class="footer-links">
-          <a href="#jeu">Le jeu</a>
-          <a href="#gameplay">Gameplay</a>
-          <a href="#imposteur">Imposteur</a>
-          <a href="#univers">Univers</a>
-        </div>
-
-        <div class="fineprint muted">
-          <div>Crédits diapo : Slidesgo · Icônes : Flaticon · Images/infographies : Freepik</div>
-        </div>
-      </div>
-    </footer>
-  </main>
-
-  <div class="corner-badge" aria-hidden="true">
-    <img src="assets/studio_logo.png" alt="">
-  </div>
-
-  <script src="script.js"></script>
+        </section>
+    </main>
+    <script src="js/script.js"></script>
 </body>
 </html>
