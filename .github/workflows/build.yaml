@@ -33,4 +33,4 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: build
-          path: build/
+          path: build/win_amd64/
