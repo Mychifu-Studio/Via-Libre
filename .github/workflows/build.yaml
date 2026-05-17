@@ -1,4 +1,4 @@
-name: Build Panda3D Executable
+name: Build
 
 on:
   push:
@@ -8,27 +8,29 @@ on:
 jobs:
   build:
     runs-on: ubuntu-latest
+    env:
+      FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
     
     steps:
-      - name: Checkout du code
+      - name: Checking out code
         uses: actions/checkout@v4
         
-      - name: Setup Python
+      - name: Creating environnement
         uses: actions/setup-python@v5
         with:
           python-version: '3.10'
           
-      - name: Installation des dépendances
+      - name: Installing dependencies
         run: |
           python -m pip install --upgrade pip
           pip install panda3d setuptools
           if [ -f requirements.txt ]; then pip install -r requirements.txt; fi
           
-      - name: Construction de l'exécutable
+      - name: Building executable
         run: python setup.py bdist_apps
         
-      - name: Sauvegarde de l'artefact
+      - name: Saving artifact
         uses: actions/upload-artifact@v4
         with:
-          name: game-executable
+          name: build
           path: build/
