@@ -1,48 +1,24 @@
 from setuptools import setup
 
 setup(
-    name='MultiplayerDemo',
+    name='SimplePlayerDemo',
     options={
         'build_apps': {
-            'console_apps': {
-                'MultiplayerDemo': 'main.py'
+            # Build asteroids.exe as a GUI application
+            'gui_apps': {
+                'SimplePlayerDemo': 'main.py',
             },
 
+            # Set up output logging, important for GUI apps!
+            'log_filename': '$USER_APPDATA/SimplePlayerDemo/output.log',
+            'log_append': False,
+
+            # Specify which files are included with the distribution
             'include_patterns': [
-                './assets/dog.bam',
-                './assets/crosshair.png',
-                './assets/cursor_resized.png',
-                './assets/Turrets/*'
+                './assets/dog.bam'
             ],
 
-            # Force l'inclusion des modules locaux du projet
-            'include_modules': {
-                '*': [
-                    'vialibre.player',
-                    'vialibre.multiplayer',
-                    'vialibre.camera',
-                    'vialibre.mouseHandler',
-                    'vialibre.construction',
-                    'vialibre.interaction',
-                    'websocket',
-                ]
-            },
-
-            # Exclut les modules optionnels introuvables de websocket-client
-            'exclude_modules': {
-                '*': [
-                    'python_socks._errors',
-                    'python_socks._types',
-                    'python_socks.sync',
-                    'wsaccel.utf8validator',
-                    'wsaccel.xormask',
-                    '_bootlocale',
-                    '_posixsubprocess',
-                    'grp',
-                    '_scproxy',  # Module macOS, inutile sur Windows
-                ]
-            },
-
+            # Include the OpenGL renderer and OpenAL audio plug-in
             'plugins': [
                 'pandagl',
                 'p3openal_audio',
@@ -50,7 +26,7 @@ setup(
 
             'platforms': [
                 'win_amd64',
-            ],
+                ],
         },
 
         'bdist_apps': {

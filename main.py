@@ -7,9 +7,11 @@ from direct.gui.DirectGui import DirectFrame, DirectButton
 
 from vialibre.player import Player
 from vialibre.multiplayer import MultiplayerManager
-from vialibre.ressource_system import ResourceSystem
+from vialibre.resource_system import ResourceSystem
 from vialibre.inventory_ui import InventoryUI
 from vialibre.popup_ui import PopupUI
+from vialibre.shooting import ShootingSystem
+from vialibre.enemies import EnemyManager
 
 
 load_prc_file_data('', 'sync-video f\nshow-frame-rate-meter t')
@@ -27,6 +29,8 @@ class Test(ShowBase):
         self.disable_mouse()
 
         self.player = Player()
+
+        self.shooting = ShootingSystem(game=self, player=self.player.player)
 
         props = WindowProperties()
         props.setCursorHidden(True)
@@ -82,14 +86,28 @@ class Test(ShowBase):
         self.game_started = True
         self.resource_system.generate_random_zones(8)
 
+        self.enemies = EnemyManager(self)
+        self.enemies.spawn_random_dogs_in_area(
+            count=10,
+            area_min_x=-50,
+            area_max_x=50,
+            area_min_y=-50,
+            area_max_y=50,
+            speed=4.0,
+            scale=1.0,
+            margin=2.0,
+        )
+
         self.taskMgr.add(self.update, 'update')
 
     def update(self, task):
-        dt = globalClock.getDt()  # pyright: ignore[reportUndefinedVariable]
+        dt = globalClock.getDt()
 
         self.player.update(dt)
         self.multiplayer.update()
         self.resource_system.update()
+        self.shooting.update()
+        self.enemies.update(dt)
 
         return task.cont
 
@@ -105,6 +123,7 @@ class Test(ShowBase):
 
     def exit(self):
         self.taskMgr.remove('update')
+        self.enemies.clear()
         self.multiplayer.exit()
         self.userExit()
 
