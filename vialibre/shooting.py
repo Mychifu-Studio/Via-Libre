@@ -26,7 +26,7 @@ class ShootingSystem:
     """SRP: Gère uniquement la logique de tir et la trajectoire des balles."""
     BULLET_SPEED = 50.0
     BULLET_LIFE = 3.0
-    BULLET_SCALE = 0.2
+    BULLET_SCALE = 10
     HIT_RADIUS = 1.5
 
     def __init__(self, game, player):
@@ -75,7 +75,7 @@ class ShootingSystem:
         direction.normalize()
 
         # Création de la balle
-        node = self.game.loader.loadModel("models/misc/sphere")
+        node = self.game.loader.loadModel("assets/bullet.bam")
         node.setScale(self.BULLET_SCALE)
         node.reparentTo(self.game.render)
         node.setPos(player_pos + Vec3(0, 0, 1)) # Départ légèrement en hauteur depuis le joueur
