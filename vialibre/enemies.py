@@ -229,6 +229,7 @@ class EnemyManager:
             if enemy.is_touched_by_segment(start_pos, end_pos, hit_radius):
                 enemy.destroy()
                 self.enemies.remove(enemy)
+                self.game.messenger.send("enemy-hit")
                 return True
         return False
 
