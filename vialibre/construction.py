@@ -3,6 +3,7 @@ from panda3d.core import TransparencyAttrib, Vec3, Point3, Plane, NodePath
 from panda3d.core import CollisionNode, CollisionBox, TextNode
 from panda3d.core import LineSegs
 from direct.interval.IntervalGlobal import Sequence, LerpPosInterval, Func
+from direct.showbase.DirectObject import DirectObject
 
 from vialibre.radialMenu import RadialMenu
 
@@ -252,10 +253,10 @@ class Hologram:
         self.np.setPos(pos)
         self.np.setHpr(hpr)
 
-class BuildManager:
-    """SRP: Orchestre la logique de construction."""
+class BuildManager(DirectObject):
     # --- MODIFIÉ : Ajout de enemy_manager en argument ---
     def __init__(self, showbase, player_root, camera, mouse):
+        super().__init__() 
         self.base = showbase
         self.player_root = player_root
         self.camera = camera
@@ -314,12 +315,12 @@ class BuildManager:
         self.camera.setZoomLock(self.mode_actif)
         if self.mode_actif: 
             self.hologramme.show()
-            self.base.accept("mouse1", self.ouvrir_menu_construction)
-            self.base.accept("mouse1-up", self.fermer_menu_construction)
+            self.accept("mouse1", self.ouvrir_menu_construction)
+            self.accept("mouse1-up", self.fermer_menu_construction)
         else: 
             self.hologramme.hide()
-            self.base.ignore("mouse1")
-            self.base.ignore("mouse1-up")
+            self.ignore("mouse1")
+            self.ignore("mouse1-up")
             if self.radial_menu.is_open:
                 self.fermer_menu_construction()
 
@@ -328,6 +329,7 @@ class BuildManager:
             return
 
         if self.base.inventory["ressource"] < self.cost:
+            self.basculer_mode()
             return
 
         pos = self.locked_build_pos if self.locked_build_pos is not None else self.hologramme.get_pos()
