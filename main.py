@@ -86,10 +86,10 @@ class MainGame(ShowBase):
         self.environment = EnvironmentManager(self.render)
 
         # Entités & Systèmes
+        self.enemies = EnemyManager(self)
         self.player = Player()
         self.shooting = ShootingSystem(game=self, player=self.player.player)
         self.multiplayer = MultiplayerManager(self, self.player)
-        self.enemies = EnemyManager(self)
         self.enemies.spawn_random_dogs_in_area()
 
         # UI & Inventaire

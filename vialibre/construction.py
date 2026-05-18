@@ -1,6 +1,8 @@
 # construction.py
 from panda3d.core import TransparencyAttrib, Vec3, Point3, Plane, NodePath
 from panda3d.core import CollisionNode, CollisionBox, TextNode
+from panda3d.core import LineSegs
+from direct.interval.IntervalGlobal import Sequence, LerpPosInterval, Func
 
 def load_turret(base, np):
     pivot = base.render.attachNewNode("turret_pivot")
@@ -57,10 +59,11 @@ class FloatingUI:
     def hide(self): self.ui_np.hide()
 
 class Structure:
-    """SRP: Gère uniquement la représentation d'une structure placée dans le monde."""
-    def __init__(self, base, position, rotation, on_destroy_callback):
+    """SRP: Gère la représentation d'une structure placée dans le monde et son comportement."""
+    def __init__(self, base, position, rotation, on_destroy_callback, enemy_manager=None):
         self.base = base
         self.on_destroy_callback = on_destroy_callback
+        self.enemy_manager = enemy_manager
         
         self.np = NodePath("structure_root")
         self.np.reparentTo(self.base.render)
@@ -77,9 +80,103 @@ class Structure:
         self.col_np = self.np.attachNewNode(col_node)
         self.col_np.setPythonTag("structure", self)
 
-        self.ui = FloatingUI(self.base, self.np, "Supprimer [Clic]") # Mis à jour pour indiquer le clic (ou autre action si défini)
+        self.ui = FloatingUI(self.base, self.np, "Supprimer [Clic]")
+
+        # --- NOUVEAU : Paramètres de combat ---
+        self.activation_radius = 15.0  # Distance à partir de laquelle on vise/tire
+        self.fire_rate = 1.0           # Temps en secondes entre chaque tir
+        self.time_since_last_shot = 0.0
+        
+        # --- NOUVEAU : Tâche de mise à jour propre à la tourelle ---
+        self.task_name = f"turret_update_{id(self)}"
+        self.base.taskMgr.add(self.update_task, self.task_name)
+
+    def create_tracer_effect(self, start_pos, target_pos):
+        # 1. Création de la forme du tracer
+        lines = LineSegs()
+        lines.setThickness(4.0)
+        lines.setColor(1.0, 0.8, 0.2, 1.0) # Couleur jaune-orangée
+        
+        direction = target_pos - start_pos
+        distance = direction.length()
+        if distance < 0.1: 
+            return
+            
+        direction.normalize()
+        # Le tracer est un petit segment (max 1.5 unité de long)
+        tracer_length = min(1.5, distance) 
+        
+        lines.moveTo(0, 0, 0)
+        lines.drawTo(direction * tracer_length)
+        
+        # 2. Ajout du tracer dans le monde
+        tracer_np = self.base.render.attachNewNode(lines.create())
+        tracer_np.setPos(start_pos)
+        tracer_np.setLightOff() # Rend le tracer lumineux même sans lumière dynamique
+        
+        # 3. Animation
+        speed = 120.0 # Vitesse de déplacement très rapide
+        duration = distance / speed
+        
+        # Sequence exécute les actions l'une après l'autre :
+        # - Déplace le tracer de A vers B
+        # - Puis appelle une fonction pour le supprimer
+        seq = Sequence(
+            LerpPosInterval(tracer_np, duration, target_pos, startPos=start_pos),
+            Func(tracer_np.removeNode)
+        )
+        seq.start()
+
+    def update_task(self, task):
+        # Calcul du deltaTime
+        dt = task.time - getattr(task, 'last_time', task.time)
+        task.last_time = task.time
+
+        if not self.enemy_manager or not self.enemy_manager.enemies:
+            return task.cont
+
+        my_pos = self.np.getPos(self.base.render)
+        closest_enemy = None
+        min_dist = float('inf')
+
+        # 1. Trouver l'ennemi le plus proche
+        for enemy in self.enemy_manager.enemies:
+            enemy_pos = enemy.node.getPos(self.base.render)
+            dist = (enemy_pos - my_pos).length()
+            if dist < min_dist:
+                min_dist = dist
+                closest_enemy = enemy
+
+        # 2. S'orienter et tirer si dans le rayon d'activation
+        if closest_enemy and min_dist <= self.activation_radius:
+            enemy_pos = closest_enemy.node.getPos(self.base.render)
+            
+            # Orienter la tourelle (sécurité pour éviter une erreur si distance == 0)
+            if min_dist > 0.1:
+                self.np.lookAt(enemy_pos)
+                # On bloque le pitch/roll à 0 pour que la base de la tourelle reste droite sur le sol
+                self.np.setHpr(self.np.getH() + 180, 0, 0) # +180 sinon ça pointait du cul
+
+            # Gérer la cadence de tir
+            self.time_since_last_shot += dt
+            if self.time_since_last_shot >= self.fire_rate:
+                self.time_since_last_shot = 0.0
+
+                start_pos_visuel = Point3(my_pos.x, my_pos.y, my_pos.z + 1.2)
+                target_pos_visuel = Point3(enemy_pos.x, enemy_pos.y, enemy_pos.z + 0.5)
+
+                self.create_tracer_effect(start_pos_visuel, target_pos_visuel)
+                
+                # Le tir est calculé comme un segment instantané (hitscan)
+                # Si le segment "touche" l'ennemi le plus proche, la méthode l'éliminera.
+                self.enemy_manager.check_projectile_hit(my_pos, enemy_pos, hit_radius=1.0)
+
+        return task.cont
 
     def detruire(self):
+        # Nettoyer la tâche lorsqu'on supprime la tourelle
+        self.base.taskMgr.remove(self.task_name)
+        
         self.np.removeNode()
         if self.on_destroy_callback:
             self.on_destroy_callback(self)
@@ -114,10 +211,12 @@ class Hologram:
 
 class BuildManager:
     """SRP: Orchestre la logique de construction."""
+    # --- MODIFIÉ : Ajout de enemy_manager en argument ---
     def __init__(self, showbase, player_root, camera):
         self.base = showbase
         self.player_root = player_root
         self.camera = camera
+        self.enemy_manager = self.base.enemies # <-- Sauvegarde de la référence
         
         self.mode_actif = False
         self.distance_construction = 2.5 
@@ -128,8 +227,6 @@ class BuildManager:
         self.structures = []
         self.hologramme = Hologram(self.base)
 
-    # Note: ajuster_distance() retiré car n'avait de sens qu'en mode 3ème personne
-
     def basculer_mode(self):
         self.mode_actif = not self.mode_actif
         self.camera.setZoomLock(self.mode_actif)
@@ -138,11 +235,13 @@ class BuildManager:
 
     def valider_construction(self):
         if self.mode_actif:
+            # --- MODIFIÉ : On passe l'enemy_manager à la nouvelle structure ---
             nouvelle_structure = Structure(
                 self.base, 
                 self.hologramme.get_pos(), 
                 self.hologramme.get_hpr(), 
-                self._on_structure_detruite
+                self._on_structure_detruite,
+                self.enemy_manager
             )
             self.structures.append(nouvelle_structure)
             self.basculer_mode()
