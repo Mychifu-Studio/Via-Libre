@@ -46,7 +46,7 @@ class InteractionManager:
         pos_joueur.setZ(0)
 
         structure = self.get_structure_sous_souris()
-        if structure:
+        if structure and self.build_manager.mode_actif:
             pos_s = structure.np.getPos(self.base.render)
             pos_s.setZ(0)
             if (pos_s - pos_joueur).length() <= self.build_manager.rayon_max_construction:
