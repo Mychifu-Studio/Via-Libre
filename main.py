@@ -12,6 +12,7 @@ from vialibre.inventory_ui import InventoryUI
 from vialibre.popup_ui import PopupUI
 from vialibre.shooting import ShootingSystem
 from vialibre.enemies import EnemyManager
+from vialibre.vague import VagueManager
 
 
 load_prc_file_data('', 'sync-video f\nshow-frame-rate-meter t')
@@ -86,17 +87,14 @@ class Test(ShowBase):
         self.game_started = True
         self.resource_system.generate_random_zones(8)
 
+        # ENNEMIS + VAGUES
         self.enemies = EnemyManager(self)
-        self.enemies.spawn_random_dogs_in_area(
-            count=10,
-            area_min_x=-50,
-            area_max_x=50,
-            area_min_y=-50,
-            area_max_y=50,
-            speed=4.0,
-            scale=1.0,
-            margin=2.0,
-        )
+        self.vague_manager = VagueManager(self, self.enemies)
+        self.vague_manager.start()
+
+        # Quand un ennemi est touché par un projectile,
+        # shooting.py doit envoyer l'événement "enemy-hit"
+        self.accept("enemy-hit", self.reward_enemy_hit)
 
         self.taskMgr.add(self.update, 'update')
 
@@ -108,8 +106,19 @@ class Test(ShowBase):
         self.resource_system.update()
         self.shooting.update()
         self.enemies.update(dt)
+        self.vague_manager.update(dt)
 
         return task.cont
+
+    def reward_enemy_hit(self):
+        self.inventory["ressource"] = self.inventory.get("ressource", 0) + 1
+        self.inventory_ui.update()
+
+        self.popup_ui.show_popup(
+            f"Ennemi touché : ressource +1 ! Total : {self.inventory['ressource']}"
+        )
+
+        self.vague_manager.enemy_killed()
 
     def menu(self):
         self.is_esc = not self.is_esc

@@ -115,29 +115,7 @@ class ShootingSystem:
             "speed": self.BULLET_SPEED,
             "life":  self.BULLET_LIFE,
         })
-
-    def _reward_enemy_hit(self):
-        """
-        Donne +1 ressource quand un projectile touche un ennemi.
-        """
-        if not hasattr(self.game, "inventory"):
-            return
-
-        self.game.inventory["ressource"] = self.game.inventory.get("ressource", 0) + 1
-
-        if hasattr(self.game, "inventory_ui"):
-            self.game.inventory_ui.update()
-
-        if hasattr(self.game, "popup_ui"):
-            self.game.popup_ui.show_popup(
-                f"Ennemi touché : ressource +1 ! "
-                f"(Total : {self.game.inventory['ressource']})"
-            )
-
-    # ──────────────────────────────────────────────────────────────────────
-    # Update — à appeler chaque frame depuis main.py
-    # ──────────────────────────────────────────────────────────────────────
-
+        
     def update(self):
         dt = globalClock.getDt()  # pyright: ignore[reportUndefinedVariable]
 
@@ -163,7 +141,7 @@ class ShootingSystem:
                 if has_hit_enemy:
                     bullet["node"].removeNode()
                     self.bullets.remove(bullet)
-                    self._reward_enemy_hit()
+                    self.game.messenger.send("enemy-hit")
                     continue
 
             bullet["life"] -= dt
