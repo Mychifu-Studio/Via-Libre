@@ -4,6 +4,8 @@ from panda3d.core import CollisionNode, CollisionBox, TextNode
 from panda3d.core import LineSegs
 from direct.interval.IntervalGlobal import Sequence, LerpPosInterval, Func
 
+from vialibre.radialMenu import RadialMenu
+
 def load_turret(base, np):
     pivot = base.render.attachNewNode("turret_pivot")
     
@@ -253,10 +255,11 @@ class Hologram:
 class BuildManager:
     """SRP: Orchestre la logique de construction."""
     # --- MODIFIÉ : Ajout de enemy_manager en argument ---
-    def __init__(self, showbase, player_root, camera):
+    def __init__(self, showbase, player_root, camera, mouse):
         self.base = showbase
         self.player_root = player_root
         self.camera = camera
+        self.mouse = mouse
         self.enemy_manager = self.base.enemies # <-- Sauvegarde de la référence
         
         self.mode_actif = False
@@ -270,25 +273,94 @@ class BuildManager:
         self.structures = []
         self.hologramme = Hologram(self.base)
 
+        self.locked_build_pos = None
+        self.locked_build_hpr = None
+
+        self.radial_menu = RadialMenu(
+            base=self.base,
+            mouse=self.mouse,
+            name="Tourelles",
+            options=[
+                ("Crossbow", "./assets/Turrets/Crossbow.png"),
+                ("Crossbow", "./assets/Turrets/Crossbow.png"),
+                ("Crossbow", "./assets/Turrets/Crossbow.png"),
+                ("Crossbow", "./assets/Turrets/Crossbow.png"),
+            ],
+            open_event="mouse1",       # Maintien du clic gauche
+            close_event="mouse1-up",   # Relâchement du clic gauche
+            bind_events=False,         # On va lier les events manuellement car on les veut actifs que dans le mode_actif
+            on_select=self.on_radial_select,
+            on_cancel=self.on_radial_cancel
+        )
+
+    def ouvrir_menu_construction(self):
+        if not self.mode_actif or self.radial_menu.is_open:
+            return
+
+        self.locked_build_pos = Point3(self.hologramme.get_pos())
+        self.locked_build_hpr = Vec3(self.hologramme.get_hpr())
+        self.radial_menu.open_menu()
+
+    def fermer_menu_construction(self):
+        if not self.radial_menu.is_open:
+            return
+
+        self.radial_menu.close_menu()
+        self.locked_build_pos = None
+        self.locked_build_hpr = None
+
     def basculer_mode(self):
         self.mode_actif = not self.mode_actif
         self.camera.setZoomLock(self.mode_actif)
-        if self.mode_actif: self.hologramme.show()
-        else: self.hologramme.hide()
+        if self.mode_actif: 
+            self.hologramme.show()
+            self.base.accept("mouse1", self.ouvrir_menu_construction)
+            self.base.accept("mouse1-up", self.fermer_menu_construction)
+        else: 
+            self.hologramme.hide()
+            self.base.ignore("mouse1")
+            self.base.ignore("mouse1-up")
+            if self.radial_menu.is_open:
+                self.fermer_menu_construction()
 
-    def valider_construction(self):
-        if self.mode_actif and self.base.inventory["ressource"] >= self.cost:
-            # --- MODIFIÉ : On passe l'enemy_manager à la nouvelle structure ---
-            nouvelle_structure = Structure(
-                self.base, 
-                self.hologramme.get_pos(), 
-                self.hologramme.get_hpr(), 
-                self._on_structure_detruite,
-                self.enemy_manager
-            )
-            self.structures.append(nouvelle_structure)
-            self.base.inventory["ressource"] -= self.cost
-            self.basculer_mode()
+    def on_radial_select(self, index, option):
+        if not self.mode_actif:
+            return
+
+        if self.base.inventory["ressource"] < self.cost:
+            return
+
+        pos = self.locked_build_pos if self.locked_build_pos is not None else self.hologramme.get_pos()
+        hpr = self.locked_build_hpr if self.locked_build_hpr is not None else self.hologramme.get_hpr()
+
+        nouvelle_structure = Structure(
+            self.base,
+            pos,
+            hpr,
+            self._on_structure_detruite,
+            self.enemy_manager
+        )
+        self.structures.append(nouvelle_structure)
+        self.base.inventory["ressource"] -= self.cost
+        self.basculer_mode()
+
+
+    def on_radial_cancel(self):
+        pass
+
+    # def valider_construction(self):
+    #     if self.mode_actif and self.base.inventory["ressource"] >= self.cost:
+    #         # --- MODIFIÉ : On passe l'enemy_manager à la nouvelle structure ---
+    #         nouvelle_structure = Structure(
+    #             self.base, 
+    #             self.hologramme.get_pos(), 
+    #             self.hologramme.get_hpr(), 
+    #             self._on_structure_detruite,
+    #             self.enemy_manager
+    #         )
+    #         self.structures.append(nouvelle_structure)
+    #         self.base.inventory["ressource"] -= self.cost
+    #         self.basculer_mode()
 
     def _on_structure_detruite(self, structure):
         if structure in self.structures:
@@ -314,7 +386,7 @@ class BuildManager:
         return position_cible
 
     def update(self):
-        if not self.mode_actif:
+        if not self.mode_actif or self.radial_menu.is_open:
             return
             
         if self.base.mouseWatcherNode.hasMouse():

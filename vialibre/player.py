@@ -33,7 +33,7 @@ class Player(DirectObject):
 
         self.camera = Camera(self.player)
 
-        self.build_manager = BuildManager(self.base, self.player, self.camera)
+        self.build_manager = BuildManager(self.base, self.player, self.camera, self.camera.mouse)
         self.interaction_manager = InteractionManager(self.base, self.player, self.camera, self.build_manager)
 
         self.movementVector = Vec3(0)
@@ -75,7 +75,7 @@ class Player(DirectObject):
         self.accept('control-up', self.updateKeyMap, ['ctrl', False])
 
         self.accept('c',     self.build_manager.basculer_mode)
-        self.accept('space', self.build_manager.valider_construction)
+
         self.accept('mouse1',    self.handleLeftClick)
         self.accept('mouse1-up', self.cursorScaleUp.start)
 
@@ -101,7 +101,7 @@ class Player(DirectObject):
             cible.detruire()
             return
         if self.build_manager.mode_actif:
-            self.build_manager.valider_construction()
+            pass
 
     def update(self, dt):
         self.updateCursor()
