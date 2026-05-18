@@ -282,10 +282,10 @@ class BuildManager(DirectObject):
             mouse=self.mouse,
             name="Tourelles",
             options=[
-                ("Crossbow", "./assets/Turrets/Crossbow.png"),
-                ("Crossbow", "./assets/Turrets/Crossbow.png"),
-                ("Crossbow", "./assets/Turrets/Crossbow.png"),
-                ("Crossbow", "./assets/Turrets/Crossbow.png"),
+                ("5 Ressources", "./assets/Turrets/turret.png"),
+                ("5 Ressources", "./assets/Turrets/turret.png"),
+                ("5 Ressources", "./assets/Turrets/turret.png"),
+                ("5 Ressources", "./assets/Turrets/turret.png"),
             ],
             open_event="mouse1",       # Maintien du clic gauche
             close_event="mouse1-up",   # Relâchement du clic gauche
@@ -329,6 +329,7 @@ class BuildManager(DirectObject):
             return
 
         if self.base.inventory["ressource"] < self.cost:
+            print("Ressources insufisantes !")
             self.basculer_mode()
             return
 
