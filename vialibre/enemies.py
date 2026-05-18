@@ -3,8 +3,8 @@ import os
 import random
 from panda3d.core import Filename, Vec3
 
+
 class MathUtils:
-    """SRP: Utilitaire pour les calculs mathématiques et géométriques."""
     @staticmethod
     def ray_rectangle_intersection(start, direction, min_x, max_x, min_y, max_y):
         t_values = []
@@ -14,7 +14,8 @@ class MathUtils:
             t_values.append((max_y - start.y) / direction.y if direction.y > 0 else (min_y - start.y) / direction.y)
 
         positive_t = [t for t in t_values if t > 0]
-        if not positive_t: return Vec3(start)
+        if not positive_t:
+            return Vec3(start)
 
         end = start + direction * min(positive_t)
         end.setZ(0)
@@ -25,34 +26,38 @@ class MathUtils:
         segment, vector = end_pos - start_pos, point - start_pos
         segment.setZ(0)
         vector.setZ(0)
-        
+
         sq_len = segment.lengthSquared()
         if sq_len <= 0.0001:
             return vector.length()
-            
+
         projection = max(0.0, min(1.0, vector.dot(segment) / sq_len))
         closest_point = start_pos + segment * projection
         closest_point.setZ(0)
-        
+
         p2 = Vec3(point)
         p2.setZ(0)
         return (p2 - closest_point).length()
 
+
 class DogEnemy:
-    """SRP: Gère uniquement le cycle de vie et le déplacement de l'ennemi individuel."""
+    MAX_HP = 3
+    CONTACT_RADIUS = 1.5
+
     def __init__(self, game, start_pos, end_pos, speed=4.0, scale=1.0, respawn_callback=None):
         self.game = game
         self.speed = speed
         self.respawn_callback = respawn_callback
         self.is_dead = False
-        
+        self.hp = self.MAX_HP
+
         self.start_pos = Vec3(start_pos)
         self.end_pos = Vec3(end_pos)
-        
+
         self.node = self._load_model()
         self.node.reparentTo(self.game.render)
         self.node.setScale(scale)
-        
+
         self._recalculate_movement()
 
     def _load_model(self):
@@ -64,7 +69,7 @@ class DogEnemy:
         self.node.setPos(self.start_pos)
         movement = self.end_pos - self.start_pos
         movement.setZ(0)
-        
+
         if movement.length() <= 0.001:
             self.direction = Vec3(0, 0, 0)
             self.is_dead = True
@@ -72,8 +77,18 @@ class DogEnemy:
             self.direction = movement.normalized()
             self.node.lookAt(self.end_pos)
 
+    def take_damage(self, amount=1):
+        if self.is_dead:
+            return False
+        self.hp -= amount
+        if self.hp <= 0:
+            self.destroy()
+            return True
+        return False
+
     def update(self, dt):
-        if self.is_dead: return
+        if self.is_dead:
+            return
 
         current_pos = self.node.getPos(self.game.render)
         next_pos = current_pos + self.direction * self.speed * dt
@@ -83,13 +98,23 @@ class DogEnemy:
         else:
             self.node.setPos(next_pos)
 
+    def is_touching_point(self, point):
+        if self.is_dead:
+            return False
+        pos = self.node.getPos(self.game.render)
+        diff = Vec3(point.x - pos.x, point.y - pos.y, 0)
+        return diff.length() <= self.CONTACT_RADIUS
+
     def is_touched_by_segment(self, start_pos, end_pos, hit_radius):
-        if self.is_dead: return False
+        if self.is_dead:
+            return False
         dist = MathUtils.distance_segment_to_point(start_pos, end_pos, self.node.getPos(self.game.render))
         return dist <= hit_radius
 
     def respawn(self):
-        if self.is_dead: return
+        if self.is_dead:
+            return
+        self.hp = self.MAX_HP
         if self.respawn_callback:
             self.start_pos, self.end_pos = self.respawn_callback()
         self._recalculate_movement()
@@ -98,8 +123,8 @@ class DogEnemy:
         self.is_dead = True
         self.node.removeNode()
 
+
 class EnemyManager:
-    """SRP: Gère l'apparition (spawn) et le contrôle global des groupes d'ennemis."""
     def __init__(self, game):
         self.game = game
         self.enemies = []
@@ -130,8 +155,15 @@ class EnemyManager:
     def check_projectile_hit(self, start_pos, end_pos, hit_radius):
         for enemy in self.enemies:
             if enemy.is_touched_by_segment(start_pos, end_pos, hit_radius):
-                enemy.destroy()
-                self.enemies.remove(enemy)
+                killed = enemy.take_damage(1)
+                if killed:
+                    self.enemies.remove(enemy)
+                return True
+        return False
+
+    def check_player_contact(self, player_pos):
+        for enemy in self.enemies:
+            if enemy.is_touching_point(player_pos):
                 return True
         return False
 
@@ -139,3 +171,10 @@ class EnemyManager:
         for enemy in self.enemies:
             enemy.update(dt)
         self.enemies = [e for e in self.enemies if not e.is_dead]
+
+        if hasattr(self.game, 'player'):
+            player_np = getattr(self.game.player, 'player', None)
+            if player_np is not None:
+                player_pos = player_np.getPos(self.game.render)
+                if self.check_player_contact(player_pos):
+                    self.game.messenger.send("player-take-damage")

@@ -10,15 +10,18 @@ from direct.interval.IntervalGlobal import LerpScaleInterval
 from vialibre.camera import Camera
 from vialibre.construction import BuildManager
 from vialibre.interaction import InteractionManager
-from math import degrees, atan2
+
 
 class Player(DirectObject):
+    MAX_HP = 10
+    DAMAGE_COOLDOWN = 0.5
+
     def __init__(self, showbase: ShowBase = None):
         self.base = showbase if showbase else base
 
         self.player = self.base.render.attachNewNode('player')
         self.modelNode = self.player.attachNewNode('player-model')
-       
+
         self.model = self.base.loader.loadModel('./assets/dog.bam')
         self.model.setScale(self.model.getScale())
         self.model.reparentTo(self.modelNode)
@@ -36,7 +39,10 @@ class Player(DirectObject):
         self.movementVector = Vec3(0)
         self.lastMovement = Vec3(0)
         self.playerSpeed = 10
-        self.turnSpeed = 10.0 
+        self.turnSpeed = 10.0
+
+        self.hp = self.MAX_HP
+        self._damage_cooldown_remaining = 0.0
 
         self.is_paused = False
 
@@ -55,72 +61,72 @@ class Player(DirectObject):
         self.cursorRoot.setScale(*scale)
 
         self.cursorScaleDown = LerpScaleInterval(self.cursorRoot, duration=0.05, scale=scale_anim, startScale=scale)
-        self.cursorScaleUp = LerpScaleInterval(self.cursorRoot, duration=0.1, scale=scale, startScale=scale_anim)
+        self.cursorScaleUp  = LerpScaleInterval(self.cursorRoot, duration=0.1,  scale=scale,      startScale=scale_anim)
 
-        # Crosshair retiré
-
-        self.accept('raw-w', self.updateKeyMap, ['forward', True])
-        self.accept('raw-w-up', self.updateKeyMap, ['forward', False])
-        self.accept('raw-a', self.updateKeyMap, ['left', True])
-        self.accept('raw-a-up', self.updateKeyMap, ['left', False])
-        self.accept('raw-s', self.updateKeyMap, ['backward', True])
+        self.accept('raw-w',    self.updateKeyMap, ['forward',  True])
+        self.accept('raw-w-up', self.updateKeyMap, ['forward',  False])
+        self.accept('raw-a',    self.updateKeyMap, ['left',     True])
+        self.accept('raw-a-up', self.updateKeyMap, ['left',     False])
+        self.accept('raw-s',    self.updateKeyMap, ['backward', True])
         self.accept('raw-s-up', self.updateKeyMap, ['backward', False])
-        self.accept('raw-d', self.updateKeyMap, ['right', True])
-        self.accept('raw-d-up', self.updateKeyMap, ['right', False])
-
-        self.accept('control', self.updateKeyMap, ['ctrl', True])
+        self.accept('raw-d',    self.updateKeyMap, ['right',    True])
+        self.accept('raw-d-up', self.updateKeyMap, ['right',    False])
+        self.accept('control',    self.updateKeyMap, ['ctrl', True])
         self.accept('control-up', self.updateKeyMap, ['ctrl', False])
 
-        self.accept('c', self.build_manager.basculer_mode)
+        self.accept('c',     self.build_manager.basculer_mode)
         self.accept('space', self.build_manager.valider_construction)
-        self.accept('mouse1', self.handleLeftClick)
+        self.accept('mouse1',    self.handleLeftClick)
         self.accept('mouse1-up', self.cursorScaleUp.start)
 
         self.keyMap = {
-            "forward": False,
-            "backward": False,
-            "left": False,
-            "right": False,
+            "forward": False, "backward": False,
+            "left": False,    "right": False,
             "ctrl": False,
         }
 
+    def take_damage(self, amount=1):
+        if self._damage_cooldown_remaining > 0:
+            return
+        self.hp -= amount
+        self._damage_cooldown_remaining = self.DAMAGE_COOLDOWN
+        self.base.messenger.send("player-hp-changed", [self.hp])
+        if self.hp <= 0:
+            self.base.messenger.send("player-dead")
+
     def handleLeftClick(self):
         self.cursorScaleDown.start()
-        
         cible = self.interaction_manager.structure_cible
         if cible:
             cible.detruire()
             return
-
         if self.build_manager.mode_actif:
             self.build_manager.valider_construction()
 
     def update(self, dt):
         self.updateCursor()
 
+        if self._damage_cooldown_remaining > 0:
+            self._damage_cooldown_remaining = max(0.0, self._damage_cooldown_remaining - dt)
+
         if self.is_paused:
             self.cursor.show()
             return
-       
+
         forward = self.base.render.getRelativeVector(self.camera.pivot, Vec3(0, 1, 0))
-        right = self.base.render.getRelativeVector(self.camera.pivot, Vec3(1, 0, 0))
+        right   = self.base.render.getRelativeVector(self.camera.pivot, Vec3(1, 0, 0))
 
         forward.setZ(0)
         right.setZ(0)
 
         if forward.lengthSquared() > 0: forward.normalize()
-        if right.lengthSquared() > 0: right.normalize()
+        if right.lengthSquared() > 0:   right.normalize()
 
         input_vec = Vec3(0)
-
-        if self.keyMap['forward']:
-            input_vec += forward
-        if self.keyMap['backward']:
-            input_vec -= forward
-        if self.keyMap['right']:
-            input_vec += right
-        if self.keyMap['left']:
-            input_vec -= right
+        if self.keyMap['forward']:  input_vec += forward
+        if self.keyMap['backward']: input_vec -= forward
+        if self.keyMap['right']:    input_vec += right
+        if self.keyMap['left']:     input_vec -= right
 
         if input_vec.lengthSquared() > 0:
             input_vec.normalize()
@@ -136,19 +142,18 @@ class Player(DirectObject):
 
         new_cam_pos = self.camera.calculateCameraPos(dt, self.movementVector, self.lastMovement, self.keyMap["ctrl"] or self.is_paused)
         self.camera.setPos(new_cam_pos)
-        
+
         if not (self.is_paused or self.keyMap['ctrl']):
             self.camera.updateFov(dt, any(self.keyMap.values()))
 
         self.lastMovement = self.movementVector
 
-        self.interaction_manager.update() 
+        self.interaction_manager.update()
         self.build_manager.update()
-           
+
     def updateCursor(self):
         if getattr(self.base, 'win', None) is None:
             return
-       
         if self.base.mouseWatcherNode.hasMouse():
             self.cursor.show()
             x = self.base.mouseWatcherNode.getMouseX()
@@ -160,5 +165,5 @@ class Player(DirectObject):
 
     def updateKeyMap(self, key, value):
         self.keyMap[key] = value
-        if key == 'ctrl' and value == False:
+        if key == 'ctrl' and not value:
             self.camera.mouse.centerMouse()
