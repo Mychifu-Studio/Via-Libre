@@ -22,7 +22,6 @@ vgcore.*
 # Temporary build files
 /_vfsimporter.*
 *.pdb
-*.obj
 *.o
 *.gch
 *.pch
@@ -91,3 +90,11 @@ wheels/
 .installed.cfg
 *.egg
 MANIFEST
+
+
+# CUSTOM
+*.iss
+certif/
+.venv/
+server/
+*.nix
