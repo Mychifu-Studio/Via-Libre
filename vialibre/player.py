@@ -154,7 +154,7 @@ class Player(DirectObject):
     def updateCursor(self):
         if getattr(self.base, 'win', None) is None:
             return
-        if self.base.mouseWatcherNode.hasMouse():
+        if self.base.mouseWatcherNode.hasMouse() and (not self.build_manager.mode_actif or self.is_paused):
             self.cursor.show()
             x = self.base.mouseWatcherNode.getMouseX()
             y = self.base.mouseWatcherNode.getMouseY()
