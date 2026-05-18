@@ -169,7 +169,6 @@ class DogEnemy:
         self.node.removeNode()
 
 class EnemyManager:
-    """SRP: Gère l'apparition (spawn) et le contrôle global des groupes d'ennemis."""
     def __init__(self, game):
         self.game = game
         self.enemies = []
