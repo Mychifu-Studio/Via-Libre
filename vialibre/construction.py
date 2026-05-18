@@ -3,6 +3,9 @@ from panda3d.core import TransparencyAttrib, Vec3, Point3, Plane, NodePath
 from panda3d.core import CollisionNode, CollisionBox, TextNode
 from panda3d.core import LineSegs
 from direct.interval.IntervalGlobal import Sequence, LerpPosInterval, Func
+from direct.showbase.DirectObject import DirectObject
+
+from vialibre.radialMenu import RadialMenu
 
 def load_turret(base, np):
     pivot = base.render.attachNewNode("turret_pivot")
@@ -30,6 +33,32 @@ def load_turret(base, np):
     pivot.setPos(0, 0, 0) 
     pivot.reparentTo(np)
     
+    return pivot
+
+def load_hologram(base, np):
+    pivot = base.render.attachNewNode("hologram_pivot")
+    
+    try:
+        model = base.loader.loadModel("./assets/arrow.bam")
+        model.setScale(0.1)
+        model.reparentTo(pivot)
+        
+        min_bounds, max_bounds = model.getTightBounds()
+        center = (min_bounds + max_bounds) / 2.0
+        
+        tweak_x = 0.0
+        tweak_y = -0.4
+        tweak_z = 0.0
+        
+        model.setPos(-center[0] + tweak_x, -center[1] + tweak_y, -center[2] + tweak_z)
+        pivot.setHpr(0, -90, 0)
+        
+    except Exception as e:
+        print(f"Erreur de chargement : {e}")
+
+    pivot.setPos(0, 0, 0) 
+    pivot.reparentTo(np)
+
     return pivot
 
 from panda3d.core import BillboardEffect
@@ -87,6 +116,9 @@ class Structure:
         self.fire_rate = 1.0           # Temps en secondes entre chaque tir
         self.time_since_last_shot = 0.0
 
+        # Options possibles: "closest" (plus proche) ou "lowest_hp" (moins de PV)
+        self.targeting_mode = "lowest_hp" 
+
         self.offset_turret = Vec3(0, 0, 0.5)
         self.offset_enemies = Vec3(0, 0, 0)
         
@@ -131,7 +163,6 @@ class Structure:
         seq.start()
 
     def update_task(self, task):
-        # Calcul du deltaTime
         dt = task.time - getattr(task, 'last_time', task.time)
         task.last_time = task.time
 
@@ -139,40 +170,50 @@ class Structure:
             return task.cont
 
         my_pos = self.np.getPos(self.base.render)
-        closest_enemy = None
-        min_dist = float('inf')
-
-        # 1. Trouver l'ennemi le plus proche
+        
+        # 1. Récupérer tous les ennemis valides (dans le rayon d'activation)
+        valid_enemies = []
         for enemy in self.enemy_manager.enemies:
             enemy_pos = enemy.node.getPos(self.base.render)
             dist = (enemy_pos - my_pos).length()
-            if dist < min_dist:
-                min_dist = dist
-                closest_enemy = enemy
-
-        # 2. S'orienter et tirer si dans le rayon d'activation
-        if closest_enemy and min_dist <= self.activation_radius:
-            enemy_pos = closest_enemy.node.getPos(self.base.render)
             
-            # Orienter la tourelle (sécurité pour éviter une erreur si distance == 0)
-            if min_dist > 0.1:
-                self.np.lookAt(enemy_pos)
-                # On bloque le pitch/roll à 0 pour que la base de la tourelle reste droite sur le sol
-                self.np.setHpr(self.np.getH() + 180, 0, 0) # +180 sinon ça pointait du cul
+            if dist <= self.activation_radius:
+                # On stocke un tuple avec (l'ennemi, sa distance, ses PV)
+                valid_enemies.append((enemy, dist, enemy.hp))
 
-            # Gérer la cadence de tir
-            self.time_since_last_shot += dt
-            if self.time_since_last_shot >= self.fire_rate:
-                self.time_since_last_shot = 0.0
+        # S'il n'y a personne dans le rayon, on ne fait rien
+        if not valid_enemies:
+            return task.cont
 
-                start_pos_visuel = Point3(my_pos.x, my_pos.y, my_pos.z + 1.2) + self.offset_turret
-                target_pos_visuel = Point3(enemy_pos.x, enemy_pos.y, enemy_pos.z + 0.5) + self.offset_enemies
+        # 2. Choisir la cible selon le mode
+        if self.targeting_mode == "lowest_hp":
+            # On trie d'abord par PV (croissant), puis par distance en cas d'égalité de PV
+            best_target_data = min(valid_enemies, key=lambda x: (x[2], x[1]))
+        else: # "closest" par défaut
+            # On trie uniquement par distance (croissant)
+            best_target_data = min(valid_enemies, key=lambda x: x[1])
 
-                self.create_tracer_effect(start_pos_visuel, target_pos_visuel)
-                
-                # Le tir est calculé comme un segment instantané (hitscan)
-                # Si le segment "touche" l'ennemi le plus proche, la méthode l'éliminera.
-                self.enemy_manager.check_projectile_hit(my_pos, enemy_pos, hit_radius=1.0)
+        target_enemy = best_target_data[0]
+        min_dist = best_target_data[1]
+
+        # 3. S'orienter et tirer sur la cible choisie
+        enemy_pos = target_enemy.node.getPos(self.base.render)
+        
+        if min_dist > 0.1:
+            self.np.lookAt(enemy_pos)
+            self.np.setHpr(self.np.getH() + 180, 0, 0) 
+
+        self.time_since_last_shot += dt
+        if self.time_since_last_shot >= self.fire_rate:
+            self.time_since_last_shot = 0.0
+
+            start_pos_visuel = Point3(my_pos.x, my_pos.y, my_pos.z + 1.2) + self.offset_turret
+            target_pos_visuel = Point3(enemy_pos.x, enemy_pos.y, enemy_pos.z + 0.5) + self.offset_enemies
+
+            self.create_tracer_effect(start_pos_visuel, target_pos_visuel)
+            
+            # Application des dégâts
+            self.enemy_manager.check_projectile_hit(my_pos, enemy_pos, hit_radius=1.0)
 
         return task.cont
 
@@ -197,7 +238,7 @@ class Hologram:
         self.np = NodePath("hologramme_root")
         self.np.reparentTo(self.base.render)
         
-        self.model = load_turret(self.base, self.np)
+        self.model = load_hologram(self.base, self.np)
         
         self.np.setTransparency(TransparencyAttrib.MAlpha)
         self.np.setColorScale(0.2, 0.5, 1.0, 0.5) 
@@ -212,13 +253,14 @@ class Hologram:
         self.np.setPos(pos)
         self.np.setHpr(hpr)
 
-class BuildManager:
-    """SRP: Orchestre la logique de construction."""
+class BuildManager(DirectObject):
     # --- MODIFIÉ : Ajout de enemy_manager en argument ---
-    def __init__(self, showbase, player_root, camera):
+    def __init__(self, showbase, player_root, camera, mouse):
+        super().__init__() 
         self.base = showbase
         self.player_root = player_root
         self.camera = camera
+        self.mouse = mouse
         self.enemy_manager = self.base.enemies # <-- Sauvegarde de la référence
         
         self.mode_actif = False
@@ -232,25 +274,96 @@ class BuildManager:
         self.structures = []
         self.hologramme = Hologram(self.base)
 
+        self.locked_build_pos = None
+        self.locked_build_hpr = None
+
+        self.radial_menu = RadialMenu(
+            base=self.base,
+            mouse=self.mouse,
+            name="Tourelles",
+            options=[
+                ("5 Ressources", "./assets/Turrets/turret.png"),
+                ("5 Ressources", "./assets/Turrets/turret.png"),
+                ("5 Ressources", "./assets/Turrets/turret.png"),
+                ("5 Ressources", "./assets/Turrets/turret.png"),
+            ],
+            open_event="mouse1",       # Maintien du clic gauche
+            close_event="mouse1-up",   # Relâchement du clic gauche
+            bind_events=False,         # On va lier les events manuellement car on les veut actifs que dans le mode_actif
+            on_select=self.on_radial_select,
+            on_cancel=self.on_radial_cancel
+        )
+
+    def ouvrir_menu_construction(self):
+        if not self.mode_actif or self.radial_menu.is_open:
+            return
+
+        self.locked_build_pos = Point3(self.hologramme.get_pos())
+        self.locked_build_hpr = Vec3(self.hologramme.get_hpr())
+        self.radial_menu.open_menu()
+
+    def fermer_menu_construction(self):
+        if not self.radial_menu.is_open:
+            return
+
+        self.radial_menu.close_menu()
+        self.locked_build_pos = None
+        self.locked_build_hpr = None
+
     def basculer_mode(self):
         self.mode_actif = not self.mode_actif
         self.camera.setZoomLock(self.mode_actif)
-        if self.mode_actif: self.hologramme.show()
-        else: self.hologramme.hide()
+        if self.mode_actif: 
+            self.hologramme.show()
+            self.accept("mouse1", self.ouvrir_menu_construction)
+            self.accept("mouse1-up", self.fermer_menu_construction)
+        else: 
+            self.hologramme.hide()
+            self.ignore("mouse1")
+            self.ignore("mouse1-up")
+            if self.radial_menu.is_open:
+                self.fermer_menu_construction()
 
-    def valider_construction(self):
-        if self.mode_actif and self.base.inventory["ressource"] >= self.cost:
-            # --- MODIFIÉ : On passe l'enemy_manager à la nouvelle structure ---
-            nouvelle_structure = Structure(
-                self.base, 
-                self.hologramme.get_pos(), 
-                self.hologramme.get_hpr(), 
-                self._on_structure_detruite,
-                self.enemy_manager
-            )
-            self.structures.append(nouvelle_structure)
-            self.base.inventory["ressource"] -= self.cost
+    def on_radial_select(self, index, option):
+        if not self.mode_actif:
+            return
+
+        if self.base.inventory["ressource"] < self.cost:
+            print("Ressources insufisantes !")
             self.basculer_mode()
+            return
+
+        pos = self.locked_build_pos if self.locked_build_pos is not None else self.hologramme.get_pos()
+        hpr = self.locked_build_hpr if self.locked_build_hpr is not None else self.hologramme.get_hpr()
+
+        nouvelle_structure = Structure(
+            self.base,
+            pos,
+            hpr,
+            self._on_structure_detruite,
+            self.enemy_manager
+        )
+        self.structures.append(nouvelle_structure)
+        self.base.inventory["ressource"] -= self.cost
+        self.basculer_mode()
+
+
+    def on_radial_cancel(self):
+        pass
+
+    # def valider_construction(self):
+    #     if self.mode_actif and self.base.inventory["ressource"] >= self.cost:
+    #         # --- MODIFIÉ : On passe l'enemy_manager à la nouvelle structure ---
+    #         nouvelle_structure = Structure(
+    #             self.base, 
+    #             self.hologramme.get_pos(), 
+    #             self.hologramme.get_hpr(), 
+    #             self._on_structure_detruite,
+    #             self.enemy_manager
+    #         )
+    #         self.structures.append(nouvelle_structure)
+    #         self.base.inventory["ressource"] -= self.cost
+    #         self.basculer_mode()
 
     def _on_structure_detruite(self, structure):
         if structure in self.structures:
@@ -276,7 +389,7 @@ class BuildManager:
         return position_cible
 
     def update(self):
-        if not self.mode_actif:
+        if not self.mode_actif or self.radial_menu.is_open:
             return
             
         if self.base.mouseWatcherNode.hasMouse():
@@ -290,4 +403,9 @@ class BuildManager:
             point_intersection = Point3()
             if self.plan_sol.intersectsLine(point_intersection, p1_global, p2_global):
                 position_restreinte = self.contraindre_distance(point_intersection)
-                self.hologramme.update_transform(position_restreinte, (self.base.camera.getH(self.base.render), 0, 0))
+
+                self.hologramme.np.setPos(position_restreinte)
+                self.hologramme.np.lookAt(self.base.camera)
+                heading = self.hologramme.np.getH() + 90
+
+                self.hologramme.update_transform(position_restreinte, (heading, 0, 0))

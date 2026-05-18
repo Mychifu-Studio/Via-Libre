@@ -108,7 +108,7 @@ class ResourceSystem:
         self.game.accept(f"player-into-{zone_name}", self.on_trigger_enter)
         self.game.accept(f"player-out-{zone_name}", self.on_trigger_exit)
 
-        marker = self.game.loader.loadModel("models/misc/sphere")
+        marker = self.game.loader.loadModel("assets/sphere")
         marker.reparentTo(self.game.render)
         marker.setPos(zone_np.getPos(self.game.render))
         marker.setScale(radius)
