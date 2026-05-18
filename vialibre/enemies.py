@@ -3,6 +3,7 @@ import os
 import random
 from panda3d.core import Filename, Vec3
 
+
 class MathUtils:
     @staticmethod
     def ray_rectangle_intersection(start, direction, min_x, max_x, min_y, max_y):
@@ -25,15 +26,15 @@ class MathUtils:
         segment, vector = end_pos - start_pos, point - start_pos
         segment.setZ(0)
         vector.setZ(0)
-        
+
         sq_len = segment.lengthSquared()
         if sq_len <= 0.0001:
             return vector.length()
-            
+
         projection = max(0.0, min(1.0, vector.dot(segment) / sq_len))
         closest_point = start_pos + segment * projection
         closest_point.setZ(0)
-        
+
         p2 = Vec3(point)
         p2.setZ(0)
         return (p2 - closest_point).length()
@@ -47,6 +48,9 @@ class MathUtils:
         )
 
 class DogEnemy:
+    MAX_HP = 3
+    CONTACT_RADIUS = 1.5
+    
     def __init__(
         self,
         game,
@@ -68,15 +72,17 @@ class DogEnemy:
         self.area_bounds = area_bounds
         self.respawn_callback = respawn_callback
         self.is_dead = False
+        self.hp = self.MAX_HP
+
         self.is_chasing = False
         
         self.start_pos = Vec3(start_pos)
         self.end_pos = Vec3(end_pos)
-        
+
         self.node = self._load_model()
         self.node.reparentTo(self.game.render)
         self.node.setScale(scale)
-        
+
         self._recalculate_movement()
 
     def _load_model(self):
@@ -88,13 +94,22 @@ class DogEnemy:
         self.node.setPos(self.start_pos)
         movement = self.end_pos - self.start_pos
         movement.setZ(0)
-        
+
         if movement.length() <= 0.001:
             self.direction = Vec3(0, 0, 0)
             self.is_dead = True
         else:
             self.direction = movement.normalized()
             self.node.lookAt(self.end_pos)
+
+    def take_damage(self, amount=1):
+        if self.is_dead:
+            return False
+        self.hp -= amount
+        if self.hp <= 0:
+            self.destroy()
+            return True
+        return False
 
     def _get_player_pos(self):
         if self.player_node is None:
@@ -136,6 +151,13 @@ class DogEnemy:
         else:
             self.node.setPos(next_pos)
 
+    def is_touching_point(self, point):
+        if self.is_dead:
+            return False
+        pos = self.node.getPos(self.game.render)
+        diff = Vec3(point.x - pos.x, point.y - pos.y, 0)
+        return diff.length() <= self.CONTACT_RADIUS
+
     def update(self, dt):
         if self.is_dead:
             return
@@ -159,6 +181,7 @@ class DogEnemy:
     def respawn(self):
         if self.is_dead:
             return
+        self.hp = self.MAX_HP
         self.is_chasing = False
         if self.respawn_callback:
             self.start_pos, self.end_pos = self.respawn_callback()
@@ -167,6 +190,7 @@ class DogEnemy:
     def destroy(self):
         self.is_dead = True
         self.node.removeNode()
+
 
 class EnemyManager:
     def __init__(self, game):
@@ -227,9 +251,16 @@ class EnemyManager:
     def check_projectile_hit(self, start_pos, end_pos, hit_radius):
         for enemy in self.enemies[:]:
             if enemy.is_touched_by_segment(start_pos, end_pos, hit_radius):
-                enemy.destroy()
-                self.enemies.remove(enemy)
-                self.game.messenger.send("enemy-hit")
+                killed = enemy.take_damage(1)
+                if killed:
+                    self.enemies.remove(enemy)
+                    self.game.messenger.send("enemy-hit")
+                return True
+        return False
+
+    def check_player_contact(self, player_pos):
+        for enemy in self.enemies:
+            if enemy.is_touching_point(player_pos):
                 return True
         return False
 
@@ -238,6 +269,13 @@ class EnemyManager:
             enemy.update(dt)
         self.enemies = [e for e in self.enemies if not e.is_dead]
 
+        if hasattr(self.game, 'player'):
+            player_np = getattr(self.game.player, 'player', None)
+            if player_np is not None:
+                player_pos = player_np.getPos(self.game.render)
+                if self.check_player_contact(player_pos):
+                    self.game.messenger.send("player-take-damage")
+                    
     def clear(self):
         for enemy in self.enemies:
             enemy.destroy()
