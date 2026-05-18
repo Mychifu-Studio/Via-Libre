@@ -1,162 +1,184 @@
 import math
 import os
 import random
-
 from panda3d.core import Filename, Vec3
 
+class MathUtils:
+    @staticmethod
+    def ray_rectangle_intersection(start, direction, min_x, max_x, min_y, max_y):
+        t_values = []
+        if abs(direction.x) > 0.0001:
+            t_values.append((max_x - start.x) / direction.x if direction.x > 0 else (min_x - start.x) / direction.x)
+        if abs(direction.y) > 0.0001:
+            t_values.append((max_y - start.y) / direction.y if direction.y > 0 else (min_y - start.y) / direction.y)
+
+        positive_t = [t for t in t_values if t > 0]
+        if not positive_t:
+            return Vec3(start)
+
+        end = start + direction * min(positive_t)
+        end.setZ(0)
+        return end
+
+    @staticmethod
+    def distance_segment_to_point(start_pos, end_pos, point):
+        segment, vector = end_pos - start_pos, point - start_pos
+        segment.setZ(0)
+        vector.setZ(0)
+        
+        sq_len = segment.lengthSquared()
+        if sq_len <= 0.0001:
+            return vector.length()
+            
+        projection = max(0.0, min(1.0, vector.dot(segment) / sq_len))
+        closest_point = start_pos + segment * projection
+        closest_point.setZ(0)
+        
+        p2 = Vec3(point)
+        p2.setZ(0)
+        return (p2 - closest_point).length()
+
+    @staticmethod
+    def clamp_position_to_rectangle(pos, min_x, max_x, min_y, max_y):
+        return Vec3(
+            max(min_x, min(max_x, pos.x)),
+            max(min_y, min(max_y, pos.y)),
+            pos.z,
+        )
 
 class DogEnemy:
-
-    def __init__(self, game, start_pos, end_pos, speed=4.0, scale=1.0, respawn_callback=None):
+    def __init__(
+        self,
+        game,
+        start_pos,
+        end_pos,
+        speed=4.0,
+        scale=1.0,
+        respawn_callback=None,
+        player_node=None,
+        detection_radius=12.0,
+        chase_speed=None,
+        area_bounds=None,
+    ):
         self.game = game
-        self.start_pos = self._to_vec3(start_pos)
-        self.end_pos = self._to_vec3(end_pos)
         self.speed = speed
-        self.scale = scale
+        self.chase_speed = chase_speed if chase_speed is not None else speed * 1.25
+        self.detection_radius = detection_radius
+        self.player_node = player_node
+        self.area_bounds = area_bounds
         self.respawn_callback = respawn_callback
         self.is_dead = False
-
+        self.is_chasing = False
+        
+        self.start_pos = Vec3(start_pos)
+        self.end_pos = Vec3(end_pos)
+        
         self.node = self._load_model()
         self.node.reparentTo(self.game.render)
-        self.node.setPos(self.start_pos)
         self.node.setScale(scale)
-
+        
         self._recalculate_movement()
 
     def _load_model(self):
         base_dir = os.path.dirname(os.path.abspath(__file__))
-        model_path = Filename.fromOsSpecific(
-            os.path.join(base_dir, "../assets", "dog.bam")
-        ).getFullpath()
-        return self.game.loader.loadModel(model_path)
-
-    def _to_vec3(self, value):
-        if isinstance(value, Vec3):
-            return Vec3(value)
-        return Vec3(value[0], value[1], value[2])
+        path = Filename.fromOsSpecific(os.path.join(base_dir, "../assets", "dog.bam")).getFullpath()
+        return self.game.loader.loadModel(path)
 
     def _recalculate_movement(self):
+        self.node.setPos(self.start_pos)
         movement = self.end_pos - self.start_pos
         movement.setZ(0)
-        self.total_distance = movement.length()
-
-        if self.total_distance <= 0.001:
+        
+        if movement.length() <= 0.001:
             self.direction = Vec3(0, 0, 0)
             self.is_dead = True
         else:
             self.direction = movement.normalized()
             self.node.lookAt(self.end_pos)
 
+    def _get_player_pos(self):
+        if self.player_node is None:
+            return None
+        return self.player_node.getPos(self.game.render)
+
+    def _should_chase_player(self, current_pos):
+        player_pos = self._get_player_pos()
+        if player_pos is None:
+            return False, None
+
+        flat_current = Vec3(current_pos.x, current_pos.y, 0)
+        flat_player = Vec3(player_pos.x, player_pos.y, 0)
+        return (flat_player - flat_current).length() <= self.detection_radius, flat_player
+
+    def _update_chase(self, current_pos, player_pos, dt):
+        chase_direction = player_pos - Vec3(current_pos.x, current_pos.y, 0)
+        chase_direction.setZ(0)
+
+        if chase_direction.length() <= 0.001:
+            return
+
+        chase_direction.normalize()
+        next_pos = current_pos + chase_direction * self.chase_speed * dt
+        next_pos.setZ(current_pos.z)
+
+        if self.area_bounds is not None:
+            min_x, max_x, min_y, max_y = self.area_bounds
+            next_pos = MathUtils.clamp_position_to_rectangle(next_pos, min_x, max_x, min_y, max_y)
+
+        self.node.setPos(next_pos)
+        self.node.lookAt(player_pos)
+
+    def _update_straight_line(self, current_pos, dt):
+        next_pos = current_pos + self.direction * self.speed * dt
+
+        if (next_pos - current_pos).length() >= (self.end_pos - current_pos).length():
+            self.respawn()
+        else:
+            self.node.setPos(next_pos)
+
     def update(self, dt):
         if self.is_dead:
             return
 
         current_pos = self.node.getPos(self.game.render)
-        next_pos = current_pos + self.direction * self.speed * dt
+        should_chase, player_pos = self._should_chase_player(current_pos)
 
-        distance_left_now = (self.end_pos - current_pos).length()
-        distance_to_move = (next_pos - current_pos).length()
-
-        if distance_to_move >= distance_left_now:
-            self.respawn()
-            return
-
-        self.node.setPos(next_pos)
+        if should_chase:
+            self.is_chasing = True
+            self._update_chase(current_pos, player_pos, dt)
+        else:
+            self.is_chasing = False
+            self._update_straight_line(current_pos, dt)
 
     def is_touched_by_segment(self, start_pos, end_pos, hit_radius):
-
         if self.is_dead:
             return False
-
-        enemy_pos = self.node.getPos(self.game.render)
-
-        segment = end_pos - start_pos
-        segment.setZ(0)
-
-        enemy_vector = enemy_pos - start_pos
-        enemy_vector.setZ(0)
-
-        segment_length_squared = segment.lengthSquared()
-
-        if segment_length_squared <= 0.0001:
-            distance = enemy_vector.length()
-            return distance <= hit_radius
-
-        projection = enemy_vector.dot(segment) / segment_length_squared
-        projection = max(0.0, min(1.0, projection))
-
-        closest_point = start_pos + segment * projection
-        closest_point.setZ(0)
-
-        enemy_pos.setZ(0)
-        distance = (enemy_pos - closest_point).length()
-
-        return distance <= hit_radius
+        dist = MathUtils.distance_segment_to_point(start_pos, end_pos, self.node.getPos(self.game.render))
+        return dist <= hit_radius
 
     def respawn(self):
         if self.is_dead:
             return
-
-        if self.respawn_callback is not None:
+        self.is_chasing = False
+        if self.respawn_callback:
             self.start_pos, self.end_pos = self.respawn_callback()
-        
-        self.node.setPos(self.start_pos)
         self._recalculate_movement()
 
     def destroy(self):
-        if self.is_dead:
-            return
-
         self.is_dead = True
         self.node.removeNode()
 
-
 class EnemyManager:
-
+    """SRP: Gère l'apparition (spawn) et le contrôle global des groupes d'ennemis."""
     def __init__(self, game):
         self.game = game
         self.enemies = []
 
-    def spawn_dog(self, start_pos, end_pos, speed=4.0, scale=1.0, respawn_callback=None):
-        dog = DogEnemy(
-            game=self.game,
-            start_pos=start_pos,
-            end_pos=end_pos,
-            speed=speed,
-            scale=scale,
-            respawn_callback=respawn_callback,
-        )
-
+    def spawn_dog(self, start_pos, end_pos, **kwargs):
+        dog = DogEnemy(self.game, start_pos, end_pos, **kwargs)
         if not dog.is_dead:
             self.enemies.append(dog)
-
         return dog
-
-    def spawn_dog_line(self, start_pos, end_pos, count=5, spacing=2.5, speed=4.0, scale=1.0):
-        start = self._to_vec3(start_pos)
-        end = self._to_vec3(end_pos)
-
-        movement = end - start
-        movement.setZ(0)
-
-        if movement.length() <= 0.001:
-            return
-
-        movement.normalize()
-        perpendicular = Vec3(-movement.y, movement.x, 0)
-        first_offset = -((count - 1) * spacing) / 2
-
-        for i in range(count):
-            offset = perpendicular * (first_offset + i * spacing)
-            dog_start = start + offset
-            dog_end = end + offset
-
-            self.spawn_dog(
-                start_pos=dog_start,
-                end_pos=dog_end,
-                speed=speed,
-                scale=scale,
-            )
 
     def spawn_random_dogs_in_area(
         self,
@@ -165,108 +187,58 @@ class EnemyManager:
         area_max_x=50,
         area_min_y=-50,
         area_max_y=50,
-        speed=4.0,
-        scale=1.0,
         margin=2.0,
+        detection_radius=12.0,
+        chase_speed=6.0,
+        **kwargs
     ):
+        safe_min_x, safe_max_x = area_min_x + margin, area_max_x - margin
+        safe_min_y, safe_max_y = area_min_y + margin, area_max_y - margin
+        area_bounds = (safe_min_x, safe_max_x, safe_min_y, safe_max_y)
+
+        player_node = None
+        if hasattr(self.game, "player") and hasattr(self.game.player, "player"):
+            player_node = self.game.player.player
+
         for _ in range(count):
-            callback = lambda: self._random_path_inside_area(
-                area_min_x,
-                area_max_x,
-                area_min_y,
-                area_max_y,
-                margin,
-            )
+            callback = lambda: self._generate_random_path(area_min_x, area_max_x, area_min_y, area_max_y, margin)
             start_pos, end_pos = callback()
-
             self.spawn_dog(
-                start_pos=start_pos,
-                end_pos=end_pos,
-                speed=speed,
-                scale=scale,
+                start_pos,
+                end_pos,
                 respawn_callback=callback,
+                player_node=player_node,
+                detection_radius=detection_radius,
+                chase_speed=chase_speed,
+                area_bounds=area_bounds,
+                **kwargs
             )
 
-    def _random_path_inside_area(self, min_x, max_x, min_y, max_y, margin):
-        safe_min_x = min_x + margin
-        safe_max_x = max_x - margin
-        safe_min_y = min_y + margin
-        safe_max_y = max_y - margin
+    def _generate_random_path(self, min_x, max_x, min_y, max_y, margin):
+        safe_min_x, safe_max_x = min_x + margin, max_x - margin
+        safe_min_y, safe_max_y = min_y + margin, max_y - margin
 
-        start = Vec3(
-            random.uniform(safe_min_x, safe_max_x),
-            random.uniform(safe_min_y, safe_max_y),
-            0,
-        )
-
+        start = Vec3(random.uniform(safe_min_x, safe_max_x), random.uniform(safe_min_y, safe_max_y), 0)
         angle = random.uniform(0, math.tau)
         direction = Vec3(math.cos(angle), math.sin(angle), 0)
 
-        end = self._ray_rectangle_intersection(
-            start,
-            direction,
-            safe_min_x,
-            safe_max_x,
-            safe_min_y,
-            safe_max_y,
-        )
-
+        end = MathUtils.ray_rectangle_intersection(start, direction, safe_min_x, safe_max_x, safe_min_y, safe_max_y)
         return start, end
 
-    def _ray_rectangle_intersection(self, start, direction, min_x, max_x, min_y, max_y):
-        possible_t = []
-
-        if abs(direction.x) > 0.0001:
-            if direction.x > 0:
-                possible_t.append((max_x - start.x) / direction.x)
-            else:
-                possible_t.append((min_x - start.x) / direction.x)
-
-        if abs(direction.y) > 0.0001:
-            if direction.y > 0:
-                possible_t.append((max_y - start.y) / direction.y)
-            else:
-                possible_t.append((min_y - start.y) / direction.y)
-
-        positive_t = [t for t in possible_t if t > 0]
-
-        if not positive_t:
-            return Vec3(start)
-
-        t = min(positive_t)
-        end = start + direction * t
-        end.setZ(0)
-        return end
-
-    def kill_enemy(self, enemy):
-        if enemy not in self.enemies:
-            return False
-
-        enemy.destroy()
-        self.enemies.remove(enemy)
-        return True
-
-    def check_projectile_hit(self, start_pos, end_pos, hit_radius=1.5):
+    def check_projectile_hit(self, start_pos, end_pos, hit_radius):
         for enemy in self.enemies[:]:
             if enemy.is_touched_by_segment(start_pos, end_pos, hit_radius):
-                self.kill_enemy(enemy)
+                enemy.destroy()
+                self.enemies.remove(enemy)
                 return True
-
         return False
 
     def update(self, dt):
-        for enemy in self.enemies[:]:
+        for enemy in self.enemies:
             enemy.update(dt)
-
-            if enemy.is_dead and enemy in self.enemies:
-                self.enemies.remove(enemy)
+        self.enemies = [e for e in self.enemies if not e.is_dead]
 
     def clear(self):
-        for enemy in self.enemies[:]:
+        for enemy in self.enemies:
             enemy.destroy()
         self.enemies.clear()
-
-    def _to_vec3(self, value):
-        if isinstance(value, Vec3):
-            return Vec3(value)
-        return Vec3(value[0], value[1], value[2])
