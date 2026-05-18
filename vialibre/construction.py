@@ -86,6 +86,9 @@ class Structure:
         self.activation_radius = 15.0  # Distance à partir de laquelle on vise/tire
         self.fire_rate = 1.0           # Temps en secondes entre chaque tir
         self.time_since_last_shot = 0.0
+
+        self.offset_turret = Vec3(0, 0, 0.5)
+        self.offset_enemies = Vec3(0, 0, 0)
         
         # --- NOUVEAU : Tâche de mise à jour propre à la tourelle ---
         self.task_name = f"turret_update_{id(self)}"
@@ -162,8 +165,8 @@ class Structure:
             if self.time_since_last_shot >= self.fire_rate:
                 self.time_since_last_shot = 0.0
 
-                start_pos_visuel = Point3(my_pos.x, my_pos.y, my_pos.z + 1.2)
-                target_pos_visuel = Point3(enemy_pos.x, enemy_pos.y, enemy_pos.z + 0.5)
+                start_pos_visuel = Point3(my_pos.x, my_pos.y, my_pos.z + 1.2) + self.offset_turret
+                target_pos_visuel = Point3(enemy_pos.x, enemy_pos.y, enemy_pos.z + 0.5) + self.offset_enemies
 
                 self.create_tracer_effect(start_pos_visuel, target_pos_visuel)
                 
