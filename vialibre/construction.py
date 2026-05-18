@@ -113,6 +113,9 @@ class Structure:
         self.fire_rate = 1.0           # Temps en secondes entre chaque tir
         self.time_since_last_shot = 0.0
 
+        # Options possibles: "closest" (plus proche) ou "lowest_hp" (moins de PV)
+        self.targeting_mode = "lowest_hp" 
+
         self.offset_turret = Vec3(0, 0, 0.5)
         self.offset_enemies = Vec3(0, 0, 0)
         
@@ -157,7 +160,6 @@ class Structure:
         seq.start()
 
     def update_task(self, task):
-        # Calcul du deltaTime
         dt = task.time - getattr(task, 'last_time', task.time)
         task.last_time = task.time
 
@@ -165,40 +167,50 @@ class Structure:
             return task.cont
 
         my_pos = self.np.getPos(self.base.render)
-        closest_enemy = None
-        min_dist = float('inf')
-
-        # 1. Trouver l'ennemi le plus proche
+        
+        # 1. Récupérer tous les ennemis valides (dans le rayon d'activation)
+        valid_enemies = []
         for enemy in self.enemy_manager.enemies:
             enemy_pos = enemy.node.getPos(self.base.render)
             dist = (enemy_pos - my_pos).length()
-            if dist < min_dist:
-                min_dist = dist
-                closest_enemy = enemy
-
-        # 2. S'orienter et tirer si dans le rayon d'activation
-        if closest_enemy and min_dist <= self.activation_radius:
-            enemy_pos = closest_enemy.node.getPos(self.base.render)
             
-            # Orienter la tourelle (sécurité pour éviter une erreur si distance == 0)
-            if min_dist > 0.1:
-                self.np.lookAt(enemy_pos)
-                # On bloque le pitch/roll à 0 pour que la base de la tourelle reste droite sur le sol
-                self.np.setHpr(self.np.getH() + 180, 0, 0) # +180 sinon ça pointait du cul
+            if dist <= self.activation_radius:
+                # On stocke un tuple avec (l'ennemi, sa distance, ses PV)
+                valid_enemies.append((enemy, dist, enemy.hp))
 
-            # Gérer la cadence de tir
-            self.time_since_last_shot += dt
-            if self.time_since_last_shot >= self.fire_rate:
-                self.time_since_last_shot = 0.0
+        # S'il n'y a personne dans le rayon, on ne fait rien
+        if not valid_enemies:
+            return task.cont
 
-                start_pos_visuel = Point3(my_pos.x, my_pos.y, my_pos.z + 1.2) + self.offset_turret
-                target_pos_visuel = Point3(enemy_pos.x, enemy_pos.y, enemy_pos.z + 0.5) + self.offset_enemies
+        # 2. Choisir la cible selon le mode
+        if self.targeting_mode == "lowest_hp":
+            # On trie d'abord par PV (croissant), puis par distance en cas d'égalité de PV
+            best_target_data = min(valid_enemies, key=lambda x: (x[2], x[1]))
+        else: # "closest" par défaut
+            # On trie uniquement par distance (croissant)
+            best_target_data = min(valid_enemies, key=lambda x: x[1])
 
-                self.create_tracer_effect(start_pos_visuel, target_pos_visuel)
-                
-                # Le tir est calculé comme un segment instantané (hitscan)
-                # Si le segment "touche" l'ennemi le plus proche, la méthode l'éliminera.
-                self.enemy_manager.check_projectile_hit(my_pos, enemy_pos, hit_radius=1.0)
+        target_enemy = best_target_data[0]
+        min_dist = best_target_data[1]
+
+        # 3. S'orienter et tirer sur la cible choisie
+        enemy_pos = target_enemy.node.getPos(self.base.render)
+        
+        if min_dist > 0.1:
+            self.np.lookAt(enemy_pos)
+            self.np.setHpr(self.np.getH() + 180, 0, 0) 
+
+        self.time_since_last_shot += dt
+        if self.time_since_last_shot >= self.fire_rate:
+            self.time_since_last_shot = 0.0
+
+            start_pos_visuel = Point3(my_pos.x, my_pos.y, my_pos.z + 1.2) + self.offset_turret
+            target_pos_visuel = Point3(enemy_pos.x, enemy_pos.y, enemy_pos.z + 0.5) + self.offset_enemies
+
+            self.create_tracer_effect(start_pos_visuel, target_pos_visuel)
+            
+            # Application des dégâts
+            self.enemy_manager.check_projectile_hit(my_pos, enemy_pos, hit_radius=1.0)
 
         return task.cont
 
