@@ -31,8 +31,11 @@ class ShootingSystem:
 
     def __init__(self, game, player):
         self.game = game
-        self.player = player
+        self.player_sys = player
+        self.player = player.player
         self.bullets = []
+
+        self.was_building_last_frame = False
         
         # On écoute le clic gauche pour tirer
         self.game.accept("mouse1", self.shoot)
@@ -62,6 +65,10 @@ class ShootingSystem:
         )
 
     def shoot(self):
+        if self.player_sys.build_manager.mode_actif or self.was_building_last_frame:
+            return
+
+
         target = self._get_mouse_world_pos()
         if target is None: 
             return
@@ -80,10 +87,15 @@ class ShootingSystem:
         node.reparentTo(self.game.render)
         node.setPos(player_pos + Vec3(0, 0, 1)) # Départ légèrement en hauteur depuis le joueur
 
+        node.lookAt(player_pos + direction)
+        node.setH(node.getH() + 90)
+
         self.bullets.append(Bullet(node, direction, self.BULLET_SPEED, self.BULLET_LIFE))
 
     def update(self):
         dt = globalClock.getDt() # pyright: ignore
+
+        self.was_building_last_frame = self.player_sys.build_manager.mode_actif
 
         surviving_bullets = []
         for bullet in self.bullets:
