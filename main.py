@@ -127,6 +127,7 @@ class MainGame(ShowBase):
         self.player.update(dt)
         self.multiplayer.update()
         self.resource_system.update()
+        self.inventory_ui.update()
         self.enemies.update(dt)
         self.shooting.update()
         return task.cont

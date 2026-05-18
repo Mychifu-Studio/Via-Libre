@@ -225,6 +225,8 @@ class BuildManager:
         self.distance_construction = 2.5 
         self.distance_min = 1        
         self.rayon_max_construction = 5
+
+        self.cost = 5
         
         self.plan_sol = Plane(Vec3(0, 0, 1), Point3(0, 0, 0))
         self.structures = []
@@ -237,7 +239,7 @@ class BuildManager:
         else: self.hologramme.hide()
 
     def valider_construction(self):
-        if self.mode_actif:
+        if self.mode_actif and self.base.inventory["ressource"] >= self.cost:
             # --- MODIFIÉ : On passe l'enemy_manager à la nouvelle structure ---
             nouvelle_structure = Structure(
                 self.base, 
@@ -247,6 +249,7 @@ class BuildManager:
                 self.enemy_manager
             )
             self.structures.append(nouvelle_structure)
+            self.base.inventory["ressource"] -= self.cost
             self.basculer_mode()
 
     def _on_structure_detruite(self, structure):
