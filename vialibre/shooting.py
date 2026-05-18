@@ -109,8 +109,6 @@ class ShootingSystem:
                 has_hit = self.game.enemies.check_projectile_hit(old_pos, new_pos, self.HIT_RADIUS)
 
             if has_hit:
-                # Émission de l'événement global (capté par main.py)
-                self.game.messenger.send("enemy-hit")
                 bullet.destroy()
             elif is_alive:
                 surviving_bullets.append(bullet)
