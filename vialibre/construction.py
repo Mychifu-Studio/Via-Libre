@@ -328,4 +328,9 @@ class BuildManager:
             point_intersection = Point3()
             if self.plan_sol.intersectsLine(point_intersection, p1_global, p2_global):
                 position_restreinte = self.contraindre_distance(point_intersection)
-                self.hologramme.update_transform(position_restreinte, (self.base.camera.getH(self.base.render), 0, 0))
+
+                self.hologramme.np.setPos(position_restreinte)
+                self.hologramme.np.lookAt(self.base.camera)
+                heading = self.hologramme.np.getH() + 90
+
+                self.hologramme.update_transform(position_restreinte, (heading, 0, 0))
