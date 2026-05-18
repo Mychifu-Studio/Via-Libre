@@ -5,14 +5,26 @@ from direct.gui.DirectGui import DirectFrame, DirectButton
 
 from vialibre.player import Player
 from vialibre.multiplayer import MultiplayerManager
-from vialibre.ressource_system import ResourceSystem
+from vialibre.resource_system import ResourceSystem
 from vialibre.inventory_ui import InventoryUI
 from vialibre.popup_ui import PopupUI
 from vialibre.shooting import ShootingSystem
 from vialibre.enemies import EnemyManager
+from vialibre.vague import VagueManager
+
 
 # Configuration globale
-load_prc_file_data('', 'sync-video f\nshow-frame-rate-meter t\nwin-size 1280 720\nclient-sleep 0.001\nframebuffer-multisample 1\nmultisamples 2\nload-file-type p3assimp')
+load_prc_file_data(
+    '',
+    'sync-video f\n'
+    'show-frame-rate-meter t\n'
+    'win-size 1280 720\n'
+    'client-sleep 0.001\n'
+    'framebuffer-multisample 1\n'
+    'multisamples 2\n'
+    'load-file-type p3assimp'
+)
+
 
 class EnvironmentManager:
     """SRP: Initialise et gère le décor statique (lumières, terrain)."""
@@ -24,6 +36,7 @@ class EnvironmentManager:
     def generate_ground(self):
         size = 256
         img = PNMImage(size, size)
+
         for x in range(size):
             for y in range(size):
                 r = min(max(0.25 + random.uniform(-0.05, 0.05), 0), 1)
@@ -47,23 +60,36 @@ class EnvironmentManager:
     def setup_lights(self):
         dlight = DirectionalLight('dlight')
         dlight.setColor((0.8, 0.8, 0.5, 1))
+
         dlnp = self.render.attachNewNode(dlight)
         dlnp.setHpr(0, -60, 0)
+
         self.render.setLight(dlnp)
+
 
 class GameMenu:
     """SRP: Gère l'affichage du menu système (Pause/Quitter)."""
     def __init__(self, game):
         self.game = game
         self.is_open = False
-        
-        self.frame = DirectFrame(frameColor=(0, 0, 0, 0.8), frameSize=(-0.5, 0.5, -0.4, 0.4))
+
+        self.frame = DirectFrame(
+            frameColor=(0, 0, 0, 0.8),
+            frameSize=(-0.5, 0.5, -0.4, 0.4)
+        )
         self.frame.hide()
 
-        self.leave_btn = DirectButton(parent=self.frame, text="Leave", scale=0.1, pad=(0.2, 0.2), command=self.game.exit_game)
+        self.leave_btn = DirectButton(
+            parent=self.frame,
+            text="Leave",
+            scale=0.1,
+            pad=(0.2, 0.2),
+            command=self.game.exit_game
+        )
 
     def toggle(self):
         self.is_open = not self.is_open
+
         if self.is_open:
             self.frame.show()
             self.game.player.is_paused = True
@@ -76,61 +102,90 @@ class GameMenu:
 class MainGame(ShowBase):
     def __init__(self):
         super().__init__(True)
+
         self.render.setAntialias(AntialiasAttrib.MMultisample)
         self.disable_mouse()
-        
+
         props = WindowProperties()
         props.setCursorHidden(True)
         self.win.requestProperties(props)
 
         self.environment = EnvironmentManager(self.render)
 
-        # Entités & Systèmes
+        # Entités & systèmes
         self.enemies = EnemyManager(self)
         self.player = Player()
-        self.shooting = ShootingSystem(game=self, player=self.player)
-        self.multiplayer = MultiplayerManager(self, self.player)
-        self.enemies.spawn_random_dogs_in_area()
 
-        # UI & Inventaire
-        self.inventory = {"ressource": 0}
+        # Dans ta version actuelle de shooting.py, il faut passer self.player,
+        # car shooting.py récupère lui-même player.player.
+        self.shooting = ShootingSystem(game=self, player=self.player)
+
+        self.multiplayer = MultiplayerManager(self, self.player)
+
+        # UI & inventaire
+        self.inventory = {
+            "ressource": 0
+        }
+
         self.inventory_ui = InventoryUI(self)
         self.popup_ui = PopupUI(self)
         self.menu = GameMenu(self)
 
-        self.resource_system = ResourceSystem(game=self, inventory_ui=self.inventory_ui, popup_ui=self.popup_ui)
+        self.resource_system = ResourceSystem(
+            game=self,
+            inventory_ui=self.inventory_ui,
+            popup_ui=self.popup_ui
+        )
         self.resource_system.setup_player_collider(self.player)
         self.resource_system.generate_random_zones(8)
 
+        # Système de vagues
+        # Important : on ne fait PLUS self.enemies.spawn_random_dogs_in_area()
+        # directement dans main.py. C'est vague.py qui gère les spawns.
+        self.vague_manager = VagueManager(self, self.enemies)
+        self.vague_manager.start()
+
         # Events
         self.accept("escape", self.menu.toggle)
-        self.accept('window-close', self.exit_game)
-        
-        # Le main est propriétaire de l'inventaire : c'est lui qui écoute l'événement
-        self.accept('enemy-hit', self.reward_enemy_hit)
+        self.accept("window-close", self.exit_game)
+
+        # shooting.py doit envoyer "enemy-hit" quand un projectile tue un ennemi.
+        self.accept("enemy-hit", self.reward_enemy_hit)
 
         self.game_started = True
-        self.taskMgr.add(self.update, 'update')
+        self.taskMgr.add(self.update, "update")
 
     def reward_enemy_hit(self):
         self.inventory["ressource"] = self.inventory.get("ressource", 0) + 1
         self.inventory_ui.update()
-        self.popup_ui.show_popup(f"Ennemi touché : ressource +1 ! (Total : {self.inventory['ressource']})")
+
+        self.popup_ui.show_popup(
+            f"Ennemi touché : ressource +1 ! (Total : {self.inventory['ressource']})"
+        )
+
+        # C'est cette ligne qui permet à vague.py de compter les kills
+        # et de lancer la vague suivante.
+        self.vague_manager.enemy_killed()
 
     def exit_game(self):
-        self.taskMgr.remove('update')
+        self.taskMgr.remove("update")
+        self.enemies.clear()
         self.multiplayer.exit()
         self.userExit()
 
     def update(self, task):
-        dt = globalClock.getDt() # pyright: ignore
+        dt = globalClock.getDt()  # pyright: ignore
+
         self.player.update(dt)
         self.multiplayer.update()
         self.resource_system.update()
         self.inventory_ui.update()
         self.enemies.update(dt)
         self.shooting.update()
+        self.vague_manager.update(dt)
+
         return task.cont
+
 
 if __name__ == "__main__":
     app = MainGame()
