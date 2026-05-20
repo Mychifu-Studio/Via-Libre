@@ -16,8 +16,9 @@ class Player(DirectObject):
     MAX_HP = 10
     DAMAGE_COOLDOWN = 0.5
 
-    def __init__(self, showbase: ShowBase = None):
+    def __init__(self, showbase: ShowBase = None, map_collision=None):
         self.base = showbase if showbase else base
+        self.map_collision = map_collision
 
         self.player = self.base.render.attachNewNode('player')
         self.modelNode = self.player.attachNewNode('player-model')
@@ -138,7 +139,12 @@ class Player(DirectObject):
             maxSpeedTime = .5 if input_vec[axis] else .08
             self.movementVector[axis] = self.camera.powLerp(self.lastMovement[axis], input_vec[axis], dt, maxSpeedTime)
 
-        self.player.setPos(self.player.getPos() + self.movementVector * self.playerSpeed * dt)
+        current_pos = self.player.getPos(self.base.render)
+        desired_pos = current_pos + self.movementVector * self.playerSpeed * dt
+        if self.map_collision is not None:
+            desired_pos = self.map_collision.move(current_pos, desired_pos)
+
+        self.player.setPos(desired_pos)
 
         new_cam_pos = self.camera.calculateCameraPos(dt, self.movementVector, self.lastMovement, self.keyMap["ctrl"] or self.is_paused)
         self.camera.setPos(new_cam_pos)

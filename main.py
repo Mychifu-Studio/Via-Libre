@@ -14,6 +14,7 @@ from vialibre.popup_ui import PopupUI
 from vialibre.shooting import ShootingSystem
 from vialibre.enemies import EnemyManager
 from vialibre.vague import VagueManager
+from vialibre.map_collision import MapCollisionManager
 
 
 # Configuration globale
@@ -34,6 +35,7 @@ class EnvironmentManager:
     """SRP: Initialise et gère le décor statique (lumières, terrain)."""
     def __init__(self, render):
         self.render = render
+        self.jungle = None
         self.generate_ground()
         self.setup_lights()
 
@@ -60,10 +62,10 @@ class EnvironmentManager:
         # ground = self.render.attachNewNode(cm.generate())
         # ground.setP(-90)
         # ground.setTexture(texture)
-        jungle = loader.loadModel('assets/jungle.bam')
-        jungle.setPos(0, 0, 0)
-        jungle.setH(-90)
-        jungle.reparentTo(self.render)
+        self.jungle = loader.loadModel('assets/jungle.bam')
+        self.jungle.setPos(0, 0, 0)
+        self.jungle.setH(-90)
+        self.jungle.reparentTo(self.render)
 
     def setup_lights(self):
         ambientLight = AmbientLight('ambientLight')
@@ -124,10 +126,11 @@ class MainGame(ShowBase):
         self.win.requestProperties(props)
 
         self.environment = EnvironmentManager(self.render)
+        self.map_collision = MapCollisionManager(self.render, self.environment.jungle)
 
         # Entités & systèmes
         self.enemies = EnemyManager(self)
-        self.player = Player()
+        self.player = Player(map_collision=self.map_collision)
 
         # Dans ta version actuelle de shooting.py, il faut passer self.player,
         # car shooting.py récupère lui-même player.player.
