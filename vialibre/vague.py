@@ -9,6 +9,7 @@ class VagueManager:
 
         self.current_wave_index = 0
         self.killed_in_current_wave = 0
+        self.current_enemy_target = 0
         self.is_finished = False
 
         self.next_wave_timer = 0.0
@@ -16,12 +17,12 @@ class VagueManager:
 
         self.message_timer = 0.0
 
-        # Limites de la zone verte
-        self.area_min_x = -50
-        self.area_max_x = 50
-        self.area_min_y = -50
-        self.area_max_y = 50
-        self.margin = 2.0
+        # Limites interieures de l'arene.
+        self.area_min_x = -35
+        self.area_max_x = 35
+        self.area_min_y = -28
+        self.area_max_y = 22
+        self.margin = 1.5
 
         self.waves = [
             {
@@ -77,6 +78,7 @@ class VagueManager:
     def start(self):
         self.current_wave_index = 0
         self.killed_in_current_wave = 0
+        self.current_enemy_target = 0
         self.is_finished = False
         self.waiting_next_wave = False
         self.start_current_wave()
@@ -91,7 +93,7 @@ class VagueManager:
         self.killed_in_current_wave = 0
         self.clear_enemies()
 
-        self.enemy_manager.spawn_random_dogs_in_area(
+        spawned_count = self.enemy_manager.spawn_random_dogs_in_area(
             count=wave["enemy_count"],
             area_min_x=self.area_min_x,
             area_max_x=self.area_max_x,
@@ -103,9 +105,10 @@ class VagueManager:
             chase_speed=wave["chase_speed"],
             detection_radius=wave["detection_radius"],
         )
+        self.current_enemy_target = spawned_count or wave["enemy_count"]
 
         self.show_message(
-            f"{wave['name']}\nÉlimine {wave['enemy_count']} ennemis !",
+            f"{wave['name']}\nÉlimine {self.current_enemy_target} ennemis !",
             duration=2.5,
         )
 
@@ -116,14 +119,13 @@ class VagueManager:
         if self.waiting_next_wave:
             return
 
-        wave = self.waves[self.current_wave_index]
         self.killed_in_current_wave += 1
 
         print(
-            f"Ennemi tué : {self.killed_in_current_wave}/{wave['enemy_count']}"
+            f"Ennemi tué : {self.killed_in_current_wave}/{self.current_enemy_target}"
         )
 
-        if self.killed_in_current_wave >= wave["enemy_count"]:
+        if self.killed_in_current_wave >= self.current_enemy_target:
             self.current_wave_index += 1
 
             if self.current_wave_index >= len(self.waves):

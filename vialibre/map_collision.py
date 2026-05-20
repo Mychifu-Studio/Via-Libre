@@ -213,12 +213,20 @@ class MapCollisionManager:
         return vertices
 
     def _store_triangle(self, triangle, category):
-        if category == "walkable":
+        if category in ("walkable", "low_surface"):
             if not triangle.has_walkable_slope(0.35):
+                if category == "walkable":
+                    return
+            elif category == "walkable" or (
+                triangle.max_z <= self.max_step_height
+                and triangle.min_z >= self.min_walkable_height
+            ):
+                self._add_to_grid(self.walkable_grid, triangle)
+                self.walkable_triangles += 1
                 return
-            self._add_to_grid(self.walkable_grid, triangle)
-            self.walkable_triangles += 1
-            return
+
+            if category == "walkable":
+                return
 
         if category == "water":
             return
@@ -246,7 +254,7 @@ class MapCollisionManager:
         if any(term in label_text for term in self.DECORATIVE_TERMS):
             return "ignore", label_text
 
-        return "blocker", label_text or "unknown"
+        return "low_surface", label_text or "unknown"
 
     def _read_state_labels(self, state):
         labels = []
