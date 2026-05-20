@@ -1,7 +1,10 @@
+from tkinter import N
+
 from direct.showbase.ShowBase import ShowBase
 from panda3d.core import WindowProperties, load_prc_file_data, DirectionalLight, CardMaker, PNMImage, Texture, AntialiasAttrib
 import random
 from direct.gui.DirectGui import DirectFrame, DirectButton
+import simplepbr
 
 from vialibre.player import Player
 from vialibre.multiplayer import MultiplayerManager
@@ -22,13 +25,15 @@ load_prc_file_data(
     'client-sleep 0.001\n'
     'framebuffer-multisample 1\n'
     'multisamples 2\n'
-    'load-file-type p3assimp'
+    'load-file-type p3assimp\n'
+    'load-file-type p3dopenstdl'
 )
 
 
 class EnvironmentManager:
     """SRP: Initialise et gère le décor statique (lumières, terrain)."""
     def __init__(self, render):
+        simplepbr.init()
         self.render = render
         self.generate_ground()
         self.setup_lights()
