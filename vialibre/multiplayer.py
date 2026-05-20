@@ -9,7 +9,7 @@ import urllib.request
 # ─────────────────────────────────────────────
 # CONFIGURATION : Remplacez par l'IP de votre VPS Oracle
 # ─────────────────────────────────────────────
-SIGNALING_IP   = "145.241.161.19"
+SIGNALING_IP   = "141.253.121.76"
 SIGNALING_PORT = 8080
 
 PUNCH_ATTEMPTS   = 10
