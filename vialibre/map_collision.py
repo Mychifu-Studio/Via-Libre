@@ -90,6 +90,9 @@ class CollisionTriangle:
 
 
 class MapCollisionManager:
+    COLLISION_FREE_REGIONS = (
+        (-5.5, 5.5, -0.5, 9.5),  # Pont central.
+    )
     WALKABLE_TERMS = ("ground", "path")
     DECORATIVE_TERMS = ("leaves", "leaf")
     BLOCKING_TERMS = (
@@ -157,9 +160,18 @@ class MapCollisionManager:
         return position
 
     def is_position_allowed(self, pos):
+        if self._is_in_collision_free_region(pos):
+            return True
+
         if self.walkable_triangles > 0 and not self._is_supported(pos):
             return False
         return not self._is_blocked(pos)
+
+    def _is_in_collision_free_region(self, pos):
+        for min_x, max_x, min_y, max_y in self.COLLISION_FREE_REGIONS:
+            if min_x <= pos.x <= max_x and min_y <= pos.y <= max_y:
+                return True
+        return False
 
     def _resolve_step(self, current, desired):
         if self.is_position_allowed(desired):
