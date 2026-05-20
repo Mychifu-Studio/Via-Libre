@@ -1,7 +1,10 @@
+from tkinter import N
+
 from direct.showbase.ShowBase import ShowBase
-from panda3d.core import WindowProperties, load_prc_file_data, DirectionalLight, CardMaker, PNMImage, Texture, AntialiasAttrib
+from panda3d.core import WindowProperties, load_prc_file_data, DirectionalLight, CardMaker, PNMImage, Texture, AntialiasAttrib, AmbientLight
 import random
 from direct.gui.DirectGui import DirectFrame, DirectButton
+import simplepbr
 
 from vialibre.player import Player
 from vialibre.multiplayer import MultiplayerManager
@@ -22,7 +25,8 @@ load_prc_file_data(
     'client-sleep 0.001\n'
     'framebuffer-multisample 1\n'
     'multisamples 2\n'
-    'load-file-type p3assimp'
+    'load-file-type p3assimp\n'
+    'load-file-type p3dopenstdl'
 )
 
 
@@ -34,37 +38,45 @@ class EnvironmentManager:
         self.setup_lights()
 
     def generate_ground(self):
-        size = 256
-        img = PNMImage(size, size)
+        # size = 256
+        # img = PNMImage(size, size)
 
-        for x in range(size):
-            for y in range(size):
-                r = min(max(0.25 + random.uniform(-0.05, 0.05), 0), 1)
-                g = min(max(0.70 + random.uniform(-0.1, 0.1), 0), 1)
-                b = min(max(0.25 + random.uniform(-0.05, 0.05), 0), 1)
-                img.setXel(x, y, r, g, b)
+        # for x in range(size):
+        #     for y in range(size):
+        #         r = min(max(0.25 + random.uniform(-0.05, 0.05), 0), 1)
+        #         g = min(max(0.70 + random.uniform(-0.1, 0.1), 0), 1)
+        #         b = min(max(0.25 + random.uniform(-0.05, 0.05), 0), 1)
+        #         img.setXel(x, y, r, g, b)
 
-        texture = Texture("groundTexture")
-        texture.load(img)
-        texture.setWrapU(Texture.WM_repeat)
-        texture.setWrapV(Texture.WM_repeat)
+        # texture = Texture("groundTexture")
+        # texture.load(img)
+        # texture.setWrapU(Texture.WM_repeat)
+        # texture.setWrapV(Texture.WM_repeat)
 
-        cm = CardMaker("ground")
-        cm.setFrame(-50, 50, -50, 50)
-        cm.setUvRange((0, 0), (10, 10))
+        # cm = CardMaker("ground")
+        # cm.setFrame(-50, 50, -50, 50)
+        # cm.setUvRange((0, 0), (10, 10))
 
-        ground = self.render.attachNewNode(cm.generate())
-        ground.setP(-90)
-        ground.setTexture(texture)
+        # ground = self.render.attachNewNode(cm.generate())
+        # ground.setP(-90)
+        # ground.setTexture(texture)
+        jungle = loader.loadModel('assets/jungle.bam')
+        jungle.setPos(0, 0, 0)
+        jungle.setH(-90)
+        jungle.reparentTo(self.render)
 
     def setup_lights(self):
-        dlight = DirectionalLight('dlight')
-        dlight.setColor((0.8, 0.8, 0.5, 1))
+        ambientLight = AmbientLight('ambientLight')
+        ambientLight.setColor((0.5, 0.5, 0.5, 1))
+        ambientLightNP = render.attachNewNode(ambientLight)
+        render.setLight(ambientLightNP)
+        # dlight = DirectionalLight('dlight')
+        # dlight.setColor((0.8, 0.8, 0.5, 1))
 
-        dlnp = self.render.attachNewNode(dlight)
-        dlnp.setHpr(0, -60, 0)
+        # dlnp = self.render.attachNewNode(dlight)
+        # dlnp.setHpr(0, -60, 0)
 
-        self.render.setLight(dlnp)
+        # self.render.setLight(dlnp)
 
 
 class GameMenu:
@@ -102,6 +114,7 @@ class GameMenu:
 class MainGame(ShowBase):
     def __init__(self):
         super().__init__(True)
+        simplepbr.init()
 
         self.render.setAntialias(AntialiasAttrib.MMultisample)
         self.disable_mouse()
