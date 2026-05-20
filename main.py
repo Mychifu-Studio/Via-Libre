@@ -74,16 +74,25 @@ class GameMenu:
         self.is_open = False
 
         self.frame = DirectFrame(
-            frameColor=(0, 0, 0, 0.8),
-            frameSize=(-0.5, 0.5, -0.4, 0.4)
+            parent=base.aspect2d,
+            frameColor=(0.02, 0.02, 0.02, 0.88),
+            frameSize=(-0.55, 0.55, -0.35, 0.35),
+            pos=(0, 0, 0),
         )
+        self.frame.setBin("fixed", 150)
+        self.frame.setDepthWrite(False)
+        self.frame.setDepthTest(False)
         self.frame.hide()
 
         self.leave_btn = DirectButton(
             parent=self.frame,
-            text="Leave",
-            scale=0.1,
-            pad=(0.2, 0.2),
+            text="Quitter",
+            scale=0.075,
+            pos=(0, 0, -0.05),
+            pad=(0.22, 0.08),
+            frameColor=(0.75, 0.12, 0.12, 1),
+            text_fg=(1, 1, 1, 1),
+            relief=1,
             command=self.game.exit_game
         )
 
@@ -112,17 +121,13 @@ class MainGame(ShowBase):
 
         self.environment = EnvironmentManager(self.render)
 
-        # Entités & systèmes
         self.enemies = EnemyManager(self)
         self.player = Player()
 
-        # Dans ta version actuelle de shooting.py, il faut passer self.player,
-        # car shooting.py récupère lui-même player.player.
         self.shooting = ShootingSystem(game=self, player=self.player)
 
         self.multiplayer = MultiplayerManager(self, self.player)
 
-        # UI & inventaire
         self.inventory = {
             "ressource": 0
         }
@@ -139,17 +144,12 @@ class MainGame(ShowBase):
         self.resource_system.setup_player_collider(self.player)
         self.resource_system.generate_random_zones(8)
 
-        # Système de vagues
-        # Important : on ne fait PLUS self.enemies.spawn_random_dogs_in_area()
-        # directement dans main.py. C'est vague.py qui gère les spawns.
         self.vague_manager = VagueManager(self, self.enemies)
         self.vague_manager.start()
 
-        # Events
         self.accept("escape", self.menu.toggle)
         self.accept("window-close", self.exit_game)
 
-        # shooting.py doit envoyer "enemy-hit" quand un projectile tue un ennemi.
         self.accept("enemy-hit", self.reward_enemy_hit)
 
         self.game_started = True
@@ -163,8 +163,6 @@ class MainGame(ShowBase):
             f"Ennemi touché : ressource +1 ! (Total : {self.inventory['ressource']})"
         )
 
-        # C'est cette ligne qui permet à vague.py de compter les kills
-        # et de lancer la vague suivante.
         self.vague_manager.enemy_killed()
 
     def exit_game(self):
