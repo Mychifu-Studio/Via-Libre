@@ -524,7 +524,7 @@ class GameNetworkInterface:
             x=self.local_player.player.getX(),
             y=self.local_player.player.getY(),
             z=self.local_player.player.getZ(),
-            h=self.local_player.player.getH(),
+            h=self.local_player.modelNode.getH(self.base.render),
         )]
         for name, model in self.other_players.items():
             players.append(PlayerState(
