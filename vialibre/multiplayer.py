@@ -429,30 +429,47 @@ class GameNetworkInterface:
         if dh > 180: dh = 360 - dh
         return dh > self.send_threshold_h
 
-    def _apply_authoritative_correction(self, payload: dict):
-        server_pos = None
-        server_h   = None
-        last_seq = payload.get("last_processed_seq", -1)
+def _apply_authoritative_correction(self, payload: dict):
+    server_pos = None
+    server_h   = None
+    last_seq   = payload.get("last_processed_seq", -1)
 
-        for p_data in payload.get("players", []):
-            if p_data.get("id") == self.net.player_name:
-                server_pos = Point3(p_data["x"], p_data["y"], p_data["z"])
-                server_h   = p_data.get("h", 0.0)
-                break
-        if not server_pos:
-            return
+    for p_data in payload.get("players", []):
+        if p_data.get("id") == self.net.player_name:
+            server_pos = Point3(p_data["x"], p_data["y"], p_data["z"])
+            server_h   = p_data.get("h", 0.0)
+            break
+    if not server_pos:
+        return
 
-        self.local_player.player.setPos(server_pos)
-        self.local_player.player.setH(server_h)
+    # --- 1. On récupère la position serveur ---
+    current_local = self.local_player.player.getPos()
 
-        for seq, inp in self.input_history:
-            if seq <= last_seq:
-                continue
-            self._replay_local_input(inp)
+    # --- 2. On calcule la différence ---
+    diff = Point3(server_pos - current_local)
+    dist = diff.length()
 
-    def _replay_local_input(self, inp: dict):
-        self.local_player.player.setPos(inp.get("x", 0), inp.get("y", 0), inp.get("z", 0))
-        self.local_player.player.setH(inp.get("h", 0))
+    # --- 3. On applique une correction lissée ---
+    # On veut corriger peu à peu la position, pas la "trainer" brutalement
+    correction_strength = 0.2  # 0.1 à 0.3, ajuste au feeling
+    correction = Point3(diff * correction_strength)
+
+    # --- 4. On applique uniquement la position ---
+    # On NE change PAS self.movementVector ici, on laisse la vélocité locale intacte
+    self.local_player.player.setPos(current_local + correction)
+    self.local_player.modelNode.setH(self.local_player.modelNode.getH() + correction_strength * (server_h - current_local.getH()))
+
+    # --- 5. On rejoue les inputs non-acquittés ---
+    # Ça garde la cohérence avec ce que le client s’attend à voir
+    for seq, inp in self.input_history:
+        if seq <= last_seq:
+            continue
+        self._replay_local_input(inp)
+
+def _replay_local_input(self, inp: dict):
+    # Option 1: on applique juste la position, mais sans réinitialiser la vitesse
+    self.local_player.player.setPos(inp.get("x", 0), inp.get("y", 0), inp.get("z", 0))
+    self.local_player.player.setH(inp.get("h", 0))
 
     def _send_input(self):
         if not self.net.connected:
