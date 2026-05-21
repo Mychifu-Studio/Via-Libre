@@ -119,6 +119,9 @@ class MapCollisionManager:
         "fireplace",
         "charbon",
         "tuyo",
+        "tuyau",
+        "tuyaux",
+        "pipe",
     )
 
     def __init__(
@@ -211,6 +214,39 @@ class MapCollisionManager:
             )
 
         return sorted(zones, key=lambda zone: (zone.y, zone.x))
+
+    def find_labeled_bounds(self, *terms):
+        normalized_terms = tuple(term.lower() for term in terms)
+        matching_triangles = []
+        seen = set()
+
+        for triangles in self.blocking_grid.values():
+            for triangle in triangles:
+                identity = id(triangle)
+                if identity in seen:
+                    continue
+                seen.add(identity)
+
+                label = triangle.label.lower()
+                if any(term in label for term in normalized_terms):
+                    matching_triangles.append(triangle)
+
+        if not matching_triangles:
+            return None
+
+        min_x = min(triangle.min_x for triangle in matching_triangles)
+        max_x = max(triangle.max_x for triangle in matching_triangles)
+        min_y = min(triangle.min_y for triangle in matching_triangles)
+        max_y = max(triangle.max_y for triangle in matching_triangles)
+        center = Point3((min_x + max_x) / 2.0, (min_y + max_y) / 2.0, 0)
+
+        return {
+            "min_x": min_x,
+            "max_x": max_x,
+            "min_y": min_y,
+            "max_y": max_y,
+            "center": center,
+        }
 
     def _is_in_collision_free_region(self, pos):
         for min_x, max_x, min_y, max_y in self.COLLISION_FREE_REGIONS:

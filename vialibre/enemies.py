@@ -64,6 +64,8 @@ class DogEnemy:
         detection_radius=12.0,
         chase_speed=None,
         area_bounds=None,
+        objective_callback=None,
+        objective_reach_radius=1.0,
     ):
         self.game = game
         self.map_collision = getattr(self.game, "map_collision", None)
@@ -73,6 +75,8 @@ class DogEnemy:
         self.player_node = player_node
         self.area_bounds = area_bounds
         self.respawn_callback = respawn_callback
+        self.objective_callback = objective_callback
+        self.objective_reach_radius = objective_reach_radius
         self.is_dead = False
         self.hp = self.MAX_HP
 
@@ -202,15 +206,39 @@ class DogEnemy:
         if (resolved_pos - current_pos).lengthSquared() > 0.0001:
             self.node.lookAt(player_pos)
 
+    def _has_reached_objective(self, pos):
+        if self.objective_callback is not None:
+            pipe_base = getattr(self.game, "pipe_base", None)
+            if pipe_base is not None:
+                return pipe_base.is_touching(pos)
+
+        diff = self.end_pos - pos
+        diff.setZ(0)
+        return diff.length() <= self.objective_reach_radius
+
+    def _reach_objective(self):
+        if self.objective_callback is not None:
+            self.objective_callback(self)
+            return
+
+        self.respawn()
+
     def _update_straight_line(self, current_pos, dt):
+        if self._has_reached_objective(current_pos):
+            self._reach_objective()
+            return
+
         next_pos = current_pos + self.direction * self.speed * dt
 
         if (next_pos - current_pos).length() >= (self.end_pos - current_pos).length():
-            self.respawn()
+            self._reach_objective()
         else:
             resolved_pos = self._move_with_collision(current_pos, next_pos)
             if (resolved_pos - current_pos).lengthSquared() <= 0.0001:
-                self.respawn()
+                if self._has_reached_objective(resolved_pos):
+                    self._reach_objective()
+                else:
+                    self.respawn()
                 return
 
             self.node.setPos(resolved_pos)
@@ -228,11 +256,17 @@ class DogEnemy:
             return
 
         current_pos = self.node.getPos(self.game.render)
+        if self.objective_callback is not None and self._has_reached_objective(current_pos):
+            self._reach_objective()
+            return
+
         should_chase, player_pos = self._should_chase_player(current_pos)
 
         if should_chase:
             self.is_chasing = True
             self._update_chase(current_pos, player_pos, dt)
+            if not self.is_dead and self._has_reached_objective(self.node.getPos(self.game.render)):
+                self._reach_objective()
         else:
             self.is_chasing = False
             self._update_straight_line(current_pos, dt)
@@ -259,12 +293,17 @@ class DogEnemy:
 
 
 class EnemyManager:
+    BASE_DAMAGE_PER_ENEMY = 1
+
     def __init__(self, game):
         self.game = game
         self.enemies = []
 
     def spawn_dog(self, start_pos, end_pos, **kwargs):
-        if not self._is_valid_position(start_pos) or not self._is_valid_position(end_pos):
+        allow_blocked_end = kwargs.pop("allow_blocked_end", False)
+        if not self._is_valid_position(start_pos):
+            return None
+        if not allow_blocked_end and not self._is_valid_position(end_pos):
             return None
 
         dog = DogEnemy(self.game, start_pos, end_pos, **kwargs)
@@ -295,25 +334,54 @@ class EnemyManager:
         spawned = 0
         attempts = 0
         max_attempts = count * 25
+        target_pos = self._get_pipe_target_pos()
 
         while spawned < count and attempts < max_attempts:
             attempts += 1
-            callback = lambda: self._generate_random_path(area_min_x, area_max_x, area_min_y, area_max_y, margin)
-            start_pos, end_pos = callback()
+            start_pos = self._random_valid_position_away(
+                safe_min_x,
+                safe_max_x,
+                safe_min_y,
+                safe_max_y,
+                target_pos,
+                min_distance=8.0,
+            )
             dog = self.spawn_dog(
                 start_pos,
-                end_pos,
-                respawn_callback=callback,
+                target_pos,
                 player_node=player_node,
                 detection_radius=detection_radius,
                 chase_speed=chase_speed,
                 area_bounds=area_bounds,
+                objective_callback=self._handle_enemy_reached_base,
+                objective_reach_radius=1.0,
+                allow_blocked_end=True,
                 **kwargs
             )
             if dog is not None:
                 spawned += 1
 
         return spawned
+
+    def _get_pipe_target_pos(self):
+        pipe_base = getattr(self.game, "pipe_base", None)
+        if pipe_base is None:
+            return Vec3(0, 0, 0)
+        return Vec3(pipe_base.get_position())
+
+    def _handle_enemy_reached_base(self, enemy):
+        if enemy.is_dead:
+            return
+
+        if hasattr(self.game, "damage_pipe"):
+            self.game.damage_pipe(self.BASE_DAMAGE_PER_ENEMY)
+
+        if not enemy.is_dead:
+            enemy.destroy()
+
+        vague_manager = getattr(self.game, "vague_manager", None)
+        if vague_manager is not None and hasattr(vague_manager, "enemy_reached_base"):
+            vague_manager.enemy_reached_base()
 
     def _generate_random_path(self, min_x, max_x, min_y, max_y, margin):
         safe_min_x, safe_max_x = min_x + margin, max_x - margin
@@ -342,6 +410,18 @@ class EnemyManager:
                     return pos
 
         return Vec3(0, 0, 0)
+
+    def _random_valid_position_away(self, min_x, max_x, min_y, max_y, target_pos, min_distance):
+        flat_target = Vec3(target_pos.x, target_pos.y, 0)
+
+        for _ in range(200):
+            pos = Vec3(random.uniform(min_x, max_x), random.uniform(min_y, max_y), 0)
+            if not self._is_valid_position(pos):
+                continue
+            if (pos - flat_target).length() >= min_distance:
+                return pos
+
+        return self._random_valid_position(min_x, max_x, min_y, max_y)
 
     def _scan_range(self, min_value, max_value, step):
         current = min_value
