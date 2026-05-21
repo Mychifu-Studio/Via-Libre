@@ -1,5 +1,5 @@
 from dataclasses import dataclass
-from math import ceil, floor
+from math import ceil, floor, sqrt
 
 from panda3d.core import GeomVertexReader, MaterialAttrib, Point3, TextureAttrib, Vec3
 
@@ -89,12 +89,20 @@ class CollisionTriangle:
         return abs(normal.z) >= min_normal_z
 
 
+@dataclass(frozen=True)
+class ResourceZoneDefinition:
+    x: float
+    y: float
+    radius: float
+
+
 class MapCollisionManager:
     COLLISION_FREE_REGIONS = (
         (-5.5, 5.5, -0.5, 9.5),  # Pont central.
     )
     WALKABLE_TERMS = ("ground", "path")
     DECORATIVE_TERMS = ("leaves", "leaf")
+    RESOURCE_TERMS = ("rock", "rocks")
     BLOCKING_TERMS = (
         "wall",
         "walls",
@@ -135,6 +143,8 @@ class MapCollisionManager:
         self.walkable_grid = {}
         self.blocking_triangles = 0
         self.walkable_triangles = 0
+        self.resource_points = []
+        self._resource_point_cells = set()
 
         if self.map_root is not None and not self.map_root.isEmpty():
             self._load_from_model(self.map_root)
@@ -166,6 +176,41 @@ class MapCollisionManager:
         if self.walkable_triangles > 0 and not self._is_supported(pos):
             return False
         return not self._is_blocked(pos)
+
+    def get_resource_zone_definitions(
+        self,
+        cluster_distance=3.0,
+        radius_padding=1.25,
+        min_radius=2.0,
+        min_cluster_points=3,
+    ):
+        clusters = self._cluster_resource_points(cluster_distance)
+        zones = []
+
+        for cluster in clusters:
+            if len(cluster) < min_cluster_points:
+                continue
+
+            min_x = min(point.x for point in cluster)
+            max_x = max(point.x for point in cluster)
+            min_y = min(point.y for point in cluster)
+            max_y = max(point.y for point in cluster)
+            center_x = (min_x + max_x) / 2.0
+            center_y = (min_y + max_y) / 2.0
+            radius = max(
+                sqrt(_distance_squared(center_x, center_y, point.x, point.y))
+                for point in cluster
+            )
+
+            zones.append(
+                ResourceZoneDefinition(
+                    center_x,
+                    center_y,
+                    max(min_radius, radius + radius_padding),
+                )
+            )
+
+        return sorted(zones, key=lambda zone: (zone.y, zone.x))
 
     def _is_in_collision_free_region(self, pos):
         for min_x, max_x, min_y, max_y in self.COLLISION_FREE_REGIONS:
@@ -225,6 +270,10 @@ class MapCollisionManager:
         return vertices
 
     def _store_triangle(self, triangle, category):
+        if category == "resource":
+            self._store_resource_point(triangle)
+            category = "blocker"
+
         if category in ("walkable", "low_surface"):
             if not triangle.has_walkable_slope(0.35):
                 if category == "walkable":
@@ -259,6 +308,9 @@ class MapCollisionManager:
 
         if any(term in label_text for term in self.WALKABLE_TERMS):
             return "walkable", label_text
+
+        if any(term in label_text for term in self.RESOURCE_TERMS):
+            return "resource", label_text
 
         if any(term in label_text for term in self.BLOCKING_TERMS):
             return "blocker", label_text
@@ -328,6 +380,73 @@ class MapCollisionManager:
             if triangle.overlaps_circle(pos.x, pos.y, self.player_radius):
                 return True
         return False
+
+    def _store_resource_point(self, triangle):
+        center = Point3(
+            (triangle.a.x + triangle.b.x + triangle.c.x) / 3.0,
+            (triangle.a.y + triangle.b.y + triangle.c.y) / 3.0,
+            0,
+        )
+        for point in (triangle.a, triangle.b, triangle.c, center):
+            self._store_resource_sample(point)
+
+    def _store_resource_sample(self, point):
+        cell = (int(round(point.x * 2.0)), int(round(point.y * 2.0)))
+        if cell in self._resource_point_cells:
+            return
+
+        self._resource_point_cells.add(cell)
+        self.resource_points.append(Point3(point.x, point.y, 0))
+
+    def _cluster_resource_points(self, cluster_distance):
+        points = sorted(self.resource_points, key=lambda point: (point.x, point.y))
+        if not points:
+            return []
+
+        parents = list(range(len(points)))
+        max_distance_squared = cluster_distance * cluster_distance
+
+        def find(index):
+            while parents[index] != index:
+                parents[index] = parents[parents[index]]
+                index = parents[index]
+            return index
+
+        def union(left, right):
+            left_root = find(left)
+            right_root = find(right)
+            if left_root != right_root:
+                parents[right_root] = left_root
+
+        for left_index, left_point in enumerate(points):
+            for right_index in range(left_index + 1, len(points)):
+                right_point = points[right_index]
+                x_distance = right_point.x - left_point.x
+                if x_distance * x_distance > max_distance_squared:
+                    break
+
+                if (
+                    _distance_squared(
+                        left_point.x,
+                        left_point.y,
+                        right_point.x,
+                        right_point.y,
+                    )
+                    <= max_distance_squared
+                ):
+                    union(left_index, right_index)
+
+        clusters_by_root = {}
+        for index, point in enumerate(points):
+            clusters_by_root.setdefault(find(index), []).append(point)
+
+        return sorted(
+            clusters_by_root.values(),
+            key=lambda cluster: (
+                min(point.y for point in cluster),
+                min(point.x for point in cluster),
+            ),
+        )
 
     def _add_to_grid(self, grid, triangle):
         min_cell_x = int(floor(triangle.min_x / self.cell_size))

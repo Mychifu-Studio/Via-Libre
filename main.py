@@ -2,7 +2,6 @@ from tkinter import N
 
 from direct.showbase.ShowBase import ShowBase
 from panda3d.core import WindowProperties, load_prc_file_data, DirectionalLight, CardMaker, PNMImage, Texture, AntialiasAttrib, AmbientLight
-import random
 from direct.gui.DirectGui import DirectFrame, DirectButton
 import simplepbr
 
@@ -153,7 +152,7 @@ class MainGame(ShowBase):
             popup_ui=self.popup_ui
         )
         self.resource_system.setup_player_collider(self.player)
-        self.resource_system.generate_random_zones(8)
+        self.resource_system.generate_stone_zones()
 
         # Système de vagues
         # Important : on ne fait PLUS self.enemies.spawn_random_dogs_in_area()
