@@ -568,7 +568,7 @@ class GameNetworkInterface:
 
         for msg in game_messages:
             kind = msg["kind"]
-            payload = msg["payload"]
+            payload = msg.get("payload", {})
             sender_id = msg["sender_id"]
 
             if kind == "_peer_connected":
