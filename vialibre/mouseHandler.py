@@ -86,6 +86,7 @@ class Mouse(DirectObject):
         if getattr(self.base, 'win', None) is None:
             return
         if self.base.mouseWatcherNode.hasMouse():
+            self.showCursor()
             x = self.base.mouseWatcherNode.getMouseX()
             y = self.base.mouseWatcherNode.getMouseY()
             ratio = self.base.getAspectRatio()
