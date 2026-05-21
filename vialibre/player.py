@@ -84,14 +84,15 @@ class Player(DirectObject):
             pass
 
     def update(self, dt):
-        if not (self.build_manager.mode_actif or self.is_paused):
-            self.camera.updateCursor()
+        self.camera.updateCursor()
+        if self.build_manager.mode_actif:
+            self.camera.mouse.hideCursor()
 
         if self._damage_cooldown_remaining > 0:
             self._damage_cooldown_remaining = max(0.0, self._damage_cooldown_remaining - dt)
 
         if self.is_paused:
-            self.cursor.show()
+            self.camera.mouse.showCursor()
             return
 
         forward = self.base.render.getRelativeVector(self.camera.pivot, Vec3(0, 1, 0))
