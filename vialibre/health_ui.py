@@ -16,7 +16,7 @@ class PlayerHealthUI:
             parent=parent,
             frameColor=(0, 0, 0, 0.45),
             frameSize=(0.02, 0.62, -0.13, -0.02),
-            pos=(0.02, 0, -0.23),
+            pos=(0.02, 0, -0.27),
         )
         self.root.setBin("fixed", 12)
         self.root.setDepthWrite(False)
@@ -25,7 +25,7 @@ class PlayerHealthUI:
         self.label = OnscreenText(
             parent=parent,
             text="Vie joueur",
-            pos=(0.06, -0.285),
+            pos=(0.06, -0.325),
             scale=0.04,
             fg=(1, 1, 1, 1),
             align=TextNode.ALeft,
@@ -38,7 +38,7 @@ class PlayerHealthUI:
         self.bar_bg = DirectFrame(
             parent=parent,
             frameColor=(0.08, 0.08, 0.08, 0.9),
-            frameSize=(0.06, 0.58, -0.365, -0.325),
+            frameSize=(0.06, 0.58, -0.365, -0.355),
             pos=(0, 0, 0),
         )
         self.bar_bg.setBin("fixed", 13)
