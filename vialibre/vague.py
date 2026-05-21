@@ -48,32 +48,55 @@ class VagueManager:
             },
         ]
 
+        self.wave_panel = DirectFrame(
+            parent=base.aspect2d,
+            frameColor=(0.02, 0.02, 0.02, 0.72),
+            frameSize=(-0.62, 0.62, -0.10, 0.10),
+            pos=(0, 0, 0.84),
+        )
+        self.wave_panel.setBin("fixed", 85)
+        self.wave_panel.setDepthWrite(False)
+        self.wave_panel.setDepthTest(False)
+        self.wave_panel.hide()
+
         self.wave_label = DirectLabel(
+            parent=self.wave_panel,
             text="",
-            scale=0.09,
-            pos=(0, 0, 0.78),
+            scale=0.055,
+            pos=(0, 0, -0.024),
             frameColor=(0, 0, 0, 0),
             text_fg=(1, 1, 1, 1),
             text_align=TextNode.ACenter,
+            text_wordwrap=20,
         )
-        self.wave_label.hide()
+        self.wave_label.setBin("fixed", 86)
+        self.wave_label.setDepthWrite(False)
+        self.wave_label.setDepthTest(False)
 
         self.final_screen = DirectFrame(
-            frameColor=(0, 0, 0, 0.85),
+            parent=base.aspect2d,
+            frameColor=(0, 0, 0, 0.88),
             frameSize=(-1.4, 1.4, -0.8, 0.8),
             pos=(0, 0, 0),
         )
+        self.final_screen.setBin("fixed", 200)
+        self.final_screen.setDepthWrite(False)
+        self.final_screen.setDepthTest(False)
         self.final_screen.hide()
 
         self.final_label = DirectLabel(
             parent=self.final_screen,
             text="Bien joué !\nTu as survécu à toutes les vagues.",
-            scale=0.12,
-            pos=(0, 0, 0.1),
+            scale=0.09,
+            pos=(0, 0, 0.08),
             frameColor=(0, 0, 0, 0),
             text_fg=(1, 1, 1, 1),
             text_align=TextNode.ACenter,
+            text_wordwrap=22,
         )
+        self.final_label.setBin("fixed", 201)
+        self.final_label.setDepthWrite(False)
+        self.final_label.setDepthTest(False)
 
     def start(self):
         self.current_wave_index = 0
@@ -119,13 +142,12 @@ class VagueManager:
         if self.waiting_next_wave:
             return
 
+        wave = self.waves[self.current_wave_index]
         self.killed_in_current_wave += 1
 
-        print(
-            f"Ennemi tué : {self.killed_in_current_wave}/{self.current_enemy_target}"
-        )
+        print(f"Ennemi tué : {self.killed_in_current_wave}/{wave['enemy_count']}")
 
-        if self.killed_in_current_wave >= self.current_enemy_target:
+        if self.killed_in_current_wave >= wave["enemy_count"]:
             self.current_wave_index += 1
 
             if self.current_wave_index >= len(self.waves):
@@ -139,7 +161,7 @@ class VagueManager:
         if self.message_timer > 0:
             self.message_timer -= dt
             if self.message_timer <= 0:
-                self.wave_label.hide()
+                self.wave_panel.hide()
 
         if self.waiting_next_wave:
             self.next_wave_timer -= dt
@@ -150,14 +172,14 @@ class VagueManager:
 
     def show_message(self, text, duration=2.0):
         self.wave_label["text"] = text
-        self.wave_label.show()
+        self.wave_panel.show()
         self.message_timer = duration
 
     def finish_game(self):
         self.is_finished = True
         self.waiting_next_wave = False
         self.clear_enemies()
-        self.wave_label.hide()
+        self.wave_panel.hide()
         self.final_screen.show()
 
     def clear_enemies(self):

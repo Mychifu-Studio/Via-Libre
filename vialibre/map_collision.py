@@ -98,11 +98,11 @@ class ResourceZoneDefinition:
 
 class MapCollisionManager:
     COLLISION_FREE_REGIONS = (
-        (-5.5, 5.5, -0.5, 9.5),  # Pont central.
+        (-3.2, 3.2, -0.5, 9.5),  # Tablier du pont central.
     )
     WALKABLE_TERMS = ("ground", "path")
     DECORATIVE_TERMS = ("leaves", "leaf")
-    RESOURCE_TERMS = ("rock", "rocks")
+    RESOURCE_TERMS = ("minerai", "diamant", "diamond")
     BLOCKING_TERMS = (
         "wall",
         "walls",

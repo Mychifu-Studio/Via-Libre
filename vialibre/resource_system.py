@@ -8,8 +8,8 @@ from panda3d.core import (
 
 
 class ResourceSystem:
-    TOP_STONE_MIN_Y = 12.0
-    TOP_STONE_MIN_ABS_X = 20.0
+    DIAMOND_ORE_MAX_Y = 12.5
+    DIAMOND_ORE_MIN_ABS_X = 25.0
 
     """
     Gère :
@@ -126,12 +126,12 @@ class ResourceSystem:
             marker.setColor(1.0, 0.2, 0.2, 1)
 
     # =========================================================
-    # GENERATION DES ZONES SUR LES PIERRES
+    # GENERATION DES ZONES SUR LES MINERAIS DE DIAMANT
     # =========================================================
-    def generate_stone_zones(self):
-        zones = self._generate_stone_zone_definitions()
+    def generate_diamond_ore_zones(self):
+        zones = self._generate_diamond_ore_zone_definitions()
         if not zones:
-            print("Aucune zone de roche trouvee pour generer les ressources.")
+            print("Aucune zone de minerai de diamant trouvee pour generer les ressources.")
             return
 
         for index, zone in enumerate(zones):
@@ -146,7 +146,7 @@ class ResourceSystem:
                 amount
             )
 
-    def _generate_stone_zone_definitions(self):
+    def _generate_diamond_ore_zone_definitions(self):
         map_collision = getattr(self.game, "map_collision", None)
         if map_collision is None or not hasattr(map_collision, "get_resource_zone_definitions"):
             return []
@@ -156,13 +156,13 @@ class ResourceSystem:
             radius_padding=1.25,
             min_radius=2.0,
         )
-        return self._filter_top_corner_stone_zones(zones)
+        return self._filter_diamond_ore_zones(zones)
 
-    def _filter_top_corner_stone_zones(self, zones):
+    def _filter_diamond_ore_zones(self, zones):
         return [
             zone for zone in zones
-            if zone.y >= self.TOP_STONE_MIN_Y
-            and abs(zone.x) >= self.TOP_STONE_MIN_ABS_X
+            if zone.y <= self.DIAMOND_ORE_MAX_Y
+            and abs(zone.x) >= self.DIAMOND_ORE_MIN_ABS_X
         ]
 
     def _resource_amount_for_zone(self, index, radius):
