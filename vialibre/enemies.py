@@ -289,6 +289,89 @@ class DogEnemy:
         self.node.removeNode()
 
 
+
+class WaypointEnemy:
+    """Ennemi qui suit une liste de waypoints a vitesse fixe puis disparait."""
+    MAX_HP = 3
+    CONTACT_RADIUS = 1.5
+    WAYPOINT_REACH_THRESHOLD = 0.3
+
+    def __init__(self, game, waypoints, speed=4.0, scale=1.0, on_finish=None):
+        self.game      = game
+        self.waypoints = [Vec3(wp) for wp in waypoints]
+        self.speed     = speed
+        self.on_finish = on_finish
+        self.is_dead   = False
+        self.hp        = self.MAX_HP
+        self._index    = 0
+
+        self.node = self._load_model()
+        self.node.reparentTo(self.game.render)
+        self.node.setScale(scale)
+        self.node.setPos(self.waypoints[0])
+
+        if len(self.waypoints) > 1:
+            self.node.lookAt(self.waypoints[1])
+
+    def _load_model(self):
+        base_dir = os.path.dirname(os.path.abspath(__file__))
+        path = Filename.fromOsSpecific(os.path.join(base_dir, "../assets", "dog.bam")).getFullpath()
+        return self.game.loader.loadModel(path)
+
+    def take_damage(self, amount=1):
+        if self.is_dead:
+            return False
+        self.hp -= amount
+        if self.hp <= 0:
+            self.destroy()
+            return True
+        return False
+
+    def is_touched_by_segment(self, start_pos, end_pos, hit_radius):
+        if self.is_dead:
+            return False
+        dist = MathUtils.distance_segment_to_point(start_pos, end_pos, self.node.getPos(self.game.render))
+        return dist <= hit_radius
+
+    def is_touching_point(self, point):
+        if self.is_dead:
+            return False
+        pos = self.node.getPos(self.game.render)
+        return Vec3(point.x - pos.x, point.y - pos.y, 0).length() <= self.CONTACT_RADIUS
+
+    def update(self, dt):
+        if self.is_dead:
+            return
+
+        next_index = self._index + 1
+        if next_index >= len(self.waypoints):
+            self.destroy()
+            return
+
+        target      = self.waypoints[next_index]
+        current_pos = self.node.getPos(self.game.render)
+        to_target   = Vec3(target.x - current_pos.x, target.y - current_pos.y, 0)
+        dist        = to_target.length()
+
+        if dist <= self.WAYPOINT_REACH_THRESHOLD:
+            self._index = next_index
+            self.node.setPos(target)
+            if self._index + 1 < len(self.waypoints):
+                self.node.lookAt(self.waypoints[self._index + 1])
+            return
+
+        direction = to_target / dist
+        step      = min(self.speed * dt, dist)
+        self.node.setPos(Vec3(current_pos.x + direction.x * step, current_pos.y + direction.y * step, current_pos.z))
+
+    def destroy(self):
+        if self.is_dead:
+            return
+        self.is_dead = True
+        self.node.removeNode()
+        if self.on_finish:
+            self.on_finish()
+
 class EnemyManager:
     def __init__(self, game):
         self.game = game
@@ -365,6 +448,21 @@ class EnemyManager:
             end = self._random_valid_position(safe_min_x, safe_max_x, safe_min_y, safe_max_y)
 
         return start, end
+
+    def spawn_waypoint_dog(self, waypoints, speed=4.0, scale=1.0, on_finish=None):
+        """
+        Spawne un ennemi qui parcourt la liste de waypoints a vitesse fixe
+        et disparait apres le dernier point.
+
+        waypoints : liste de Vec3 ou de tuples (x, y, z).
+                    Le premier point est la position d'apparition.
+        on_finish : callback optionnel appele quand l'ennemi atteint le dernier point.
+        """
+        if len(waypoints) < 2:
+            raise ValueError("Il faut au moins 2 waypoints.")
+        enemy = WaypointEnemy(self.game, waypoints, speed=speed, scale=scale, on_finish=on_finish)
+        self.enemies.append(enemy)
+        return enemy
 
     def _random_valid_position(self, min_x, max_x, min_y, max_y):
         for _ in range(200):
