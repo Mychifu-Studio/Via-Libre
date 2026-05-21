@@ -61,7 +61,7 @@ class EnvironmentManager:
         # ground = self.render.attachNewNode(cm.generate())
         # ground.setP(-90)
         # ground.setTexture(texture)
-        jungle = loader.loadModel('assets/jungle.bam')
+        jungle = loader.loadModel('assets/Jungle3.bam')
         jungle.setPos(0, 0, 0)
         jungle.setH(-90)
         jungle.reparentTo(self.render)
