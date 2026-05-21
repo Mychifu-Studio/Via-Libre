@@ -4,6 +4,7 @@ from panda3d.core import Vec3, Point3, NodePath
 from math import exp
 
 from vialibre.mouseHandler import Mouse
+from vialibre.utils import powLerp
 
 SATELLITE_PITCH = -30
 
@@ -48,7 +49,13 @@ class Camera(DirectObject):
 
     def rotateStatus(self):
         self.rotate = not self.rotate
-        if self.rotate: self.mouse.centerMouse()
+        if self.rotate: 
+            self.lastMousePos = self.mouse.getMousePos()
+            self.mouse.hideCursor()
+            self.mouse.centerMouse()
+        else: 
+            # self.mouse.setMousePos(self.lastMousePos)
+            self.mouse.showCursor()
 
     def setupCamera(self):
         self.camPivot = self.base.render.attach_new_node('camPivot')
@@ -81,11 +88,11 @@ class Camera(DirectObject):
             targetLookAhead = Vec3(0)
             smoothing = self.smoothingBack
 
-        self.lookAhead = self.powLerp(currentLookAhead, targetLookAhead, dt, smoothing)
+        self.lookAhead = powLerp(currentLookAhead, targetLookAhead, dt, smoothing)
 
         if not is_locked:
             transition_speed = .3
-            self.pitch = self.powLerp(self.pitch, SATELLITE_PITCH - 1.5 * self.camDistance, dt, transition_speed)
+            self.pitch = powLerp(self.pitch, SATELLITE_PITCH - 1.5 * self.camDistance, dt, transition_speed)
 
             if self.rotate and self.mouse.hasMouse():
                 dx, _ = self.mouse.getMouseDelta()
@@ -111,3 +118,7 @@ class Camera(DirectObject):
 
         currentFov += (targetFov - currentFov) * (1 - exp(-smoothingSpeed * dt))
         self.base.camLens.setFov(currentFov)
+
+    def updateCursor(self):
+        if not self.rotate:
+            self.mouse.updateCursor()
