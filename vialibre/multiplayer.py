@@ -35,29 +35,85 @@ def get_public_ip() -> str:
 
 
 class PlayerState:
-    def __init__(self, id: str, username: str, x: float, y: float, z: float, h: float = 0.0):
+    def __init__(self, id: str, username: str, x: float, y: float, z: float, h: float = 0.0, hp: int = 10):
         self.id = id
         self.username = username
         self.x = x
         self.y = y
         self.z = z
         self.h = h
+        self.hp = hp
 
     def to_dict(self) -> Dict[str, Any]:
-        return {"id": self.id, "username": self.username, "x": self.x, "y": self.y, "z": self.z, "h": self.h}
+        return {"id": self.id, "username": self.username, "x": self.x, "y": self.y, "z": self.z, "h": self.h, "hp": self.hp}
 
     @staticmethod
     def from_dict(data: Dict[str, Any]) -> "PlayerState":
-        return PlayerState(data["id"], data["username"], data["x"], data["y"], data["z"], data.get("h", 0.0))
+        return PlayerState(data["id"], data["username"], data["x"], data["y"], data["z"], data.get("h", 0.0), data.get("hp", 10))
+
+class EnemyState:
+    def __init__(self, id: str, x: float, y: float, z: float, h: float, hp: int):
+        self.id = id
+        self.x = x
+        self.y = y
+        self.z = z
+        self.h = h
+        self.hp = hp
+        
+    def to_dict(self) -> Dict[str, Any]:
+        return {"id": self.id, "x": self.x, "y": self.y, "z": self.z, "h": self.h, "hp": self.hp}
+        
+    @staticmethod
+    def from_dict(data: Dict[str, Any]) -> "EnemyState":
+        return EnemyState(data["id"], data["x"], data["y"], data["z"], data.get("h", 0.0), data.get("hp", 1))
+
+class GameState:
+    def __init__(self, wave_index: int, is_finished: bool, team_resources: int):
+        self.wave_index = wave_index
+        self.is_finished = is_finished
+        self.team_resources = team_resources
+        
+    def to_dict(self) -> Dict[str, Any]:
+        return {"wave_index": self.wave_index, "is_finished": self.is_finished, "team_resources": self.team_resources}
+
+    @staticmethod
+    def from_dict(data: Dict[str, Any]) -> "GameState":
+        return GameState(data.get("wave_index", 0), data.get("is_finished", False), data.get("team_resources", 0))
+
+class StructureState:
+    def __init__(self, id: str, x: float, y: float, z: float, h: float, p: float, r: float):
+        self.id = id
+        self.x = x
+        self.y = y
+        self.z = z
+        self.h = h
+        self.p = p
+        self.r = r
+
+    def to_dict(self) -> Dict[str, Any]:
+        return {"id": self.id, "x": self.x, "y": self.y, "z": self.z, "h": self.h, "p": self.p, "r": self.r}
+
+    @staticmethod
+    def from_dict(data: Dict[str, Any]) -> "StructureState":
+        return StructureState(data["id"], data["x"], data["y"], data["z"], data.get("h", 0.0), data.get("p", 0.0), data.get("r", 0.0))
 
 
 @dataclass
 class Snapshot:
     tick: int
     players: List[PlayerState] = field(default_factory=list)
+    enemies: List[EnemyState] = field(default_factory=list)
+    game_state: Optional[GameState] = None
+    structures: List[StructureState] = field(default_factory=list)
 
     def to_dict(self) -> Dict[str, Any]:
-        return {"tick": self.tick, "players": [p.to_dict() for p in self.players]}
+        return {
+            "tick": self.tick, 
+            "players": [p.to_dict() for p in self.players],
+            "enemies": [e.to_dict() for e in self.enemies],
+            "game_state": self.game_state.to_dict() if self.game_state else None,
+            "structures": [s.to_dict() for s in self.structures]
+        }
 
 
 @dataclass
@@ -423,10 +479,35 @@ class GameNetworkInterface:
         self.tick += 1
 
     def _build_snapshot(self) -> Dict[str, Any]:
-        players = [PlayerState(self.net.player_name, self.net.player_name, self.local_player.player.getX(self.base.render), self.local_player.player.getY(self.base.render), self.local_player.player.getZ(self.base.render), self.local_player.modelNode.getH(self.base.render))]
+        players = [PlayerState(self.net.player_name, self.net.player_name, self.local_player.player.getX(self.base.render), self.local_player.player.getY(self.base.render), self.local_player.player.getZ(self.base.render), self.local_player.modelNode.getH(self.base.render), self.local_player.hp)]
         for name, model in self.other_players.items():
-            players.append(PlayerState(name, name, model.getX(self.base.render), model.getY(self.base.render), model.getZ(self.base.render), model.getH(self.base.render)))
-        return Snapshot(tick=self.tick, players=players).to_dict()
+            hp = model.getPythonTag("hp") or 10
+            players.append(PlayerState(name, name, model.getX(self.base.render), model.getY(self.base.render), model.getZ(self.base.render), model.getH(self.base.render), hp))
+        
+        enemies = []
+        if hasattr(self.base, 'enemies'):
+            for enemy in self.base.enemies.enemies:
+                if not enemy.is_dead and hasattr(enemy, 'id'):
+                    pos = enemy.node.getPos(self.base.render)
+                    enemies.append(EnemyState(enemy.id, pos.x, pos.y, pos.z, enemy.node.getH(self.base.render), enemy.hp))
+        
+        game_state = None
+        if hasattr(self.base, 'vague_manager'):
+            game_state = GameState(
+                wave_index=self.base.vague_manager.current_wave_index,
+                is_finished=self.base.vague_manager.is_finished,
+                team_resources=self.base.inventory.get("ressource", 0)
+            )
+
+        structures = []
+        if hasattr(self.local_player, 'build_manager'):
+            for struct in self.local_player.build_manager.structures:
+                if hasattr(struct, 'id'):
+                    pos = struct.np.getPos(self.base.render)
+                    hpr = struct.np.getHpr(self.base.render)
+                    structures.append(StructureState(struct.id, pos.x, pos.y, pos.z, hpr.x, hpr.y, hpr.z))
+
+        return Snapshot(tick=self.tick, players=players, enemies=enemies, game_state=game_state, structures=structures).to_dict()
 
     def _spawn_player(self, name: str):
         if self.net is not None and (name in self.other_players or name == self.net.player_name):
@@ -459,15 +540,41 @@ class GameNetworkInterface:
             pid = p_data.get('id')
             known_players.add(pid)
             if self.net is not None and pid == self.net.player_name:
+                if 'hp' in p_data and self.local_player.hp != p_data['hp']:
+                    self.local_player.hp = p_data['hp']
+                    self.base.messenger.send("player-hp-changed", [self.local_player.hp])
+                    if self.local_player.hp <= 0:
+                        self.base.messenger.send("player-dead")
                 continue
             if pid not in self.other_players:
                 self._spawn_player(pid)
             model = self.other_players[pid]
             model.setPos(self.base.render, p_data['x'], p_data['y'], p_data['z'])
             model.setH(self.base.render, p_data.get('h', 0.0))
+            if 'hp' in p_data:
+                model.setPythonTag("hp", p_data['hp'])
         for name in list(self.other_players.keys()):
             if name not in known_players:
                 self._despawn_player(name)
+                
+        if not self.net.is_host:
+            # Sync Game State
+            g_data = payload.get('game_state')
+            if g_data and hasattr(self.base, 'vague_manager'):
+                self.base.vague_manager.sync_from_snapshot(g_data.get('wave_index', 0), g_data.get('is_finished', False))
+                self.base.inventory["ressource"] = g_data.get('team_resources', 0)
+                if hasattr(self.base, 'inventory_ui'):
+                    self.base.inventory_ui.update()
+
+            # Sync Enemies
+            e_data = payload.get('enemies', [])
+            if hasattr(self.base, 'enemies'):
+                self.base.enemies.sync_from_snapshot(e_data)
+                
+            # Sync Structures
+            s_data = payload.get('structures', [])
+            if hasattr(self.local_player, 'build_manager'):
+                self.local_player.build_manager.sync_from_snapshot(s_data)
 
     def _spawn_shot(self, payload: dict):
         if not hasattr(self.base, 'shooting'):
@@ -498,6 +605,24 @@ class GameNetworkInterface:
                     self.net.broadcast_msg('shoot', payload)
             elif kind == 'shoot':
                 self._spawn_shot(payload)
+            elif kind == 'turret_shoot':
+                if not self.net.is_host and hasattr(self.local_player, 'build_manager'):
+                    struct_id = payload.get('struct_id')
+                    target_pos = payload.get('target_pos')
+                    for struct in self.local_player.build_manager.structures:
+                        if hasattr(struct, 'id') and struct.id == struct_id:
+                            # Visual tracer on client
+                            start_pos_visuel = Point3(struct.np.getX(), struct.np.getY(), struct.np.getZ() + 1.2) + struct.offset_turret
+                            target_pos_visuel = Point3(target_pos['x'], target_pos['y'], target_pos['z'])
+                            struct.create_tracer_effect(start_pos_visuel, target_pos_visuel)
+                            break
+            elif kind == 'build_request':
+                if self.net.is_host and hasattr(self.local_player, 'build_manager'):
+                    # The host approves the build by creating the structure in its game state.
+                    # It will then be sent out in the next snapshot.
+                    pos = Point3(payload['x'], payload['y'], payload['z'])
+                    hpr = Vec3(payload['h'], payload['p'], payload['r'])
+                    self.local_player.build_manager.host_create_structure(pos, hpr)
             elif kind == 'leave':
                 self._despawn_player(payload.get('name', sender_id))
         if not self.net.is_host:
