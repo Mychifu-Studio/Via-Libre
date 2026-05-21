@@ -141,7 +141,8 @@ class ShootingSystem:
             new_pos = bullet.node.getPos(self.game.render)
             has_hit = False
             if hasattr(self.game, "enemies"):
-                has_hit = self.game.enemies.check_projectile_hit(old_pos, new_pos, self.HIT_RADIUS)
+                is_host = getattr(self.game, 'network', None) is None or getattr(self.game.network, 'net', None) is None or self.game.network.net.is_host
+                has_hit = self.game.enemies.check_projectile_hit(old_pos, new_pos, self.HIT_RADIUS, apply_damage=is_host)
             if has_hit:
                 bullet.destroy()
             elif is_alive:
