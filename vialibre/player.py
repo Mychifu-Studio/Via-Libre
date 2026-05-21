@@ -120,7 +120,6 @@ class Player(DirectObject):
         if input_vec.length() > self.lastMovement.length():
             target_H = degrees(atan2(-input_vec.x, input_vec.y))  # adapte les axes si besoin
             new_H = shortest_angle_lerp(current_H, target_H, dt, .1)
-            print(new_H)
             self.modelNode.setH(self.base.render, new_H)
 
         for axis in range(3):
