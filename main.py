@@ -88,12 +88,63 @@ class EnvironmentManager:
         render.setLight(ambientLightNP)
 
         self.spot1 = self.add_spotlight(
-            name="spot1",
+            name="feu de camp",
             color=(1.0, 0.2, 0.1, 1),
             pos=(0, -7, 2),
             target=(0, -9, 0),
             fov=140
         )
+
+        
+        self.mid_haut = self.add_spotlight(
+            name="mid haut",
+            color=(0, 0.2, 1, 1),
+            pos=(0, 15, 10),
+            target=(0, 15, 0),
+            fov=140
+        )
+        # #DOORS
+        # self.door1 = self.add_spotlight(
+        #     name="door1",
+        #     color=(1, 0, 0, 1),
+        #     pos=(-38, -9, 3),
+        #     target=(-38, -9, 0),
+        #     fov=90
+        # )
+        # self.door2= self.add_spotlight(
+        #     name="door2",
+        #     color=(1, 0, 0, 1),
+        #     pos=(38, -9, 3),
+        #     target=(38, -9, 0),
+        #     fov=90
+        # )
+
+        # self.door3 = self.add_spotlight(
+        #     name="door3",
+        #     color=(1, 0, 0, 1),
+        #     pos=(-22.8, 17, 3),
+        #     target=(-22.8, 17, 0),
+        #     fov=90
+        # )
+        # self.door4= self.add_spotlight(
+        #     name="door4",
+        #     color=(1, 0, 0, 1),
+        #     pos=(21.2, 17, 3),
+        #     target=(21.2, 17, 0),
+        #     fov=90
+        # )
+
+        # self.door5 = self.add_spotlight(
+        #     name="door5",
+        #     color=(1, 0, 0, 1),
+        #     pos=(6, 23.8, 3),
+        #     target=(6, 23.8, 0),
+        #     fov=90
+        # )
+
+        
+
+
 
         self.spot_minerai_left = self.add_spotlight(
             name="spot_minerai_left",
@@ -153,14 +204,6 @@ class EnvironmentManager:
         )
 
 
-        self.spot3 = self.add_spotlight(
-            name="spot3",
-            color=(0.9, 0.95, 1.0, 1),
-            pos=(-5, 0, 3),
-            target=(-5, 0, 0),
-            fov=40
-        )
-
         self.spot_mid = self.add_spotlight(
             name="spot_mid",
             color=(0.9, 0.95, 0.80, 1),
@@ -177,15 +220,7 @@ class EnvironmentManager:
             fov=100
         )
 
-            # Spot plafond 1
-        self.spot1, self.spot1_np = self.add_spotlight(
-            name="spot1",
-            color=(1.0, 0.92, 0.8, 1),   # blanc chaud
-            pos=(-4, 0, 5),              # position plafond
-            target=(-4, 3, 0),           # regarde vers le sol
-            fov=50
-        )
-
+        
 
 class GameMenu:
     """SRP: Gère l'affichage du menu système (Pause/Quitter)."""
