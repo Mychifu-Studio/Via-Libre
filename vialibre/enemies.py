@@ -432,7 +432,8 @@ class EnemyManager:
             if existing:
                 existing.sync_state(e_data['x'], e_data['y'], e_data['z'], e_data['h'], e_data['hp'])
             else:
-                dog = DogEnemy(self.game, (e_data['x'], e_data['y'], e_data['z']), (e_data['x'], e_data['y'], e_data['z']), enemy_id=eid)
+                dog = DogEnemy(self.game, (e_data['x'], e_data['y'], e_data['z']), (e_data['x'] + 0.1, e_data['y'], e_data['z']), enemy_id=eid)
+                dog.is_dead = False
                 dog.sync_state(e_data['x'], e_data['y'], e_data['z'], e_data['h'], e_data['hp'])
                 self.enemies.append(dog)
 

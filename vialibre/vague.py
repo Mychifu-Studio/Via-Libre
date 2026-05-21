@@ -106,8 +106,14 @@ class VagueManager:
         self.waiting_next_wave = False
         self.start_current_wave()
 
+    def _is_host(self):
+        net_iface = getattr(self.game, 'network', None)
+        if net_iface is None or getattr(net_iface, 'net', None) is None:
+            return True
+        return net_iface.net.is_host
+
     def start_current_wave(self):
-        if not getattr(self.game, 'network', None) or not self.game.network.net.is_host:
+        if not self._is_host():
             return
             
         if self.current_wave_index >= len(self.waves):
@@ -139,7 +145,7 @@ class VagueManager:
         )
 
     def enemy_killed(self):
-        if not getattr(self.game, 'network', None) or not self.game.network.net.is_host:
+        if not self._is_host():
             return
             
         if self.is_finished:
@@ -169,7 +175,7 @@ class VagueManager:
             if self.message_timer <= 0:
                 self.wave_panel.hide()
 
-        if not getattr(self.game, 'network', None) or not self.game.network.net.is_host:
+        if not self._is_host():
             return
 
         if self.waiting_next_wave:
