@@ -113,7 +113,7 @@ class Player(DirectObject):
         if input_vec.lengthSquared() > 0:
             input_vec.normalize()
 
-        from math import atan2, degrees, exp
+        from math import atan2, degrees
         
         current_H = self.modelNode.getH(self.base.render)
 
