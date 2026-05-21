@@ -66,6 +66,7 @@ class DogEnemy:
         area_bounds=None,
     ):
         self.game = game
+        self.map_collision = getattr(self.game, "map_collision", None)
         self.speed = speed
         self.chase_speed = chase_speed if chase_speed is not None else speed * 1.25
         self.detection_radius = detection_radius
@@ -150,6 +151,12 @@ class DogEnemy:
         self.health_bar_fill.setSx(ratio)
         self.health_bar_fill.setColor(color)
 
+    def _move_with_collision(self, current_pos, desired_pos):
+        if self.map_collision is None or not hasattr(self.map_collision, "move"):
+            return desired_pos
+
+        return self.map_collision.move(current_pos, desired_pos)
+
     def take_damage(self, amount=1):
         if self.is_dead:
             return False
@@ -189,8 +196,11 @@ class DogEnemy:
             min_x, max_x, min_y, max_y = self.area_bounds
             next_pos = MathUtils.clamp_position_to_rectangle(next_pos, min_x, max_x, min_y, max_y)
 
-        self.node.setPos(next_pos)
-        self.node.lookAt(player_pos)
+        resolved_pos = self._move_with_collision(current_pos, next_pos)
+        self.node.setPos(resolved_pos)
+
+        if (resolved_pos - current_pos).lengthSquared() > 0.0001:
+            self.node.lookAt(player_pos)
 
     def _update_straight_line(self, current_pos, dt):
         next_pos = current_pos + self.direction * self.speed * dt
@@ -198,7 +208,13 @@ class DogEnemy:
         if (next_pos - current_pos).length() >= (self.end_pos - current_pos).length():
             self.respawn()
         else:
-            self.node.setPos(next_pos)
+            resolved_pos = self._move_with_collision(current_pos, next_pos)
+            if (resolved_pos - current_pos).lengthSquared() <= 0.0001:
+                self.respawn()
+                return
+
+            self.node.setPos(resolved_pos)
+            self.node.lookAt(self.end_pos)
 
     def is_touching_point(self, point):
         if self.is_dead:
@@ -248,6 +264,9 @@ class EnemyManager:
         self.enemies = []
 
     def spawn_dog(self, start_pos, end_pos, **kwargs):
+        if not self._is_valid_position(start_pos) or not self._is_valid_position(end_pos):
+            return None
+
         dog = DogEnemy(self.game, start_pos, end_pos, **kwargs)
         if not dog.is_dead:
             self.enemies.append(dog)
@@ -273,10 +292,15 @@ class EnemyManager:
         if hasattr(self.game, "player") and hasattr(self.game.player, "player"):
             player_node = self.game.player.player
 
-        for _ in range(count):
+        spawned = 0
+        attempts = 0
+        max_attempts = count * 25
+
+        while spawned < count and attempts < max_attempts:
+            attempts += 1
             callback = lambda: self._generate_random_path(area_min_x, area_max_x, area_min_y, area_max_y, margin)
             start_pos, end_pos = callback()
-            self.spawn_dog(
+            dog = self.spawn_dog(
                 start_pos,
                 end_pos,
                 respawn_callback=callback,
@@ -286,17 +310,51 @@ class EnemyManager:
                 area_bounds=area_bounds,
                 **kwargs
             )
+            if dog is not None:
+                spawned += 1
+
+        return spawned
 
     def _generate_random_path(self, min_x, max_x, min_y, max_y, margin):
         safe_min_x, safe_max_x = min_x + margin, max_x - margin
         safe_min_y, safe_max_y = min_y + margin, max_y - margin
 
-        start = Vec3(random.uniform(safe_min_x, safe_max_x), random.uniform(safe_min_y, safe_max_y), 0)
-        angle = random.uniform(0, math.tau)
-        direction = Vec3(math.cos(angle), math.sin(angle), 0)
+        start = self._random_valid_position(safe_min_x, safe_max_x, safe_min_y, safe_max_y)
+        end = self._random_valid_position(safe_min_x, safe_max_x, safe_min_y, safe_max_y)
 
-        end = MathUtils.ray_rectangle_intersection(start, direction, safe_min_x, safe_max_x, safe_min_y, safe_max_y)
+        for _ in range(20):
+            if (end - start).length() >= 6.0:
+                break
+            end = self._random_valid_position(safe_min_x, safe_max_x, safe_min_y, safe_max_y)
+
         return start, end
+
+    def _random_valid_position(self, min_x, max_x, min_y, max_y):
+        for _ in range(200):
+            pos = Vec3(random.uniform(min_x, max_x), random.uniform(min_y, max_y), 0)
+            if self._is_valid_position(pos):
+                return pos
+
+        for x in self._scan_range(min_x, max_x, 2.0):
+            for y in self._scan_range(min_y, max_y, 2.0):
+                pos = Vec3(x, y, 0)
+                if self._is_valid_position(pos):
+                    return pos
+
+        return Vec3(0, 0, 0)
+
+    def _scan_range(self, min_value, max_value, step):
+        current = min_value
+        while current <= max_value:
+            yield current
+            current += step
+
+    def _is_valid_position(self, pos):
+        map_collision = getattr(self.game, "map_collision", None)
+        if map_collision is None:
+            return True
+
+        return map_collision.is_position_allowed(pos)
 
     def check_projectile_hit(self, start_pos, end_pos, hit_radius):
         for enemy in self.enemies[:]:

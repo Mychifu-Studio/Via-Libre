@@ -2,7 +2,6 @@ from tkinter import N
 
 from direct.showbase.ShowBase import ShowBase
 from panda3d.core import WindowProperties, load_prc_file_data, DirectionalLight, CardMaker, PNMImage, Texture, AntialiasAttrib, AmbientLight
-import random
 from direct.gui.DirectGui import DirectFrame, DirectButton
 import simplepbr
 
@@ -15,6 +14,7 @@ from vialibre.popup_ui import PopupUI
 from vialibre.shooting import ShootingSystem
 from vialibre.enemies import EnemyManager
 from vialibre.vague import VagueManager
+from vialibre.map_collision import MapCollisionManager
 
 
 # Configuration globale
@@ -35,6 +35,7 @@ class EnvironmentManager:
     """SRP: Initialise et gère le décor statique (lumières, terrain)."""
     def __init__(self, render):
         self.render = render
+        self.jungle = None
         self.generate_ground()
         self.setup_lights()
 
@@ -61,10 +62,10 @@ class EnvironmentManager:
         # ground = self.render.attachNewNode(cm.generate())
         # ground.setP(-90)
         # ground.setTexture(texture)
-        jungle = loader.loadModel('assets/Jungle3.bam')
-        jungle.setPos(0, 0, 0)
-        jungle.setH(-90)
-        jungle.reparentTo(self.render)
+        self.jungle = loader.loadModel('assets/Jungle3.bam')
+        self.jungle.setPos(0, 0, 0)
+        self.jungle.setH(-90)
+        self.jungle.reparentTo(self.render)
 
     def setup_lights(self):
         ambientLight = AmbientLight('ambientLight')
@@ -134,9 +135,10 @@ class MainGame(ShowBase):
         self.win.requestProperties(props)
 
         self.environment = EnvironmentManager(self.render)
+        self.map_collision = MapCollisionManager(self.render, self.environment.jungle)
 
         self.enemies = EnemyManager(self)
-        self.player = Player()
+        self.player = Player(map_collision=self.map_collision)
 
         self.shooting = ShootingSystem(game=self, player=self.player)
 
@@ -157,7 +159,7 @@ class MainGame(ShowBase):
             popup_ui=self.popup_ui
         )
         self.resource_system.setup_player_collider(self.player)
-        self.resource_system.generate_random_zones(8)
+        self.resource_system.generate_diamond_ore_zones()
 
         self.vague_manager = VagueManager(self, self.enemies)
         self.vague_manager.start()

@@ -1,5 +1,3 @@
-import random
-
 from panda3d.core import (
     CollisionNode,
     CollisionSphere,
@@ -10,13 +8,16 @@ from panda3d.core import (
 
 
 class ResourceSystem:
+    DIAMOND_ORE_MAX_Y = 12.5
+    DIAMOND_ORE_MIN_ABS_X = 25.0
+
     """
     Gère :
     - les zones de ressources
     - les collisions joueur <-> zones
     - la récolte avec touche maintenue
     - une seule ressource
-    - des gains aléatoires par fourchette
+    - des gains deterministes par zone
     """
 
     def __init__(self, game, inventory_ui, popup_ui):
@@ -86,7 +87,7 @@ class ResourceSystem:
         - une position
         - un rayon
         - un temps de récolte
-        - une fourchette de gain aléatoire
+        - un gain de ressource
         """
         zone_id = len(self.resource_zones)
         zone_name = f"trigger_zone_{zone_id}"
@@ -125,33 +126,50 @@ class ResourceSystem:
             marker.setColor(1.0, 0.2, 0.2, 1)
 
     # =========================================================
-    # GENERATION ALEATOIRE DES ZONES
+    # GENERATION DES ZONES SUR LES MINERAIS DE DIAMANT
     # =========================================================
-    def generate_random_zones(self, number_of_zones):
-        rewards = {
-            1.0: (1, 1),
-            2.0: (1, 2),
-            4.0: (1, 4),
-            6.0: (2, 6),
-            8.0: (3, 8),
-        }
+    def generate_diamond_ore_zones(self):
+        zones = self._generate_diamond_ore_zone_definitions()
+        if not zones:
+            print("Aucune zone de minerai de diamant trouvee pour generer les ressources.")
+            return
 
-        for _ in range(number_of_zones):
-            x = random.uniform(-35, 35)
-            y = random.uniform(-35, 35)
-            z = 0
-
-            radius = random.uniform(2.0, 4.5)
-            harvest_time = random.choice(list(rewards.keys()))
-            min_amount, max_amount = rewards[harvest_time]
+        for index, zone in enumerate(zones):
+            amount = self._resource_amount_for_zone(index, zone.radius)
+            harvest_time = self._harvest_time_for_zone(zone.radius)
 
             self.create_resource_zone(
-                (x, y, z),
-                radius,
+                (zone.x, zone.y, 0),
+                zone.radius,
                 harvest_time,
-                min_amount,
-                max_amount
+                amount,
+                amount
             )
+
+    def _generate_diamond_ore_zone_definitions(self):
+        map_collision = getattr(self.game, "map_collision", None)
+        if map_collision is None or not hasattr(map_collision, "get_resource_zone_definitions"):
+            return []
+
+        zones = map_collision.get_resource_zone_definitions(
+            cluster_distance=3.0,
+            radius_padding=1.25,
+            min_radius=2.0,
+        )
+        return self._filter_diamond_ore_zones(zones)
+
+    def _filter_diamond_ore_zones(self, zones):
+        return [
+            zone for zone in zones
+            if zone.y <= self.DIAMOND_ORE_MAX_Y
+            and abs(zone.x) >= self.DIAMOND_ORE_MIN_ABS_X
+        ]
+
+    def _resource_amount_for_zone(self, index, radius):
+        return max(1, min(8, int(round(radius / 1.5)) + (index % 2)))
+
+    def _harvest_time_for_zone(self, radius):
+        return max(1.0, min(8.0, round(radius * 0.75, 1)))
 
     # =========================================================
     # COLLISIONS
@@ -186,10 +204,7 @@ class ResourceSystem:
         self.current_max_amount = int(max_amount_tag)
         self.harvest_required_time = float(harvest_time_tag)
 
-        self.popup_ui.show_popup(
-            f"Maintiens E : entre {self.current_min_amount} et "
-            f"{self.current_max_amount} ressources ({self.harvest_required_time:.0f}s)"
-        )
+        self.show_harvest_hint()
 
     def on_trigger_exit(self, entry):
         self.in_trigger = False
@@ -231,16 +246,21 @@ class ResourceSystem:
         self.cancel_harvest()
 
         if self.in_trigger and self.current_zone is not None:
-            self.popup_ui.show_popup(
-                f"Maintiens E : entre {self.current_min_amount} et "
-                f"{self.current_max_amount} ressources ({self.harvest_required_time:.0f}s)"
-            )
+            self.show_harvest_hint()
 
     def cancel_harvest(self):
         self.is_holding_e = False
         self.harvest_elapsed = 0.0
         self.popup_ui.hide_progress()
         self.game.taskMgr.remove(self.harvest_task_name)
+
+    def show_harvest_hint(self):
+        amount = self.current_max_amount
+        resource_label = "ressource" if amount <= 1 else "ressources"
+        self.popup_ui.show_popup(
+            f"Maintiens E : {amount} {resource_label} "
+            f"({self.harvest_required_time:.0f}s)"
+        )
 
     def update_harvest_progress(self, task):
         if not self.is_holding_e:
@@ -274,7 +294,7 @@ class ResourceSystem:
         if self.current_min_amount <= 0 or self.current_max_amount <= 0:
             return
 
-        gain = random.randint(self.current_min_amount, self.current_max_amount)
+        gain = self.current_max_amount
 
         self.game.inventory["ressource"] += gain
         self.inventory_ui.update()
@@ -289,10 +309,7 @@ class ResourceSystem:
 
     def restore_hint(self, task):
         if self.in_trigger and self.current_zone is not None:
-            self.popup_ui.show_popup(
-                f"Maintiens E : entre {self.current_min_amount} et "
-                f"{self.current_max_amount} ressources ({self.harvest_required_time:.0f}s)"
-            )
+            self.show_harvest_hint()
         else:
             self.popup_ui.hide_popup()
 
