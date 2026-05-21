@@ -1,4 +1,3 @@
-# camera.py
 from direct.showbase.DirectObject import DirectObject
 from direct.showbase.ShowBase import ShowBase
 from panda3d.core import Vec3, Point3, NodePath
@@ -12,7 +11,7 @@ class Camera(DirectObject):
     def __init__(self, target: NodePath, showbase: ShowBase = None):
         self.target: NodePath = target
         self.base = showbase if showbase else base
-       
+
         self.mouse = Mouse(self.base)
         self.base.disableMouse()
 
@@ -26,7 +25,7 @@ class Camera(DirectObject):
         self.lookAhead = Vec3(0)
         self.smoothingAhead = 3
         self.smoothingBack = .5
-        self.maxLookAhead = .25      
+        self.maxLookAhead = .25
 
         self.heading = 0.0
         self.pitch = -10
@@ -35,12 +34,21 @@ class Camera(DirectObject):
         self.minCamDistance = 5.0
         self.maxCamDistance = 40.0
         self.zoomScrollSpeed = 0.125
-       
+        
+        self.rotate = False
+        self.rotationSensitivity = 0.2
+
         self.setupCamera()
         self.applyCameraDistance()
 
         self.accept('wheel_up', self.zoomCamera, [-(self.zoomScrollSpeed)])
         self.accept('wheel_down', self.zoomCamera, [self.zoomScrollSpeed])
+        self.accept('mouse3', self.rotateStatus)
+        self.accept('mouse3-up', self.rotateStatus)
+
+    def rotateStatus(self):
+        self.rotate = not self.rotate
+        if self.rotate: self.mouse.centerMouse()
 
     def setupCamera(self):
         self.camPivot = self.base.render.attach_new_node('camPivot')
@@ -78,18 +86,18 @@ class Camera(DirectObject):
         if not is_locked:
             transition_speed = .3
             self.pitch = self.powLerp(self.pitch, SATELLITE_PITCH - 1.5 * self.camDistance, dt, transition_speed)
-       
+
+            if self.rotate and self.mouse.hasMouse():
+                dx, _ = self.mouse.getMouseDelta()
+                self.heading -= dx * self.rotationSensitivity
+                self.mouse.centerMouse()
+
         self.pivot.setH(self.heading)
         self.pitch = max(-80, min(80, self.pitch))
         self.pivot.setP(self.pitch)
 
         height_offset = Vec3(0, 0, 1.5)
         return self.target.getPos() + self.lookAhead + height_offset
-
-    def powLerp(self, current, target, dt, smoothTime):
-        if smoothTime <= 0:
-            return target
-        return current + (target - current) * (1 - exp(-dt / smoothTime))
 
     def updateFov(self, dt, isMoving):
         self.zoomLevel = self.maxZoomOut if isMoving else 0

@@ -6,6 +6,9 @@ class Mouse():
     def __init__(self, base: ShowBase):
         self.base = base
 
+        self.show = self.releaseMouse
+        self.hide = self.captureMouse
+
 
     def captureMouse(self):
         properties = WindowProperties()
