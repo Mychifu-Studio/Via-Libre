@@ -51,8 +51,24 @@ class InventoryUI:
         self.resource_label.setBin("fixed", 11)
         self.resource_label.setDepthWrite(False)
         self.resource_label.setDepthTest(False)
-
+        self.player_pos_label = OnscreenText(
+            parent=parent,
+            text="Position : X=0.00 Y=0.00 Z=0.00",
+            pos=(0.06, -0.24),
+            scale=0.05,
+            fg=(1, 1, 1, 1),
+            align=TextNode.ALeft,
+            mayChange=True
+        )
+        self.player_pos_label.setBin("fixed", 11)
+        self.player_pos_label.setDepthWrite(False)
+        self.player_pos_label.setDepthTest(False)
     def update(self):
         self.resource_label.setText(
             f"Ressource : {self.game.inventory['ressource']}"
+        )
+
+        pos = self.game.player.player.getPos()
+        self.player_pos_label.setText(
+            f"Position : X={pos.x:.2f} Y={pos.y:.2f} Z={pos.z:.2f}"
         )

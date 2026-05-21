@@ -67,7 +67,7 @@ class EnvironmentManager:
 
     def setup_lights(self):
         ambientLight = AmbientLight('ambientLight')
-        ambientLight.setColor((0.5, 0.5, 0.5, 1))
+        ambientLight.setColor((0.7, 0.65, 0.5, 1))
         ambientLightNP = render.attachNewNode(ambientLight)
         render.setLight(ambientLightNP)
         # dlight = DirectionalLight('dlight')
