@@ -393,7 +393,7 @@ class GameNetworkInterface:
         self.last_sent_h = self.predicted_h
         self.send_threshold_pos = 0.05
         self.send_threshold_h = 1.0
-        self.correct_threshold_pos = 0.5
+        self.correct_threshold_pos = 5
         self.correct_threshold_h = 30.0
         self.next_input_seq = 0
         self.last_processed_seq = -1
