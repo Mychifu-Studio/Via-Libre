@@ -6,7 +6,7 @@ from direct.gui.DirectGui import DirectFrame, DirectButton
 import simplepbr
 
 from vialibre.player import Player
-from vialibre.multiplayer import MultiplayerManager
+from vialibre.multiplayer import GameNetworkInterface
 from vialibre.resource_system import ResourceSystem
 from vialibre.inventory_ui import InventoryUI
 from vialibre.health_ui import PlayerHealthUI
@@ -142,7 +142,7 @@ class MainGame(ShowBase):
 
         self.shooting = ShootingSystem(game=self, player=self.player)
 
-        self.multiplayer = MultiplayerManager(self, self.player)
+        self.network = GameNetworkInterface(self)
 
         self.inventory = {
             "ressource": 0
@@ -187,14 +187,14 @@ class MainGame(ShowBase):
     def exit_game(self):
         self.taskMgr.remove("update")
         self.enemies.clear()
-        self.multiplayer.exit()
+        self.network.exit()
         self.userExit()
 
     def update(self, task):
         dt = globalClock.getDt()  # pyright: ignore
 
         self.player.update(dt)
-        self.multiplayer.update()
+        self.network.update()
         self.resource_system.update()
         self.inventory_ui.update()
         self.enemies.update(dt)
