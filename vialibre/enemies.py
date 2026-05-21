@@ -1,7 +1,8 @@
 import math
 import os
 import random
-from panda3d.core import CardMaker, Filename, TransparencyAttrib, Vec3
+from panda3d.core import CardMaker, Filename, Point3, TransparencyAttrib, Vec3
+from .utils import powLerp, shortest_angle_lerp
 
 
 class MathUtils:
@@ -247,11 +248,31 @@ class DogEnemy:
 
     def sync_state(self, x, y, z, h, hp):
         self.hp = hp
-        self.node.setPos(x, y, z)
-        self.node.setH(h)
+        self.target_pos = Point3(x, y, z)
+        self.target_h = h
+        if not hasattr(self, 'target_pos_init'):
+            self.node.setPos(self.target_pos)
+            self.node.setH(self.target_h)
+            self.target_pos_init = True
+        elif (self.target_pos - self.node.getPos(self.game.render)).length() > 5.0:
+            self.node.setPos(self.target_pos)
+
         self._update_health_bar()
         if self.hp <= 0:
             self.destroy()
+
+    def interpolate(self, dt):
+        if not hasattr(self, 'target_pos'):
+            return
+        curr_pos = self.node.getPos(self.game.render)
+        new_x = powLerp(curr_pos.x, self.target_pos.x, dt, 0.1)
+        new_y = powLerp(curr_pos.y, self.target_pos.y, dt, 0.1)
+        new_z = powLerp(curr_pos.z, self.target_pos.z, dt, 0.1)
+        self.node.setPos(new_x, new_y, new_z)
+        
+        curr_h = self.node.getH(self.game.render)
+        new_h = shortest_angle_lerp(curr_h, self.target_h, dt, 0.1)
+        self.node.setH(new_h)
 
     def respawn(self):
         if self.is_dead:
@@ -420,6 +441,9 @@ class EnemyManager:
                         if current_hp > 0:
                             model.setPythonTag("hp", current_hp - 1)
                             self._player_cooldowns[name] = 0.5
+        else:
+            for enemy in self.enemies:
+                enemy.interpolate(dt)
                             
         self.enemies = [e for e in self.enemies if not e.is_dead]
 

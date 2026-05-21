@@ -7,6 +7,7 @@ import urllib.request
 from typing import Dict, Any, Tuple, List, Optional
 from dataclasses import dataclass, field
 from panda3d.core import Point3, Vec3
+from .utils import powLerp, shortest_angle_lerp
 
 
 SIGNALING_IP = "141.253.121.76"
@@ -14,7 +15,7 @@ SIGNALING_PORT = 8080
 PUNCH_ATTEMPTS = 10
 PUNCH_INTERVAL = 0.2
 FALLBACK_TIMEOUT = 3.0
-SNAPSHOT_TICK = 60
+SNAPSHOT_TICK = 20
 SNAPSHOT_PERIOD = 1.0 / SNAPSHOT_TICK
 
 
@@ -527,8 +528,8 @@ class GameNetworkInterface:
         if self.net is None or not self.net.is_host or sender_id not in self.other_players:
             return
         model = self.other_players[sender_id]
-        model.setPos(self.base.render, payload['x'], payload['y'], payload['z'])
-        model.setH(self.base.render, payload.get('h', 0.0))
+        model.setPythonTag("target_pos", (payload['x'], payload['y'], payload['z']))
+        model.setPythonTag("target_h", payload.get('h', 0.0))
 
     def _apply_snapshot(self, payload: dict):
         self.tick = payload.get('tick', self.tick)
@@ -549,8 +550,8 @@ class GameNetworkInterface:
             if pid not in self.other_players:
                 self._spawn_player(pid)
             model = self.other_players[pid]
-            model.setPos(self.base.render, p_data['x'], p_data['y'], p_data['z'])
-            model.setH(self.base.render, p_data.get('h', 0.0))
+            model.setPythonTag("target_pos", (p_data['x'], p_data['y'], p_data['z']))
+            model.setPythonTag("target_h", p_data.get('h', 0.0))
             if 'hp' in p_data:
                 model.setPythonTag("hp", p_data['hp'])
         for name in list(self.other_players.keys()):
@@ -584,7 +585,25 @@ class GameNetworkInterface:
         self.base.shooting.spawn_network_bullet(Point3(origin.get('x', 0), origin.get('y', 0), origin.get('z', 0)), Vec3(direction.get('x', 0), direction.get('y', 0), direction.get('z', 0)), payload.get('speed', self.base.shooting.BULLET_SPEED), payload.get('life', self.base.shooting.BULLET_LIFE), shot_id=payload.get('shot_id'))
 
     def update(self):
-        if self.net is None:
+        if not self.is_solo and self.net is not None:
+            dt = globalClock.getDt() # type: ignore
+            for pid, model in self.other_players.items():
+                t_pos = model.getPythonTag("target_pos")
+                t_h = model.getPythonTag("target_h")
+                if t_pos is not None:
+                    curr_pos = model.getPos(self.base.render)
+                    new_x = powLerp(curr_pos.x, t_pos[0], dt, 0.1)
+                    new_y = powLerp(curr_pos.y, t_pos[1], dt, 0.1)
+                    new_z = powLerp(curr_pos.z, t_pos[2], dt, 0.1)
+                    if (Point3(*t_pos) - curr_pos).length() > 5.0:
+                        new_x, new_y, new_z = t_pos
+                    model.setPos(self.base.render, new_x, new_y, new_z)
+                if t_h is not None:
+                    curr_h = model.getH(self.base.render)
+                    new_h = shortest_angle_lerp(curr_h, t_h, dt, 0.1)
+                    model.setH(self.base.render, new_h)
+
+        if self.is_solo or self.net is None:
             return
         game_messages = self.net.update()
         for msg in game_messages:
