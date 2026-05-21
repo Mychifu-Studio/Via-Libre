@@ -1,5 +1,6 @@
 from panda3d.core import Vec3, Point3
 
+
 class Bullet:
     """SRP: Représente le cycle de vie et le déplacement d'un projectile."""
     def __init__(self, node, direction, speed, life):
@@ -13,7 +14,7 @@ class Bullet:
         self.life -= dt
         if self.life <= 0:
             return False
-        
+
         old_pos = self.node.getPos(self.node.getParent())
         new_pos = old_pos + self.direction * self.speed * dt
         self.node.setPos(new_pos)
@@ -21,6 +22,7 @@ class Bullet:
 
     def destroy(self):
         self.node.removeNode()
+
 
 class ShootingSystem:
     """SRP: Gère uniquement la logique de tir et la trajectoire des balles."""
@@ -36,13 +38,12 @@ class ShootingSystem:
         self.bullets = []
 
         self.was_building_last_frame = False
-        
-        # On écoute le clic gauche pour tirer
+
         self.game.accept("mouse1", self.shoot)
 
     def _get_mouse_world_pos(self):
         mw = self.game.mouseWatcherNode
-        if not mw.hasMouse(): 
+        if not mw.hasMouse():
             return None
 
         mpos = mw.getMouse()
@@ -54,46 +55,105 @@ class ShootingSystem:
         far_w = render.getRelativePoint(cam, far_point)
 
         dz = far_w.z - near_w.z
-        if abs(dz) < 0.0001: 
+        if abs(dz) < 0.0001:
             return None
 
         t = -near_w.z / dz
         return Vec3(
-            near_w.x + t * (far_w.x - near_w.x), 
-            near_w.y + t * (far_w.y - near_w.y), 
+            near_w.x + t * (far_w.x - near_w.x),
+            near_w.y + t * (far_w.y - near_w.y),
             0
         )
+
+    def _spawn_bullet(self, origin, direction, speed=None, life=None):
+        speed = speed if speed is not None else self.BULLET_SPEED
+        life = life if life is not None else self.BULLET_LIFE
+
+        direction = Vec3(direction.x, direction.y, direction.z)
+        if direction.length() < 0.001:
+            return None
+        direction.normalize()
+
+        node = self.game.loader.loadModel("assets/bullet.bam")
+        node.setScale(self.BULLET_SCALE)
+        node.reparentTo(self.game.render)
+        node.setPos(origin)
+
+        node.lookAt(origin + direction)
+        node.setH(node.getH() + 90)
+
+        bullet = Bullet(node, direction, speed, life)
+        self.bullets.append(bullet)
+        return bullet
+
+    def _send_shoot_network(self, origin, direction):
+        net_iface = getattr(self.game, "network", None)
+        if net_iface is None:
+            return
+
+        payload = {
+            "origin": {"x": origin.x, "y": origin.y, "z": origin.z},
+            "direction": {"x": direction.x, "y": direction.y, "z": direction.z},
+            "speed": self.BULLET_SPEED,
+            "life": self.BULLET_LIFE,
+        }
+
+        if net_iface.net.is_host:
+            net_iface.net.broadcast_msg("shoot", payload)
+        else:
+            net_iface.net.send_msg("shoot_request", payload)
 
     def shoot(self):
         if self.player_sys.build_manager.mode_actif or self.was_building_last_frame:
             return
 
-
         target = self._get_mouse_world_pos()
-        if target is None: 
+        if target is None:
             return
 
         player_pos = self.player.getPos(self.game.render)
         direction = Vec3(target.x - player_pos.x, target.y - player_pos.y, 0)
-        
-        if direction.length() < 0.001: 
+
+        if direction.length() < 0.001:
             return
-            
+
         direction.normalize()
+        origin = player_pos + Vec3(0, 0, 1)
 
-        # Création de la balle
-        node = self.game.loader.loadModel("assets/bullet.bam")
-        node.setScale(self.BULLET_SCALE)
-        node.reparentTo(self.game.render)
-        node.setPos(player_pos + Vec3(0, 0, 1)) # Départ légèrement en hauteur depuis le joueur
+        self._spawn_bullet(origin, direction)
+        self._send_shoot_network(origin, direction)
 
-        node.lookAt(player_pos + direction)
-        node.setH(node.getH() + 90)
+    def handle_network_message(self, msg: dict):
+        kind = msg.get("kind")
+        payload = msg.get("payload", {})
 
-        self.bullets.append(Bullet(node, direction, self.BULLET_SPEED, self.BULLET_LIFE))
+        if kind == "shoot":
+            origin = payload.get("origin", {})
+            direction = payload.get("direction", {})
+            self._spawn_bullet(
+                Vec3(origin.get("x", 0), origin.get("y", 0), origin.get("z", 0)),
+                Vec3(direction.get("x", 0), direction.get("y", 0), direction.get("z", 0)),
+                payload.get("speed", self.BULLET_SPEED),
+                payload.get("life", self.BULLET_LIFE),
+            )
+
+        elif kind == "shoot_request":
+            net_iface = getattr(self.game, "network", None)
+            if net_iface is None or not net_iface.net.is_host:
+                return
+
+            origin = payload.get("origin", {})
+            direction = payload.get("direction", {})
+            self._spawn_bullet(
+                Vec3(origin.get("x", 0), origin.get("y", 0), origin.get("z", 0)),
+                Vec3(direction.get("x", 0), direction.get("y", 0), direction.get("z", 0)),
+                payload.get("speed", self.BULLET_SPEED),
+                payload.get("life", self.BULLET_LIFE),
+            )
+            net_iface.net.broadcast_msg("shoot", payload)
 
     def update(self):
-        dt = globalClock.getDt() # pyright: ignore
+        dt = globalClock.getDt()  # pyright: ignore
 
         self.was_building_last_frame = self.player_sys.build_manager.mode_actif
 
@@ -104,7 +164,6 @@ class ShootingSystem:
             new_pos = bullet.node.getPos(self.game.render)
 
             has_hit = False
-            # Vérification des collisions avec les ennemis
             if hasattr(self.game, "enemies"):
                 has_hit = self.game.enemies.check_projectile_hit(old_pos, new_pos, self.HIT_RADIUS)
 

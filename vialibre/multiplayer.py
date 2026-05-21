@@ -316,7 +316,11 @@ class NetworkProtocol:
             sender_id = msg.get('f', 'unknown')
             payload   = msg.get('p', {})
 
-            if kind == 'input':
+            if kind == 'hello':
+                self._handle_hello(payload, sender_id, virtual_addr, game_messages)
+            elif kind == 'fallback':
+                self._handle_fallback(payload, virtual_addr, game_messages)
+            elif kind == 'input':
                 seq = payload.get("seq", -1)
                 if seq != -1:
                     with self._lock:
@@ -324,11 +328,21 @@ class NetworkProtocol:
                             self.last_processed_seq_client = seq
                     payload = {k: v for k, v in payload.items() if k != "seq"}
                 payload = {"seq": seq, **payload}
-
-            if kind == 'hello':
-                self._handle_hello(payload, sender_id, virtual_addr, game_messages)
-            elif kind == 'fallback':
-                self._handle_fallback(payload, virtual_addr, game_messages)
+            elif kind == 'shoot_request':
+                if self.is_host:
+                    game_messages.append({
+                        "kind": "shoot_request",
+                        "payload": payload,
+                        "sender_id": sender_id,
+                        "addr": virtual_addr
+                    })
+            elif kind == 'shoot':
+                game_messages.append({
+                    "kind": "shoot",
+                    "payload": payload,
+                    "sender_id": sender_id,
+                    "addr": virtual_addr
+                })
             else:
                 game_messages.append({
                     "kind": kind,

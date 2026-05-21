@@ -140,7 +140,7 @@ class MainGame(ShowBase):
 
         self.shooting = ShootingSystem(game=self, player=self.player)
 
-        self.multiplayer = GameNetworkInterface(self)
+        self.network = GameNetworkInterface(self)
 
         self.inventory = {
             "ressource": 0
@@ -185,14 +185,14 @@ class MainGame(ShowBase):
     def exit_game(self):
         self.taskMgr.remove("update")
         self.enemies.clear()
-        self.multiplayer.exit()
+        self.network.exit()
         self.userExit()
 
     def update(self, task):
         dt = globalClock.getDt()  # pyright: ignore
 
         self.player.update(dt)
-        self.multiplayer.update()
+        self.network.update()
         self.resource_system.update()
         self.inventory_ui.update()
         self.enemies.update(dt)
