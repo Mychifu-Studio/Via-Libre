@@ -113,13 +113,14 @@ class Player(DirectObject):
         if input_vec.lengthSquared() > 0:
             input_vec.normalize()
 
-        from math import atan2, degrees, exp
+        from math import atan2, degrees
         
         current_H = self.modelNode.getH(self.base.render)
 
         if input_vec.length() > self.lastMovement.length():
             target_H = degrees(atan2(-input_vec.x, input_vec.y))  # adapte les axes si besoin
             new_H = shortest_angle_lerp(current_H, target_H, dt, .1)
+            print(new_H)
             self.modelNode.setH(self.base.render, new_H)
 
         for axis in range(3):
