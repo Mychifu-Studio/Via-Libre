@@ -1,7 +1,7 @@
 from tkinter import N
 
 from direct.showbase.ShowBase import ShowBase
-from panda3d.core import WindowProperties, load_prc_file_data, DirectionalLight, CardMaker, PNMImage, Texture, AntialiasAttrib, AmbientLight
+from panda3d.core import WindowProperties, load_prc_file_data, DirectionalLight, CardMaker, PNMImage, Texture, AntialiasAttrib, AmbientLight, Spotlight, PerspectiveLens
 import random
 from direct.gui.DirectGui import DirectFrame, DirectButton
 import simplepbr
@@ -65,18 +65,126 @@ class EnvironmentManager:
         jungle.setH(-90)
         jungle.reparentTo(self.render)
 
+    def add_spotlight(self, name, color, pos, target, fov=45, near=1, far=50):
+        spot = Spotlight(name)
+        spot.setColor(color)
+
+        lens = PerspectiveLens()
+        lens.setFov(fov)
+        lens.setNearFar(near, far)
+        spot.setLens(lens)
+
+        spotNP = render.attachNewNode(spot)
+        spotNP.setPos(*pos)
+        spotNP.lookAt(*target)
+
+        render.setLight(spotNP)
+        return spotNP
+
     def setup_lights(self):
         ambientLight = AmbientLight('ambientLight')
-        ambientLight.setColor((0.7, 0.65, 0.5, 1))
+        ambientLight.setColor((0.40, 0.40, 0.32, 1))
         ambientLightNP = render.attachNewNode(ambientLight)
         render.setLight(ambientLightNP)
-        # dlight = DirectionalLight('dlight')
-        # dlight.setColor((0.8, 0.8, 0.5, 1))
 
-        # dlnp = self.render.attachNewNode(dlight)
-        # dlnp.setHpr(0, -60, 0)
+        self.spot1 = self.add_spotlight(
+            name="spot1",
+            color=(1.0, 0.2, 0.1, 1),
+            pos=(0, -7, 2),
+            target=(0, -9, 0),
+            fov=140
+        )
 
-        # self.render.setLight(dlnp)
+        self.spot_minerai_left = self.add_spotlight(
+            name="spot_minerai_left",
+            color=(0, 0, 0.9, 1), #color=(0.7, 0.6, 0.9, 1),
+            pos=(-30, 6, 3),
+            target=(-35, 8, 0),
+            fov=70
+        )
+        self.spot_minerai_right = self.add_spotlight(
+            name="spot_minerai_right",
+            color=(0, 0, 0.9, 1), #color=(0.7, 0.6, 0.9, 1),
+            pos=(30, 7, 3),
+            target=(35, 10, 0),
+            fov=70
+        )
+
+
+        self.spot_caillou_right = self.add_spotlight(
+            name="spot_caillou_right",
+            color=(0, 0, 0.9, 1), #color=(0.7, 0.6, 0.9, 1),
+            pos=(22, 9, 6),
+            target=(22, 9, 0),
+            fov=140
+        )
+
+        self.spot_caillou_left = self.add_spotlight(
+            name="spot_caillou_left",
+            color=(0, 0, 0.9, 1), #color=(0.7, 0.6, 0.9, 1),
+            pos=(-22, 9, 6),
+            target=(-22, 9, 0),
+            fov=140
+        )
+
+
+
+        self.spot_caillou_bas_left = self.add_spotlight(
+            name="spot_caillou_bas_left",
+            color=(0, 0.3, 0.9, 1), #color=(0.7, 0.6, 0.9, 1),
+            pos=(-30, -9, 6),
+            target=(-30, -9, 0),
+            fov=140
+        )
+        self.spot_caillou_bas_right = self.add_spotlight(
+            name="spot_caillou_right",
+            color=(0, 0.3, 0.9, 1), #color=(0.7, 0.6, 0.9, 1),
+            pos=(30, -9, 6),
+            target=(30, -9, 0),
+            fov=140
+        )
+
+        self.spot_caillou_bas_right = self.add_spotlight(
+            name="spot_caillou_right",
+            color=(0, 0.3, 0.9, 1), #color=(0.7, 0.6, 0.9, 1),
+            pos=(30, -9, 6),
+            target=(30, -9, 0),
+            fov=140
+        )
+
+
+        self.spot3 = self.add_spotlight(
+            name="spot3",
+            color=(0.9, 0.95, 1.0, 1),
+            pos=(-5, 0, 3),
+            target=(-5, 0, 0),
+            fov=40
+        )
+
+        self.spot_mid = self.add_spotlight(
+            name="spot_mid",
+            color=(0.9, 0.95, 0.80, 1),
+            pos=(0, -9, 14),
+            target=(0, -9, 0),
+            fov=70
+        )
+
+        self.spot_mid_bas = self.add_spotlight(
+            name="spot_mid_bas",
+            color=(0, 0.3, 0.80, 1),
+            pos=(0, -33, 6),
+            target=(0, -33, 0),
+            fov=100
+        )
+
+            # Spot plafond 1
+        self.spot1, self.spot1_np = self.add_spotlight(
+            name="spot1",
+            color=(1.0, 0.92, 0.8, 1),   # blanc chaud
+            pos=(-4, 0, 5),              # position plafond
+            target=(-4, 3, 0),           # regarde vers le sol
+            fov=50
+        )
 
 
 class GameMenu:
