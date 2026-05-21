@@ -65,6 +65,9 @@ class ShootingSystem:
         )
 
     def shoot(self):
+        if getattr(self.game, "is_game_over", False) or self.player_sys.is_paused:
+            return
+
         if self.player_sys.build_manager.mode_actif or self.was_building_last_frame:
             return
 
@@ -116,3 +119,8 @@ class ShootingSystem:
                 bullet.destroy()
 
         self.bullets = surviving_bullets
+
+    def clear_bullets(self):
+        for bullet in self.bullets:
+            bullet.destroy()
+        self.bullets.clear()

@@ -42,6 +42,7 @@ class Player(DirectObject):
 
         self.hp = self.MAX_HP
         self._damage_cooldown_remaining = 0.0
+        self.is_dead = False
 
         self.is_paused = False
 
@@ -67,15 +68,19 @@ class Player(DirectObject):
         }
 
     def take_damage(self, amount=1):
-        if self._damage_cooldown_remaining > 0:
+        if self.is_dead or self._damage_cooldown_remaining > 0:
             return
-        self.hp -= amount
+        self.hp = max(0, self.hp - amount)
         self._damage_cooldown_remaining = self.DAMAGE_COOLDOWN
         self.base.messenger.send("player-hp-changed", [self.hp])
         if self.hp <= 0:
+            self.is_dead = True
             self.base.messenger.send("player-dead")
 
     def handleLeftClick(self):
+        if self.is_paused or self.is_dead:
+            return
+
         cible = self.interaction_manager.structure_cible
         if cible:
             cible.detruire()
