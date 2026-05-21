@@ -1,7 +1,7 @@
 import math
 import os
 import random
-from panda3d.core import Filename, Vec3
+from panda3d.core import CardMaker, Filename, TransparencyAttrib, Vec3
 
 
 class MathUtils:
@@ -50,6 +50,7 @@ class MathUtils:
 class DogEnemy:
     MAX_HP = 3
     CONTACT_RADIUS = 1.5
+    HEALTH_BAR_WIDTH = 1.1
     
     def __init__(
         self,
@@ -82,6 +83,9 @@ class DogEnemy:
         self.node = self._load_model()
         self.node.reparentTo(self.game.render)
         self.node.setScale(scale)
+        self.health_bar_fill = None
+        self.health_bar_root = None
+        self._create_health_bar()
 
         self._recalculate_movement()
 
@@ -102,10 +106,55 @@ class DogEnemy:
             self.direction = movement.normalized()
             self.node.lookAt(self.end_pos)
 
+    def _create_health_bar(self):
+        self.health_bar_root = self.node.attachNewNode("enemy-health-bar")
+        self.health_bar_root.setZ(2.4)
+        self.health_bar_root.setScale(0.9)
+        self.health_bar_root.setLightOff()
+        self.health_bar_root.setDepthWrite(False)
+        self.health_bar_root.setDepthTest(False)
+        self.health_bar_root.setTransparency(TransparencyAttrib.MAlpha)
+        self.health_bar_root.setBillboardPointEye()
+
+        background_maker = CardMaker("enemy-health-background")
+        background_maker.setFrame(
+            -self.HEALTH_BAR_WIDTH / 2,
+            self.HEALTH_BAR_WIDTH / 2,
+            -0.07,
+            0.07,
+        )
+        background = self.health_bar_root.attachNewNode(background_maker.generate())
+        background.setColor(0.02, 0.02, 0.02, 0.8)
+        background.setTransparency(TransparencyAttrib.MAlpha)
+
+        fill_maker = CardMaker("enemy-health-fill")
+        fill_maker.setFrame(0, self.HEALTH_BAR_WIDTH - 0.08, -0.045, 0.045)
+        self.health_bar_fill = self.health_bar_root.attachNewNode(fill_maker.generate())
+        self.health_bar_fill.setX(-(self.HEALTH_BAR_WIDTH - 0.08) / 2)
+        self.health_bar_fill.setY(-0.01)
+        self.health_bar_fill.setTransparency(TransparencyAttrib.MAlpha)
+        self._update_health_bar()
+
+    def _update_health_bar(self):
+        if self.health_bar_fill is None:
+            return
+
+        ratio = max(0.0, min(1.0, self.hp / self.MAX_HP))
+        if ratio > 0.55:
+            color = (0.15, 0.85, 0.28, 0.95)
+        elif ratio > 0.25:
+            color = (0.95, 0.72, 0.18, 0.95)
+        else:
+            color = (0.95, 0.22, 0.18, 0.95)
+
+        self.health_bar_fill.setSx(ratio)
+        self.health_bar_fill.setColor(color)
+
     def take_damage(self, amount=1):
         if self.is_dead:
             return False
         self.hp -= amount
+        self._update_health_bar()
         if self.hp <= 0:
             self.destroy()
             return True
@@ -186,6 +235,7 @@ class DogEnemy:
         if self.respawn_callback:
             self.start_pos, self.end_pos = self.respawn_callback()
         self._recalculate_movement()
+        self._update_health_bar()
 
     def destroy(self):
         self.is_dead = True

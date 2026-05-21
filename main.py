@@ -10,6 +10,7 @@ from vialibre.player import Player
 from vialibre.multiplayer import MultiplayerManager
 from vialibre.resource_system import ResourceSystem
 from vialibre.inventory_ui import InventoryUI
+from vialibre.health_ui import PlayerHealthUI
 from vialibre.popup_ui import PopupUI
 from vialibre.shooting import ShootingSystem
 from vialibre.enemies import EnemyManager
@@ -146,6 +147,7 @@ class MainGame(ShowBase):
         }
 
         self.inventory_ui = InventoryUI(self)
+        self.player_health_ui = PlayerHealthUI(self, self.player)
         self.popup_ui = PopupUI(self)
         self.menu = GameMenu(self)
 
@@ -163,7 +165,9 @@ class MainGame(ShowBase):
         self.accept("escape", self.menu.toggle)
         self.accept("window-close", self.exit_game)
 
+        # shooting.py doit envoyer "enemy-hit" quand un projectile tue un ennemi.
         self.accept("enemy-hit", self.reward_enemy_hit)
+        self.accept("player-take-damage", self.player.take_damage)
 
         self.game_started = True
         self.taskMgr.add(self.update, "update")
@@ -192,6 +196,7 @@ class MainGame(ShowBase):
         self.resource_system.update()
         self.inventory_ui.update()
         self.enemies.update(dt)
+        self.player_health_ui.update()
         self.shooting.update()
         self.vague_manager.update(dt)
 
