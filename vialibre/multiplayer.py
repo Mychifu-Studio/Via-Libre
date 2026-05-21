@@ -385,9 +385,9 @@ class NetworkProtocol:
 # 2. GAME NETWORK INTERFACE (Client-side prediction + reconciliation)
 # ─────────────────────────────────────────────
 class GameNetworkInterface:
-    def __init__(self, base, local_player):
+    def __init__(self, base):
         self.base = base
-        self.local_player = local_player
+        self.local_player = base.player
 
         is_host  = "--host"  in sys.argv
         is_local = "--local" in sys.argv
@@ -400,12 +400,14 @@ class GameNetworkInterface:
         self.tick = 0
         self.last_snapshot_time = 0.0
         self.predicted_pos = self.local_player.player.getPos()
-        self.predicted_h   = self.local_player.player.getHpr().x
+        self.predicted_h   = self.local_player.player.getHpr(base.render).x
 
         self.last_sent_pos = self.predicted_pos
         self.last_sent_h   = self.predicted_h
         self.send_threshold_pos = 0.05
         self.send_threshold_h   = 1.0
+        self.correct_threshold_pos = 0.5  # se corrige seulement si diff > 0.5 unité
+        self.correct_threshold_h   = 30.0 # se corrige seulement si diff > 30°
 
         self.next_input_seq = 0
         self.last_processed_seq = -1
@@ -442,45 +444,46 @@ class GameNetworkInterface:
         if not server_pos:
             return
 
-        # --- 1. On récupère la position serveur ---
         current_local = self.local_player.player.getPos()
+        current_h     = self.local_player.modelNode.getH(self.base.render)
 
-        # --- 2. On calcule la différence ---
+        # 1. Calcul de la différence (position)
         diff = Point3(server_pos - current_local)
         dist = diff.length()
 
-        # --- 3. On applique une correction lissée ---
-        # On veut corriger peu à peu la position, pas la "trainer" brutalement
-        correction_strength = 0.2  # 0.1 à 0.3, ajuste au feeling
-        correction = Point3(diff * correction_strength)
+        # 2. Calcul de la diff (h)
+        dh = (server_h - current_h) % 360
+        if dh > 180:
+            dh = 360 - dh
 
-        # --- 4. On applique uniquement la position ---
-        # On NE change PAS self.movementVector ici, on laisse la vélocité locale intacte
-        self.local_player.player.setPos(current_local + correction)
-        self.local_player.modelNode.setH(self.local_player.modelNode.getH() + correction_strength * (server_h - current_local.getH()))
+        # 3. On corrige seulement si la déviation est grossière
+        if dist > self.correct_threshold_pos or abs(dh) > self.correct_threshold_h:
+            strength = 0.3  # 0.1 à 0.3, pas trop fort
+            correction = Point3(diff * strength)
+            self.local_player.player.setPos(current_local + correction)
+            self.local_player.modelNode.setH(current_h + dh * strength)
 
-        # --- 5. On rejoue les inputs non-acquittés ---
-        # Ça garde la cohérence avec ce que le client s’attend à voir
+        # 4. Re‑réplication des inputs non‑acquittés
         for seq, inp in self.input_history:
             if seq <= last_seq:
                 continue
             self._replay_local_input(inp)
 
     def _replay_local_input(self, inp: dict):
-        # Option 1: on applique juste la position, mais sans réinitialiser la vitesse
+        # → on ne force que la position de base, pas la vélocité
         self.local_player.player.setPos(inp.get("x", 0), inp.get("y", 0), inp.get("z", 0))
-        self.local_player.player.setH(inp.get("h", 0))
+        self.local_player.modelNode.setH(inp.get("h", 0.0))  # mais on tient compte de la H serveur
 
     def _send_input(self):
         if not self.net.connected:
             return
 
         pos = self.local_player.player.getPos()
-        hpr = self.local_player.player.getHpr()
-        h = hpr.x
+        h   = self.local_player.modelNode.getH(self.base.render)  # H monde
 
         need_send = self._pos_changed_significantly(pos, self.last_sent_pos)
         need_send |= self._h_changed_significantly(h, self.last_sent_h)
+
         if not need_send:
             return
 

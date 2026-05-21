@@ -140,7 +140,7 @@ class MainGame(ShowBase):
 
         self.shooting = ShootingSystem(game=self, player=self.player)
 
-        self.multiplayer = GameNetworkInterface(self, self.player)
+        self.multiplayer = GameNetworkInterface(self)
 
         self.inventory = {
             "ressource": 0
