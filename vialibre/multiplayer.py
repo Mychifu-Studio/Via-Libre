@@ -319,9 +319,14 @@ class GameNetworkInterface:
         self.local_player = base.player
         is_host = "--host" in sys.argv
         is_local = "--local" in sys.argv
-        join_arg = sys.argv[sys.argv.index("--join") + 1] if "--join" in sys.argv else None
+        join_arg = None
+        if "--join" in sys.argv:
+            idx = sys.argv.index("--join")
+            if idx + 1 < len(sys.argv):
+                join_arg = sys.argv[idx + 1]
+        self.is_solo = not (is_host or is_local or join_arg)
         player_name = "Host" if is_host else f"Player_{id(self.base) % 1000}"
-        self.net = NetworkProtocol(player_name, is_host, is_local, join_arg)
+        self.net = None if self.is_solo else NetworkProtocol(player_name, is_host, is_local, join_arg)
         self.other_players = {}
         self.tick = 0
         self.last_snapshot_time = 0.0
@@ -336,7 +341,8 @@ class GameNetworkInterface:
         self.next_input_seq = 0
         self.last_processed_seq = -1
         self.input_history = []
-        self.net.start()
+        if self.net is not None:
+            self.net.start()
 
     def _next_input_seq(self) -> int:
         self.next_input_seq += 1
@@ -387,7 +393,7 @@ class GameNetworkInterface:
         self.local_player.modelNode.setH(self.base.render, inp.get('h', 0.0))
 
     def _send_input(self):
-        if not self.net.connected:
+        if self.net is None or not self.net.connected:
             return
         pos = self.local_player.player.getPos(self.base.render)
         h = self.local_player.modelNode.getH(self.base.render)
@@ -404,6 +410,8 @@ class GameNetworkInterface:
         self.last_sent_h = h
 
     def _broadcast_snapshot(self):
+        if self.net is None:
+            return
         now = time.time()
         if now - self.last_snapshot_time < SNAPSHOT_PERIOD:
             return
@@ -421,7 +429,7 @@ class GameNetworkInterface:
         return Snapshot(tick=self.tick, players=players).to_dict()
 
     def _spawn_player(self, name: str):
-        if name in self.other_players or name == self.net.player_name:
+        if self.net is not None and (name in self.other_players or name == self.net.player_name):
             return
         model = self.base.loader.loadModel('./assets/dog.bam')
         model.reparentTo(self.base.render)
@@ -435,7 +443,7 @@ class GameNetworkInterface:
             print(f"SYSTEM : {name} a quitté la partie.")
 
     def _apply_input(self, sender_id: str, payload: dict):
-        if not self.net.is_host or sender_id not in self.other_players:
+        if self.net is None or not self.net.is_host or sender_id not in self.other_players:
             return
         model = self.other_players[sender_id]
         model.setPos(self.base.render, payload['x'], payload['y'], payload['z'])
@@ -443,14 +451,14 @@ class GameNetworkInterface:
 
     def _apply_snapshot(self, payload: dict):
         self.tick = payload.get('tick', self.tick)
-        if not self.net.is_host:
+        if self.net is not None and not self.net.is_host:
             self.last_processed_seq = payload.get('last_processed_seq', -1)
             self._apply_authoritative_correction(payload)
         known_players = set()
         for p_data in payload.get('players', []):
             pid = p_data.get('id')
             known_players.add(pid)
-            if pid == self.net.player_name:
+            if self.net is not None and pid == self.net.player_name:
                 continue
             if pid not in self.other_players:
                 self._spawn_player(pid)
@@ -466,9 +474,11 @@ class GameNetworkInterface:
             return
         origin = payload.get('origin', {})
         direction = payload.get('direction', {})
-        self.base.shooting.spawn_network_bullet(Point3(origin.get('x', 0), origin.get('y', 0), origin.get('z', 0)), Vec3(direction.get('x', 0), direction.get('y', 0), direction.get('z', 0)), payload.get('speed', self.base.shooting.BULLET_SPEED), payload.get('life', self.base.shooting.BULLET_LIFE))
+        self.base.shooting.spawn_network_bullet(Point3(origin.get('x', 0), origin.get('y', 0), origin.get('z', 0)), Vec3(direction.get('x', 0), direction.get('y', 0), direction.get('z', 0)), payload.get('speed', self.base.shooting.BULLET_SPEED), payload.get('life', self.base.shooting.BULLET_LIFE), shot_id=payload.get('shot_id'))
 
     def update(self):
+        if self.net is None:
+            return
         game_messages = self.net.update()
         for msg in game_messages:
             kind = msg['kind']
@@ -496,5 +506,6 @@ class GameNetworkInterface:
             self._broadcast_snapshot()
 
     def exit(self):
-        self.net.broadcast_msg('leave', {'name': self.net.player_name})
-        self.net.close()
+        if self.net is not None:
+            self.net.broadcast_msg('leave', {'name': self.net.player_name})
+            self.net.close()
