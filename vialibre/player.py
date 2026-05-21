@@ -11,6 +11,8 @@ from vialibre.camera import Camera
 from vialibre.construction import BuildManager
 from vialibre.interaction import InteractionManager
 
+from utils import shortest_angle_lerp
+
 
 class Player(DirectObject):
     MAX_HP = 10
@@ -131,8 +133,14 @@ class Player(DirectObject):
         if input_vec.lengthSquared() > 0:
             input_vec.normalize()
 
+        from math import atan2, degrees, exp
+        
+        current_H = self.modelNode.getH(self.base.render)
+
         if input_vec.length() > self.lastMovement.length():
-            self.modelNode.lookAt(self.modelNode.getPos() + input_vec)
+            target_H = degrees(atan2(-input_vec.x, input_vec.y))  # adapte les axes si besoin
+            new_H = shortest_angle_lerp(current_H, target_H, dt, .1)
+            self.modelNode.setH(self.base.render, new_H)
 
         for axis in range(3):
             maxSpeedTime = .5 if input_vec[axis] else .08
@@ -154,7 +162,7 @@ class Player(DirectObject):
     def updateCursor(self):
         if getattr(self.base, 'win', None) is None:
             return
-        if self.base.mouseWatcherNode.hasMouse() and (not self.build_manager.mode_actif or self.is_paused):
+        if self.base.mouseWatcherNode.hasMouse() and (not self.build_manager.mode_actif or self.is_paused) and not self.camera.rotate:
             self.cursor.show()
             x = self.base.mouseWatcherNode.getMouseX()
             y = self.base.mouseWatcherNode.getMouseY()
