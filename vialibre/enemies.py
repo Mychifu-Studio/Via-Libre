@@ -491,11 +491,11 @@ class EnemyManager:
 
         return map_collision.is_position_allowed(pos)
 
-    def check_projectile_hit(self, start_pos, end_pos, hit_radius, apply_damage=True):
+    def check_projectile_hit(self, start_pos, end_pos, hit_radius, apply_damage=True, damage=1):
         for enemy in self.enemies[:]:
             if enemy.is_touched_by_segment(start_pos, end_pos, hit_radius):
                 if apply_damage:
-                    killed = enemy.take_damage(1)
+                    killed = enemy.take_damage(max(1, int(damage)))
                     if killed:
                         self.enemies.remove(enemy)
                         self.game.messenger.send("enemy-hit")

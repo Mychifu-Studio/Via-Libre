@@ -15,6 +15,7 @@ from vialibre.shooting import ShootingSystem
 from vialibre.enemies import EnemyManager
 from vialibre.vague import VagueManager
 from vialibre.map_collision import MapCollisionManager
+from vialibre.upgrade_system import UpgradeSystem
 
 
 # Configuration globale
@@ -161,6 +162,13 @@ class MainGame(ShowBase):
         self.resource_system.setup_player_collider(self.player)
         self.resource_system.generate_diamond_ore_zones()
 
+        self.upgrade_system = UpgradeSystem(
+            game=self,
+            inventory_ui=self.inventory_ui,
+            popup_ui=self.popup_ui
+        )
+        self.upgrade_system.generate_campfire_zones()
+
         self.vague_manager = VagueManager(self, self.enemies)
         self.vague_manager.start()
 
@@ -195,6 +203,7 @@ class MainGame(ShowBase):
         self.player.update(dt)
         self.network.update()
         self.resource_system.update()
+        self.upgrade_system.update()
         self.inventory_ui.update()
         self.enemies.update(dt)
         self.player_health_ui.update()

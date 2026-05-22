@@ -33,6 +33,7 @@ class ResourceSystem:
         # Données de la zone actuelle
         self.current_min_amount = 0
         self.current_max_amount = 0
+        self.base_harvest_required_time = 0.0
         self.harvest_required_time = 0.0
 
         # Récolte
@@ -195,6 +196,7 @@ class ResourceSystem:
             self.current_zone = None
             self.current_min_amount = 0
             self.current_max_amount = 0
+            self.base_harvest_required_time = 0.0
             self.harvest_required_time = 0.0
             self.popup_ui.show_popup("Zone invalide.")
             return
@@ -202,7 +204,10 @@ class ResourceSystem:
         self.current_zone = trigger_node
         self.current_min_amount = int(min_amount_tag)
         self.current_max_amount = int(max_amount_tag)
-        self.harvest_required_time = float(harvest_time_tag)
+        self.base_harvest_required_time = float(harvest_time_tag)
+        self.harvest_required_time = self._get_effective_harvest_time(
+            self.base_harvest_required_time
+        )
 
         self.show_harvest_hint()
 
@@ -211,9 +216,24 @@ class ResourceSystem:
         self.current_zone = None
         self.current_min_amount = 0
         self.current_max_amount = 0
+        self.base_harvest_required_time = 0.0
         self.harvest_required_time = 0.0
         self.cancel_harvest()
         self.popup_ui.hide_popup()
+
+    def _get_effective_harvest_time(self, base_time):
+        multiplier = getattr(self.game.player, "harvest_time_multiplier", 1.0)
+        return max(0.5, base_time * multiplier)
+
+    def refresh_current_harvest_time(self):
+        if self.current_zone is None or self.base_harvest_required_time <= 0:
+            return
+
+        self.harvest_required_time = self._get_effective_harvest_time(
+            self.base_harvest_required_time
+        )
+        if self.in_trigger and not self.is_holding_e:
+            self.show_harvest_hint()
 
     # =========================================================
     # RECOLTE
@@ -259,7 +279,7 @@ class ResourceSystem:
         resource_label = "ressource" if amount <= 1 else "ressources"
         self.popup_ui.show_popup(
             f"Maintiens E : {amount} {resource_label} "
-            f"({self.harvest_required_time:.0f}s)"
+            f"({self.harvest_required_time:.1f}s)"
         )
 
     def update_harvest_progress(self, task):
@@ -277,7 +297,7 @@ class ResourceSystem:
         dt = globalClock.getDt()  # type: ignore
         self.harvest_elapsed += dt
 
-        progress = min(self.harvest_elapsed / self.harvest_required_time, 1.0)
+        progress = min(self.harvest_elapsed / max(self.harvest_required_time, 0.001), 1.0)
         percent = int(progress * 100)
 
         self.popup_ui.show_progress(f"Récolte... {percent}%")

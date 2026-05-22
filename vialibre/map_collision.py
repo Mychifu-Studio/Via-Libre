@@ -103,6 +103,7 @@ class MapCollisionManager:
     WALKABLE_TERMS = ("ground", "path")
     DECORATIVE_TERMS = ("leaves", "leaf")
     RESOURCE_TERMS = ("minerai", "diamant", "diamond")
+    CAMPFIRE_TERMS = ("fireplace", "campfire", "fire_place", "feu_de_camp", "charbon")
     BLOCKING_TERMS = (
         "wall",
         "walls",
@@ -116,7 +117,6 @@ class MapCollisionManager:
         "frame",
         "tent",
         "chaise",
-        "fireplace",
         "charbon",
         "tuyo",
     )
@@ -145,6 +145,8 @@ class MapCollisionManager:
         self.walkable_triangles = 0
         self.resource_points = []
         self._resource_point_cells = set()
+        self.campfire_points = []
+        self._campfire_point_cells = set()
 
         if self.map_root is not None and not self.map_root.isEmpty():
             self._load_from_model(self.map_root)
@@ -185,6 +187,41 @@ class MapCollisionManager:
         min_cluster_points=3,
     ):
         clusters = self._cluster_resource_points(cluster_distance)
+        zones = []
+
+        for cluster in clusters:
+            if len(cluster) < min_cluster_points:
+                continue
+
+            min_x = min(point.x for point in cluster)
+            max_x = max(point.x for point in cluster)
+            min_y = min(point.y for point in cluster)
+            max_y = max(point.y for point in cluster)
+            center_x = (min_x + max_x) / 2.0
+            center_y = (min_y + max_y) / 2.0
+            radius = max(
+                sqrt(_distance_squared(center_x, center_y, point.x, point.y))
+                for point in cluster
+            )
+
+            zones.append(
+                ResourceZoneDefinition(
+                    center_x,
+                    center_y,
+                    max(min_radius, radius + radius_padding),
+                )
+            )
+
+        return sorted(zones, key=lambda zone: (zone.y, zone.x))
+
+    def get_campfire_zone_definitions(
+        self,
+        cluster_distance=3.0,
+        radius_padding=2.0,
+        min_radius=3.5,
+        min_cluster_points=2,
+    ):
+        clusters = self._cluster_points(self.campfire_points, cluster_distance)
         zones = []
 
         for cluster in clusters:
@@ -273,6 +310,9 @@ class MapCollisionManager:
         if category == "resource":
             self._store_resource_point(triangle)
             category = "blocker"
+        elif category == "campfire":
+            self._store_campfire_point(triangle)
+            category = "blocker"
 
         if category in ("walkable", "low_surface"):
             if not triangle.has_walkable_slope(0.35):
@@ -311,6 +351,9 @@ class MapCollisionManager:
 
         if any(term in label_text for term in self.RESOURCE_TERMS):
             return "resource", label_text
+
+        if any(term in label_text for term in self.CAMPFIRE_TERMS):
+            return "campfire", label_text
 
         if any(term in label_text for term in self.BLOCKING_TERMS):
             return "blocker", label_text
@@ -398,8 +441,28 @@ class MapCollisionManager:
         self._resource_point_cells.add(cell)
         self.resource_points.append(Point3(point.x, point.y, 0))
 
+    def _store_campfire_point(self, triangle):
+        center = Point3(
+            (triangle.a.x + triangle.b.x + triangle.c.x) / 3.0,
+            (triangle.a.y + triangle.b.y + triangle.c.y) / 3.0,
+            0,
+        )
+        for point in (triangle.a, triangle.b, triangle.c, center):
+            self._store_campfire_sample(point)
+
+    def _store_campfire_sample(self, point):
+        cell = (int(round(point.x * 2.0)), int(round(point.y * 2.0)))
+        if cell in self._campfire_point_cells:
+            return
+
+        self._campfire_point_cells.add(cell)
+        self.campfire_points.append(Point3(point.x, point.y, 0))
+
     def _cluster_resource_points(self, cluster_distance):
-        points = sorted(self.resource_points, key=lambda point: (point.x, point.y))
+        return self._cluster_points(self.resource_points, cluster_distance)
+
+    def _cluster_points(self, points, cluster_distance):
+        points = sorted(points, key=lambda point: (point.x, point.y))
         if not points:
             return []
 
