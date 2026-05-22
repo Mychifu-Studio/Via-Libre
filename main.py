@@ -177,7 +177,6 @@ class MainGame(ShowBase):
     def reward_enemy_hit(self):
         self.inventory["ressource"] = self.inventory.get("ressource", 0) + 1
         self.inventory_ui.update()
-
         self.popup_ui.show_popup(
             f"Ennemi touché : ressource +1 ! (Total : {self.inventory['ressource']})"
         )
