@@ -1,3 +1,5 @@
+import os
+
 from direct.gui.DirectGui import DirectButton, DirectFrame, DirectLabel
 from direct.showbase.ShowBase import ShowBase
 from panda3d.core import AmbientLight, AntialiasAttrib, TextNode, WindowProperties, load_prc_file_data, Spotlight, PerspectiveLens
@@ -6,6 +8,7 @@ import simplepbr
 from vialibre.enemies import EnemyManager
 from vialibre.health_ui import PipeHealthUI, PlayerHealthUI
 from vialibre.inventory_ui import InventoryUI
+from vialibre.lobby import LobbyManager
 from vialibre.map_collision import MapCollisionManager
 from vialibre.multiplayer import GameNetworkInterface
 from vialibre.pipe_base import PipeBase
@@ -28,15 +31,37 @@ load_prc_file_data(
     "load-file-type p3assimp"
 )
 
+GAME_SPAWN_POS = (0, 0, 0)
+
 
 class EnvironmentManager:
-    """SRP: Initialise et gère le décor statique (lumières, terrain)."""
+    """SRP: Initialise et gere le decor statique (lumieres, terrain)."""
+
+    LOBBY_MAP_CANDIDATES = (
+        ("assets/Shop.bam", 0),
+        ("assets/shop.bam", 0),
+        ("assets/Shop.glb", 0),
+        ("assets/Jungle3.bam", -90),
+    )
+    GAME_MAP = ("assets/Jungle3.bam", -90)
+
     def __init__(self, render):
         self.render = render
-        self.generate_ground()
+        self.jungle = None
+        self.map_path = None
+        self.load_lobby_map()
         self.setup_lights()
 
-    def generate_ground(self):
+    def load_lobby_map(self):
+        self._load_map(*self._resolve_lobby_map_path())
+
+    def load_game_map(self):
+        self._load_map(*self.GAME_MAP)
+
+    def _load_map(self, map_path, map_heading):
+        if self.jungle is not None and not self.jungle.isEmpty():
+            self.jungle.removeNode()
+
         # size = 256
         # img = PNMImage(size, size)
 
@@ -59,10 +84,18 @@ class EnvironmentManager:
         # ground = self.render.attachNewNode(cm.generate())
         # ground.setP(-90)
         # ground.setTexture(texture)
-        self.jungle = loader.loadModel('assets/Jungle3.bam')
+        self.map_path = map_path
+        self.jungle = loader.loadModel(map_path)
         self.jungle.setPos(0, 0, 0)
-        self.jungle.setH(-90)
+        self.jungle.setH(map_heading)
         self.jungle.reparentTo(self.render)
+
+    def _resolve_lobby_map_path(self):
+        for path, heading in self.LOBBY_MAP_CANDIDATES:
+            if os.path.exists(path):
+                return path, heading
+
+        return "assets/Jungle3.bam", -90
 
     def add_spotlight(self, name, color, pos, target, fov=45, near=1, far=50):
         spot = Spotlight(name)
@@ -314,6 +347,47 @@ class GameOverScreen:
         self.frame.show()
 
 
+class HostCodeUI:
+    """Affiche le code de salon pour le host."""
+
+    def __init__(self, game):
+        self.game = game
+        self.frame = None
+
+        net_iface = getattr(self.game, "network", None)
+        net = getattr(net_iface, "net", None) if net_iface is not None else None
+        if net is None or not net.is_host:
+            return
+
+        if net.game_code:
+            text = f"CODE : {net.game_code}"
+        else:
+            text = f"HOST LOCAL : {net.local_ip}"
+
+        self.frame = DirectFrame(
+            parent=base.aspect2d,
+            frameColor=(0.018, 0.018, 0.018, 0.78),
+            frameSize=(-0.36, 0.36, -0.055, 0.055),
+            pos=(0, 0, 0.94),
+        )
+        self.frame.setBin("fixed", 96)
+        self.frame.setDepthWrite(False)
+        self.frame.setDepthTest(False)
+
+        self.label = DirectLabel(
+            parent=self.frame,
+            text=text,
+            scale=0.038,
+            pos=(0, 0, -0.014),
+            frameColor=(0, 0, 0, 0),
+            text_fg=(1, 0.94, 0.62, 1),
+            text_align=TextNode.ACenter,
+        )
+        self.label.setBin("fixed", 97)
+        self.label.setDepthWrite(False)
+        self.label.setDepthTest(False)
+
+
 class MainGame(ShowBase):
     def __init__(self):
         super().__init__(True)
@@ -330,12 +404,14 @@ class MainGame(ShowBase):
         self.environment = EnvironmentManager(self.render)
         self.map_collision = MapCollisionManager(self.render, self.environment.jungle)
 
+        self.game_started = False
         self.is_game_over = False
         self.pipe_base = PipeBase(self, self.map_collision)
         self.enemies = EnemyManager(self)
         self.player = Player(map_collision=self.map_collision)
         self.shooting = ShootingSystem(game=self, player=self.player)
         self.network = GameNetworkInterface(self)
+        self.host_code_ui = HostCodeUI(self)
 
         self.inventory = {"ressource": 0}
         self.inventory_ui = InventoryUI(self)
@@ -351,17 +427,16 @@ class MainGame(ShowBase):
             popup_ui=self.popup_ui,
         )
         self.resource_system.setup_player_collider(self.player)
-        self.resource_system.generate_diamond_ore_zones()
 
         self.upgrade_system = UpgradeSystem(
             game=self,
             inventory_ui=self.inventory_ui,
             popup_ui=self.popup_ui,
         )
-        self.upgrade_system.generate_campfire_zones()
 
         self.vague_manager = VagueManager(self, self.enemies)
-        self.vague_manager.start()
+        self.lobby = LobbyManager(self)
+        self.set_game_hud_visible(False)
 
         self.accept("escape", self.menu.toggle)
         self.accept("window-close", self.exit_game)
@@ -369,8 +444,48 @@ class MainGame(ShowBase):
         self.accept("player-take-damage", self.player.take_damage)
         self.accept("pipe-destroyed", self.trigger_game_over)
 
-        self.game_started = True
         self.taskMgr.add(self.update, "update")
+
+    def start_game(self, from_network=False):
+        if self.game_started:
+            return
+
+        self.game_started = True
+        if hasattr(self, "lobby"):
+            self.lobby.finish()
+
+        self.prepare_game_level()
+        self.set_game_hud_visible(True)
+        self.vague_manager.start()
+        if not from_network and hasattr(self, "network"):
+            self.network.broadcast_game_start()
+
+        self.popup_ui.show_popup("La partie commence !", duration=2.5)
+
+    def set_game_hud_visible(self, visible):
+        self.inventory_ui.set_visible(visible)
+        self.player_health_ui.set_visible(visible)
+        self.pipe_health_ui.set_visible(visible)
+
+    def prepare_game_level(self):
+        self.environment.load_game_map()
+        self.map_collision = MapCollisionManager(self.render, self.environment.jungle)
+
+        self.player.map_collision = self.map_collision
+        self.player.player.setPos(*GAME_SPAWN_POS)
+        self.player.movementVector.set(0, 0, 0)
+        self.player.lastMovement.set(0, 0, 0)
+
+        self.pipe_base = PipeBase(self, self.map_collision)
+        self.pipe_health_ui.pipe_base = self.pipe_base
+        self.pipe_health_ui.update()
+
+        self.resource_system.generate_diamond_ore_zones()
+        self.upgrade_system.generate_campfire_zones()
+
+        net_iface = getattr(self, "network", None)
+        for model in getattr(net_iface, "other_players", {}).values():
+            model.setPos(*GAME_SPAWN_POS)
 
     def reward_enemy_hit(self):
         self.inventory["ressource"] = self.inventory.get("ressource", 0) + 1
@@ -417,11 +532,16 @@ class MainGame(ShowBase):
         self.player.update(dt)
         self.network.update()
         self.resource_system.update()
-        self.upgrade_system.update()
         self.inventory_ui.update()
-        self.enemies.update(dt)
         self.player_health_ui.update()
         self.pipe_health_ui.update()
+
+        if not self.game_started:
+            self.lobby.update()
+            return task.cont
+
+        self.upgrade_system.update()
+        self.enemies.update(dt)
         self.shooting.update()
         self.vague_manager.update(dt)
 

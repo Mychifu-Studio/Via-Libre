@@ -69,17 +69,28 @@ class EnemyState:
         return EnemyState(data["id"], data["x"], data["y"], data["z"], data.get("h", 0.0), data.get("hp", 1))
 
 class GameState:
-    def __init__(self, wave_index: int, is_finished: bool, team_resources: int):
+    def __init__(self, wave_index: int, is_finished: bool, team_resources: int, game_started: bool = False):
         self.wave_index = wave_index
         self.is_finished = is_finished
         self.team_resources = team_resources
+        self.game_started = game_started
 
     def to_dict(self) -> Dict[str, Any]:
-        return {"wave_index": self.wave_index, "is_finished": self.is_finished, "team_resources": self.team_resources}
+        return {
+            "wave_index": self.wave_index,
+            "is_finished": self.is_finished,
+            "team_resources": self.team_resources,
+            "game_started": self.game_started,
+        }
 
     @staticmethod
     def from_dict(data: Dict[str, Any]) -> "GameState":
-        return GameState(data.get("wave_index", 0), data.get("is_finished", False), data.get("team_resources", 0))
+        return GameState(
+            data.get("wave_index", 0),
+            data.get("is_finished", False),
+            data.get("team_resources", 0),
+            data.get("game_started", False),
+        )
 
 class StructureState:
     def __init__(self, id: str, x: float, y: float, z: float, h: float, p: float, r: float):
@@ -401,6 +412,12 @@ class GameNetworkInterface:
         if self.net is not None:
             self.net.start()
 
+    def broadcast_game_start(self):
+        if self.net is None or not self.net.is_host:
+            return
+
+        self.net.broadcast_msg("game_start", {"started_at": time.time()})
+
     def _next_input_seq(self) -> int:
         self.next_input_seq += 1
         return self.next_input_seq
@@ -497,7 +514,8 @@ class GameNetworkInterface:
             game_state = GameState(
                 wave_index=self.base.vague_manager.current_wave_index,
                 is_finished=self.base.vague_manager.is_finished,
-                team_resources=self.base.inventory.get("ressource", 0)
+                team_resources=self.base.inventory.get("ressource", 0),
+                game_started=getattr(self.base, "game_started", False),
             )
 
         structures = []
@@ -562,7 +580,11 @@ class GameNetworkInterface:
             # Sync Game State
             g_data = payload.get('game_state')
             if g_data and hasattr(self.base, 'vague_manager'):
-                self.base.vague_manager.sync_from_snapshot(g_data.get('wave_index', 0), g_data.get('is_finished', False))
+                if g_data.get("game_started", False) and not getattr(self.base, "game_started", False):
+                    self.base.start_game(from_network=True)
+
+                if getattr(self.base, "game_started", False):
+                    self.base.vague_manager.sync_from_snapshot(g_data.get('wave_index', 0), g_data.get('is_finished', False))
                 self.base.inventory["ressource"] = g_data.get('team_resources', 0)
                 if hasattr(self.base, 'inventory_ui'):
                     self.base.inventory_ui.update()
@@ -614,6 +636,9 @@ class GameNetworkInterface:
                 if self.net.is_host:
                     self._spawn_player(sender_id)
                     self._broadcast_snapshot()
+            elif kind == 'game_start':
+                if not self.net.is_host and hasattr(self.base, "start_game"):
+                    self.base.start_game(from_network=True)
             elif kind == 'snapshot':
                 self._apply_snapshot(payload)
             elif kind == 'input':

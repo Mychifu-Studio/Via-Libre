@@ -321,6 +321,7 @@ class UpgradeSystem:
         }
 
     def generate_campfire_zones(self):
+        self.clear_campfire_zones()
         map_collision = getattr(self.game, "map_collision", None)
         if map_collision is None or not hasattr(map_collision, "get_campfire_zone_definitions"):
             return
@@ -332,6 +333,17 @@ class UpgradeSystem:
 
         for index, zone in enumerate(zones):
             self.create_campfire_zone((zone.x, zone.y, 0), zone.radius, index)
+
+    def clear_campfire_zones(self):
+        self.active_zone_names.clear()
+        self.close_panel()
+
+        for index, zone_np in enumerate(self.campfire_zones):
+            self.game.ignore(f"player-into-upgrade_zone_{index}")
+            self.game.ignore(f"player-out-upgrade_zone_{index}")
+            zone_np.removeNode()
+
+        self.campfire_zones.clear()
 
     def create_campfire_zone(self, pos, radius, zone_id):
         zone_name = f"upgrade_zone_{zone_id}"
