@@ -42,37 +42,52 @@ class Mouse(DirectObject):
         self.cursor.show()
 
     def captureMouse(self):
+        if not hasattr(self.base.win, "requestProperties"):
+            return
+
         properties = WindowProperties()
         properties.set_cursor_hidden(True)
         self.base.win.requestProperties(properties)
 
 
     def releaseMouse(self):
+        if not hasattr(self.base.win, "requestProperties"):
+            return
+
         properties = WindowProperties()
         properties.set_cursor_hidden(True)
         self.base.win.requestProperties(properties)
 
 
     def centerMouse(self):
+        if not hasattr(self.base.win, "movePointer"):
+            return
+
         centerX = self.base.win.getXSize() // 2
         centerY = self.base.win.getYSize() // 2
         self.base.win.movePointer(0, centerX, centerY)
 
     def getMousePos(self):
+        if not hasattr(self.base.win, "getPointer"):
+            return 0, 0
+
         md = self.base.win.getPointer(0)
         x = md.getX()
         y = md.getY()
         return x, y
 
     def setMousePos(self, coords):
+        if not hasattr(self.base.win, "movePointer"):
+            return
+
         self.base.win.movePointer(0, int(coords[0]), int(coords[1]))
 
     def getMouseDelta(self) -> tuple[int, int]:
         x, y = self.getMousePos()
-       
+
         centerX = self.base.win.getXSize() // 2
         centerY = self.base.win.getYSize() // 2
-       
+
         # Calcul des deltas en pixels
         dx = x - centerX
         dy = y - centerY
@@ -80,13 +95,18 @@ class Mouse(DirectObject):
         return (dx, dy)
 
     def hasMouse(self) -> bool:
-        return self.base.mouseWatcherNode.hasMouse()
-    
+        mouse_watcher = getattr(self.base, "mouseWatcherNode", None)
+        return mouse_watcher is not None and mouse_watcher.hasMouse()
+
     def updateCursor(self):
         if getattr(self.base, 'win', None) is None:
             return
-        if self.base.mouseWatcherNode.hasMouse():
-            x = self.base.mouseWatcherNode.getMouseX()
-            y = self.base.mouseWatcherNode.getMouseY()
+        mouse_watcher = getattr(self.base, "mouseWatcherNode", None)
+        if mouse_watcher is None:
+            return
+
+        if mouse_watcher.hasMouse():
+            x = mouse_watcher.getMouseX()
+            y = mouse_watcher.getMouseY()
             ratio = self.base.getAspectRatio()
             self.cursorRoot.setPos(x * ratio, 0, y)

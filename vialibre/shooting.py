@@ -13,7 +13,7 @@ class Bullet:
         self.life -= dt
         if self.life <= 0:
             return False
-        
+
         old_pos = self.node.getPos(self.node.getParent())
         new_pos = old_pos + self.direction * self.speed * dt
         self.node.setPos(new_pos)
@@ -36,13 +36,13 @@ class ShootingSystem:
         self.bullets = []
 
         self.was_building_last_frame = False
-        
+
         # On écoute le clic gauche pour tirer
         self.game.accept("mouse1", self.shoot)
 
     def _get_mouse_world_pos(self):
-        mw = self.game.mouseWatcherNode
-        if not mw.hasMouse(): 
+        mw = getattr(self.game, "mouseWatcherNode", None)
+        if mw is None or not mw.hasMouse():
             return None
 
         mpos = mw.getMouse()
@@ -54,13 +54,13 @@ class ShootingSystem:
         far_w = render.getRelativePoint(cam, far_point)
 
         dz = far_w.z - near_w.z
-        if abs(dz) < 0.0001: 
+        if abs(dz) < 0.0001:
             return None
 
         t = -near_w.z / dz
         return Vec3(
-            near_w.x + t * (far_w.x - near_w.x), 
-            near_w.y + t * (far_w.y - near_w.y), 
+            near_w.x + t * (far_w.x - near_w.x),
+            near_w.y + t * (far_w.y - near_w.y),
             0
         )
 
@@ -70,15 +70,15 @@ class ShootingSystem:
 
 
         target = self._get_mouse_world_pos()
-        if target is None: 
+        if target is None:
             return
 
         player_pos = self.player.getPos(self.game.render)
         direction = Vec3(target.x - player_pos.x, target.y - player_pos.y, 0)
-        
-        if direction.length() < 0.001: 
+
+        if direction.length() < 0.001:
             return
-            
+
         direction.normalize()
 
         # Création de la balle

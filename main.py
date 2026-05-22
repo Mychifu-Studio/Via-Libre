@@ -1,21 +1,21 @@
-from tkinter import N
-
+from direct.gui.DirectGui import DirectFrame, DirectButton
+from direct.gui.DirectGui import DirectLabel
 from direct.showbase.ShowBase import ShowBase
-from panda3d.core import WindowProperties, load_prc_file_data, DirectionalLight, CardMaker, PNMImage, Texture, AntialiasAttrib, AmbientLight, TextNode
-from direct.gui.DirectGui import DirectFrame, DirectButton, DirectLabel
+from panda3d.core import AmbientLight, AntialiasAttrib, TextNode, WindowProperties, load_prc_file_data
 import simplepbr
 
-from vialibre.player import Player
-from vialibre.multiplayer import MultiplayerManager
-from vialibre.resource_system import ResourceSystem
-from vialibre.inventory_ui import InventoryUI
-from vialibre.health_ui import PlayerHealthUI, PipeHealthUI
-from vialibre.popup_ui import PopupUI
-from vialibre.shooting import ShootingSystem
 from vialibre.enemies import EnemyManager
-from vialibre.vague import VagueManager
+from vialibre.health_ui import PlayerHealthUI
+from vialibre.health_ui import PipeHealthUI
+from vialibre.inventory_ui import InventoryUI
 from vialibre.map_collision import MapCollisionManager
+from vialibre.multiplayer import MultiplayerManager
 from vialibre.pipe_base import PipeBase
+from vialibre.player import Player
+from vialibre.popup_ui import PopupUI
+from vialibre.resource_system import ResourceSystem
+from vialibre.shooting import ShootingSystem
+from vialibre.vague import VagueManager
 
 
 # Configuration globale
@@ -27,8 +27,7 @@ load_prc_file_data(
     'client-sleep 0.001\n'
     'framebuffer-multisample 1\n'
     'multisamples 2\n'
-    'load-file-type p3assimp\n'
-    'load-file-type p3dopenstdl'
+    'load-file-type p3assimp'
 )
 
 
@@ -184,7 +183,8 @@ class MainGame(ShowBase):
 
         props = WindowProperties()
         props.setCursorHidden(True)
-        self.win.requestProperties(props)
+        if hasattr(self.win, "requestProperties"):
+            self.win.requestProperties(props)
 
         self.environment = EnvironmentManager(self.render)
         self.map_collision = MapCollisionManager(self.render, self.environment.jungle)
@@ -234,7 +234,6 @@ class MainGame(ShowBase):
     def reward_enemy_hit(self):
         self.inventory["ressource"] = self.inventory.get("ressource", 0) + 1
         self.inventory_ui.update()
-
         self.popup_ui.show_popup(
             f"Ennemi touché : ressource +1 ! (Total : {self.inventory['ressource']})"
         )
