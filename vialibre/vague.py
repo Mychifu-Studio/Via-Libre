@@ -1,5 +1,27 @@
 from direct.gui.DirectGui import DirectLabel, DirectFrame
-from panda3d.core import TextNode
+from panda3d.core import TextNode, Vec3
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Chemins des 6 portails vers le tuyau.
+# Chaque liste part du portail et aboutit au tuyau.
+# ─────────────────────────────────────────────────────────────────────────────
+PORTAL_PATHS = [
+    # Portail 1
+    [Vec3(6, 25, 0), Vec3(23, 0, 0), Vec3(23, -9, 0), Vec3(19, -9, 0)],
+    # Portail 2
+    [Vec3(-6, 25, 0), Vec3(-23, 0, 0), Vec3(-23, -9, 0), Vec3(-19, -9, 0)],
+    # Portail 3
+    [Vec3(-40, -9, 0), Vec3(-30, -15, 0), Vec3(-25, -15, 0), Vec3(-23, -10, 0), Vec3(-19, -10, 0)],
+    # Portail 4
+    [Vec3(40, -9, 0), Vec3(30, -15, 0), Vec3(25, -15, 0), Vec3(23, -10, 0), Vec3(19, -10, 0)],
+    # Portail 5
+    [Vec3(-23, 17, 0), Vec3(-30, 2, 0), Vec3(-23, 0, 0), Vec3(-23, -9, 0), Vec3(-19, -9, 0)],
+    # Portail 6
+    [Vec3(23, 17, 0), Vec3(30, 2, 0), Vec3(23, 0, 0), Vec3(23, -9, 0), Vec3(19, -9, 0)],
+]
+
+SPAWN_INTERVAL = 1.5   # secondes entre chaque ennemi sur le meme portail
 
 
 class VagueManager:
@@ -27,24 +49,18 @@ class VagueManager:
         self.waves = [
             {
                 "name": "Vague 1",
-                "enemy_count": 5,
+                "enemy_count": 24,   # 4 par portail x 6 portails
                 "speed": 4.0,
-                "chase_speed": 6.0,
-                "detection_radius": 12.0,
             },
             {
                 "name": "Vague 2",
-                "enemy_count": 8,
+                "enemy_count": 36,   # 6 par portail
                 "speed": 4.5,
-                "chase_speed": 6.5,
-                "detection_radius": 14.0,
             },
             {
                 "name": "Vague 3",
-                "enemy_count": 12,
+                "enemy_count": 48,   # 8 par portail
                 "speed": 5.0,
-                "chase_speed": 7.0,
-                "detection_radius": 16.0,
             },
         ]
 
@@ -125,17 +141,13 @@ class VagueManager:
         self.killed_in_current_wave = 0
         self.clear_enemies()
 
-        spawned_count = self.enemy_manager.spawn_random_dogs_in_area(
-            count=wave["enemy_count"],
-            area_min_x=self.area_min_x,
-            area_max_x=self.area_max_x,
-            area_min_y=self.area_min_y,
-            area_max_y=self.area_max_y,
+        count_per_portal = wave["enemy_count"] // len(PORTAL_PATHS)
+        spawned_count = self.enemy_manager.spawn_wave(
+            portal_paths=PORTAL_PATHS,
+            count_per_portal=count_per_portal,
             speed=wave["speed"],
             scale=1.0,
-            margin=self.margin,
-            chase_speed=wave["chase_speed"],
-            detection_radius=wave["detection_radius"],
+            interval=SPAWN_INTERVAL,
         )
         self.current_enemy_target = spawned_count or wave["enemy_count"]
 

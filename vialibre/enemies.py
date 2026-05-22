@@ -326,9 +326,10 @@ class DogEnemy:
 
 class WaypointEnemy:
     """Ennemi qui suit une liste de waypoints a vitesse fixe puis disparait."""
-    MAX_HP = 3
+    MAX_HP = 25
     CONTACT_RADIUS = 1.5
     WAYPOINT_REACH_THRESHOLD = 0.3
+    HEALTH_BAR_WIDTH = 1.5
 
     def __init__(self, game, waypoints, speed=4.0, scale=1.0, on_finish=None):
         self.game      = game
@@ -338,6 +339,7 @@ class WaypointEnemy:
         self.is_dead   = False
         self.hp        = self.MAX_HP
         self._index    = 0
+        self.health_bar_fill = None
 
         self.node = self._load_model()
         self.node.reparentTo(self.game.render)
@@ -347,19 +349,67 @@ class WaypointEnemy:
         if len(self.waypoints) > 1:
             self.node.lookAt(self.waypoints[1])
 
+        self._create_health_bar()
+
     def _load_model(self):
         base_dir = os.path.dirname(os.path.abspath(__file__))
         path = Filename.fromOsSpecific(os.path.join(base_dir, "../assets", "dog.bam")).getFullpath()
         return self.game.loader.loadModel(path)
 
+    def _create_health_bar(self):
+        self.health_bar_root = self.node.attachNewNode("enemy-health-bar")
+        self.health_bar_root.setZ(2.4)
+        self.health_bar_root.setScale(0.9)
+        self.health_bar_root.setLightOff()
+        self.health_bar_root.setDepthWrite(False)
+        self.health_bar_root.setDepthTest(False)
+        self.health_bar_root.setTransparency(TransparencyAttrib.MAlpha)
+        self.health_bar_root.setBillboardPointEye()
+
+        background_maker = CardMaker("enemy-health-background")
+        background_maker.setFrame(
+            -self.HEALTH_BAR_WIDTH / 2,
+            self.HEALTH_BAR_WIDTH / 2,
+            -0.07,
+            0.07,
+        )
+        background = self.health_bar_root.attachNewNode(background_maker.generate())
+        background.setColor(0.02, 0.02, 0.02, 0.8)
+        background.setTransparency(TransparencyAttrib.MAlpha)
+
+        fill_maker = CardMaker("enemy-health-fill")
+        fill_maker.setFrame(0, self.HEALTH_BAR_WIDTH - 0.08, -0.045, 0.045)
+        self.health_bar_fill = self.health_bar_root.attachNewNode(fill_maker.generate())
+        self.health_bar_fill.setX(-(self.HEALTH_BAR_WIDTH - 0.08) / 2)
+        self.health_bar_fill.setY(-0.01)
+        self.health_bar_fill.setTransparency(TransparencyAttrib.MAlpha)
+        self._update_health_bar()
+
+    def _update_health_bar(self):
+        if self.health_bar_fill is None:
+            return
+        ratio = max(0.0, min(1.0, self.hp / self.MAX_HP))
+        if ratio > 0.55:
+            color = (0.15, 0.85, 0.28, 0.95)
+        elif ratio > 0.25:
+            color = (0.95, 0.72, 0.18, 0.95)
+        else:
+            color = (0.95, 0.22, 0.18, 0.95)
+        self.health_bar_fill.setSx(max(ratio, 0.001))
+        self.health_bar_fill.setColor(color)
+
     def take_damage(self, amount=1):
         if self.is_dead:
             return False
         self.hp -= amount
+        self._update_health_bar()
         if self.hp <= 0:
             self.destroy()
             return True
         return False
+
+    def has_reached_end(self):
+        return self._index >= len(self.waypoints) - 1
 
     def is_touched_by_segment(self, start_pos, end_pos, hit_radius):
         if self.is_dead:
@@ -379,7 +429,6 @@ class WaypointEnemy:
 
         next_index = self._index + 1
         if next_index >= len(self.waypoints):
-            self.destroy()
             return
 
         target      = self.waypoints[next_index]
@@ -406,12 +455,41 @@ class WaypointEnemy:
         if self.on_finish:
             self.on_finish()
 
+
+class PortalSpawner:
+    """File d'attente d'un portail : spawne les ennemis un par un avec un delai."""
+
+    def __init__(self, game, waypoints, count, speed, scale, interval):
+        self.game      = game
+        self.waypoints = waypoints
+        self.speed     = speed
+        self.scale     = scale
+        self.interval  = interval
+        self.remaining = count
+        self.timer     = 0.0
+        self.done      = False
+
+    def update(self, dt, enemy_list):
+        if self.done:
+            return
+        self.timer -= dt
+        if self.timer > 0:
+            return
+        enemy = WaypointEnemy(self.game, self.waypoints, speed=self.speed, scale=self.scale)
+        enemy_list.append(enemy)
+        self.remaining -= 1
+        self.timer = self.interval if self.remaining > 0 else 0.0
+        if self.remaining <= 0:
+            self.done = True
+
+
 class EnemyManager:
     BASE_DAMAGE_PER_ENEMY = 1
 
     def __init__(self, game):
         self.game = game
         self.enemies = []
+        self._spawners = []
         self._next_id = 0
         self._player_cooldowns = {}
 
@@ -517,6 +595,30 @@ class EnemyManager:
 
         return start, end
 
+    def spawn_wave(self, portal_paths, count_per_portal, speed=4.0, scale=1.0, interval=1.5):
+        """
+        Lance une vague depuis les portails definis dans portal_paths.
+        Appends dynamiquement la position du tuyau comme dernier waypoint de chaque chemin.
+        """
+        self._spawners.clear()
+
+        pipe_pos = self._get_pipe_target_pos()
+
+        for path in portal_paths:
+            full_path = [Vec3(wp) for wp in path]
+            full_path.append(Vec3(pipe_pos.x, pipe_pos.y, 0))
+            spawner = PortalSpawner(
+                game     = self.game,
+                waypoints = full_path,
+                count    = count_per_portal,
+                speed    = speed,
+                scale    = scale,
+                interval = interval,
+            )
+            self._spawners.append(spawner)
+
+        return count_per_portal * len(portal_paths)
+
     def spawn_waypoint_dog(self, waypoints, speed=4.0, scale=1.0, on_finish=None):
         """
         Spawne un ennemi qui parcourt la liste de waypoints a vitesse fixe
@@ -595,7 +697,15 @@ class EnemyManager:
             is_host = net_iface.net.is_host
 
         if is_host:
+            for spawner in self._spawners:
+                spawner.update(dt, self.enemies)
+
             for enemy in self.enemies:
+                if isinstance(enemy, WaypointEnemy) and enemy.has_reached_end():
+                    self.game.damage_pipe(EnemyManager.BASE_DAMAGE_PER_ENEMY)
+                    self.game.messenger.send("enemy-hit")
+                    enemy.destroy()
+                    continue
                 enemy.update(dt)
 
             if hasattr(self.game, 'player'):
@@ -649,6 +759,7 @@ class EnemyManager:
         self.enemies = [e for e in self.enemies if not e.is_dead]
 
     def clear(self):
+        self._spawners.clear()
         for enemy in self.enemies:
             enemy.destroy()
         self.enemies.clear()
