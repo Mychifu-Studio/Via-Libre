@@ -89,8 +89,9 @@ class FloatingUI:
 
 class Structure:
     """SRP: Gère la représentation d'une structure placée dans le monde et son comportement."""
-    def __init__(self, base, position, rotation, on_destroy_callback, enemy_manager=None):
+    def __init__(self, base, position, rotation, on_destroy_callback, enemy_manager=None, struct_id=None):
         self.base = base
+        self.id = struct_id or f"struct_{id(self)}"
         self.on_destroy_callback = on_destroy_callback
         self.enemy_manager = enemy_manager
 
@@ -207,13 +208,21 @@ class Structure:
         if self.time_since_last_shot >= self.fire_rate:
             self.time_since_last_shot = 0.0
 
-            start_pos_visuel = Point3(my_pos.x, my_pos.y, my_pos.z + 1.2) + self.offset_turret
-            target_pos_visuel = Point3(enemy_pos.x, enemy_pos.y, enemy_pos.z + 0.5) + self.offset_enemies
+            is_host = getattr(self.base, 'network', None) is None or getattr(self.base.network, 'net', None) is None or self.base.network.net.is_host
+            if is_host:
+                start_pos_visuel = Point3(my_pos.x, my_pos.y, my_pos.z + 1.2) + self.offset_turret
+                target_pos_visuel = Point3(enemy_pos.x, enemy_pos.y, enemy_pos.z + 0.5) + self.offset_enemies
 
-            self.create_tracer_effect(start_pos_visuel, target_pos_visuel)
+                self.create_tracer_effect(start_pos_visuel, target_pos_visuel)
 
-            # Application des dégâts
-            self.enemy_manager.check_projectile_hit(my_pos, enemy_pos, hit_radius=1.0)
+                # Application des degats
+                self.enemy_manager.check_projectile_hit(my_pos, enemy_pos, hit_radius=1.0)
+
+                if getattr(self.base, 'network', None) and getattr(self.base.network, 'net', None) and self.base.network.net.is_host:
+                    self.base.network.net.broadcast_msg('turret_shoot', {
+                        'struct_id': self.id,
+                        'target_pos': {'x': target_pos_visuel.x, 'y': target_pos_visuel.y, 'z': target_pos_visuel.z}
+                    })
 
         return task.cont
 
@@ -336,16 +345,54 @@ class BuildManager(DirectObject):
         pos = self.locked_build_pos if self.locked_build_pos is not None else self.hologramme.get_pos()
         hpr = self.locked_build_hpr if self.locked_build_hpr is not None else self.hologramme.get_hpr()
 
+        net_iface = getattr(self.base, 'network', None)
+        is_client = net_iface is not None and getattr(net_iface, 'net', None) is not None and not net_iface.net.is_host
+
+        if is_client:
+            net_iface.net.send_msg('build_request', {
+                'x': pos.x, 'y': pos.y, 'z': pos.z,
+                'h': hpr.x, 'p': hpr.y, 'r': hpr.z
+            })
+        else:
+            self.host_create_structure(pos, hpr)
+
+        self.basculer_mode()
+
+    def host_create_structure(self, pos, hpr):
+        if self.base.inventory["ressource"] < self.cost:
+            return
         nouvelle_structure = Structure(
-            self.base,
-            pos,
-            hpr,
+            self.base, pos, hpr,
             self._on_structure_detruite,
             self.enemy_manager
         )
         self.structures.append(nouvelle_structure)
         self.base.inventory["ressource"] -= self.cost
-        self.basculer_mode()
+        if hasattr(self.base, 'inventory_ui'):
+            self.base.inventory_ui.update()
+
+    def sync_from_snapshot(self, structures_data):
+        known_ids = set()
+        for s_data in structures_data:
+            sid = s_data['id']
+            known_ids.add(sid)
+            existing = next((s for s in self.structures if s.id == sid), None)
+            if existing:
+                existing.np.setPos(s_data['x'], s_data['y'], s_data['z'])
+            else:
+                struct = Structure(
+                    self.base,
+                    Point3(s_data['x'], s_data['y'], s_data['z']),
+                    Vec3(s_data['h'], s_data['p'], s_data['r']),
+                    self._on_structure_detruite,
+                    self.enemy_manager,
+                    struct_id=sid
+                )
+                self.structures.append(struct)
+
+        for struct in list(self.structures):
+            if struct.id not in known_ids:
+                struct.detruire()
 
 
     def on_radial_cancel(self):

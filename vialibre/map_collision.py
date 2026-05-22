@@ -249,6 +249,7 @@ class MapCollisionManager:
             "max_y": max_y,
             "center": center,
         }
+
     def get_campfire_zone_definitions(
         self,
         cluster_distance=3.0,

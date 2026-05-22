@@ -14,6 +14,7 @@ from vialibre.utils import shortest_angle_lerp, powLerp
 class Player(DirectObject):
     MAX_HP = 10
     DAMAGE_COOLDOWN = 0.5
+    MIN_HARVEST_TIME_MULTIPLIER = 0.35
 
     def __init__(self, showbase: ShowBase = None, map_collision=None):
         self.base = showbase if showbase else base
@@ -41,7 +42,10 @@ class Player(DirectObject):
         self.playerSpeed = 10
         self.turnSpeed = 10.0
 
+        self.MAX_HP = type(self).MAX_HP
         self.hp = self.MAX_HP
+        self.damage = 1
+        self.harvest_time_multiplier = 1.0
         self._damage_cooldown_remaining = 0.0
 
         self.is_paused = False
@@ -75,6 +79,20 @@ class Player(DirectObject):
         self.base.messenger.send("player-hp-changed", [self.hp])
         if self.hp <= 0:
             self.base.messenger.send("player-dead")
+
+    def upgrade_max_hp(self, amount):
+        self.MAX_HP += amount
+        self.hp = min(self.MAX_HP, self.hp + amount)
+        self.base.messenger.send("player-hp-changed", [self.hp])
+
+    def upgrade_damage(self, amount):
+        self.damage += amount
+
+    def upgrade_harvest_speed(self, multiplier_reduction):
+        self.harvest_time_multiplier = max(
+            self.MIN_HARVEST_TIME_MULTIPLIER,
+            self.harvest_time_multiplier - multiplier_reduction,
+        )
 
     def handleLeftClick(self):
         cible = self.interaction_manager.structure_cible
@@ -115,7 +133,7 @@ class Player(DirectObject):
             input_vec.normalize()
 
         from math import atan2, degrees
-        
+
         current_H = self.modelNode.getH(self.base.render)
 
         if input_vec.length() > self.lastMovement.length():

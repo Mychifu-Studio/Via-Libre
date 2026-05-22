@@ -1,38 +1,37 @@
-from direct.gui.DirectGui import DirectFrame, DirectButton
-from direct.gui.DirectGui import DirectLabel
+from direct.gui.DirectGui import DirectButton, DirectFrame, DirectLabel
 from direct.showbase.ShowBase import ShowBase
 from panda3d.core import AmbientLight, AntialiasAttrib, TextNode, WindowProperties, load_prc_file_data
 import simplepbr
 
 from vialibre.enemies import EnemyManager
-from vialibre.health_ui import PlayerHealthUI
-from vialibre.health_ui import PipeHealthUI
+from vialibre.health_ui import PipeHealthUI, PlayerHealthUI
 from vialibre.inventory_ui import InventoryUI
 from vialibre.map_collision import MapCollisionManager
-from vialibre.multiplayer import MultiplayerManager
+from vialibre.multiplayer import GameNetworkInterface
 from vialibre.pipe_base import PipeBase
 from vialibre.player import Player
 from vialibre.popup_ui import PopupUI
 from vialibre.resource_system import ResourceSystem
 from vialibre.shooting import ShootingSystem
+from vialibre.upgrade_system import UpgradeSystem
 from vialibre.vague import VagueManager
 
 
-# Configuration globale
 load_prc_file_data(
-    '',
-    'sync-video f\n'
-    'show-frame-rate-meter t\n'
-    'win-size 1280 720\n'
-    'client-sleep 0.001\n'
-    'framebuffer-multisample 1\n'
-    'multisamples 2\n'
-    'load-file-type p3assimp'
+    "",
+    "sync-video f\n"
+    "show-frame-rate-meter t\n"
+    "win-size 1280 720\n"
+    "client-sleep 0.001\n"
+    "framebuffer-multisample 1\n"
+    "multisamples 2\n"
+    "load-file-type p3assimp"
 )
 
 
 class EnvironmentManager:
-    """SRP: Initialise et gère le décor statique (lumières, terrain)."""
+    """Initialise le decor statique."""
+
     def __init__(self, render):
         self.render = render
         self.jungle = None
@@ -40,49 +39,21 @@ class EnvironmentManager:
         self.setup_lights()
 
     def generate_ground(self):
-        # size = 256
-        # img = PNMImage(size, size)
-
-        # for x in range(size):
-        #     for y in range(size):
-        #         r = min(max(0.25 + random.uniform(-0.05, 0.05), 0), 1)
-        #         g = min(max(0.70 + random.uniform(-0.1, 0.1), 0), 1)
-        #         b = min(max(0.25 + random.uniform(-0.05, 0.05), 0), 1)
-        #         img.setXel(x, y, r, g, b)
-
-        # texture = Texture("groundTexture")
-        # texture.load(img)
-        # texture.setWrapU(Texture.WM_repeat)
-        # texture.setWrapV(Texture.WM_repeat)
-
-        # cm = CardMaker("ground")
-        # cm.setFrame(-50, 50, -50, 50)
-        # cm.setUvRange((0, 0), (10, 10))
-
-        # ground = self.render.attachNewNode(cm.generate())
-        # ground.setP(-90)
-        # ground.setTexture(texture)
-        self.jungle = loader.loadModel('assets/Jungle3.bam')
+        self.jungle = loader.loadModel("assets/Jungle3.bam")
         self.jungle.setPos(0, 0, 0)
         self.jungle.setH(-90)
         self.jungle.reparentTo(self.render)
 
     def setup_lights(self):
-        ambientLight = AmbientLight('ambientLight')
-        ambientLight.setColor((0.5, 0.5, 0.5, 1))
-        ambientLightNP = render.attachNewNode(ambientLight)
-        render.setLight(ambientLightNP)
-        # dlight = DirectionalLight('dlight')
-        # dlight.setColor((0.8, 0.8, 0.5, 1))
-
-        # dlnp = self.render.attachNewNode(dlight)
-        # dlnp.setHpr(0, -60, 0)
-
-        # self.render.setLight(dlnp)
+        ambient_light = AmbientLight("ambientLight")
+        ambient_light.setColor((0.5, 0.5, 0.5, 1))
+        ambient_light_np = render.attachNewNode(ambient_light)
+        render.setLight(ambient_light_np)
 
 
 class GameMenu:
-    """SRP: Gère l'affichage du menu système (Pause/Quitter)."""
+    """Menu pause / quitter."""
+
     def __init__(self, game):
         self.game = game
         self.is_open = False
@@ -107,7 +78,7 @@ class GameMenu:
             frameColor=(0.75, 0.12, 0.12, 1),
             text_fg=(1, 1, 1, 1),
             relief=1,
-            command=self.game.exit_game
+            command=self.game.exit_game,
         )
 
     def toggle(self):
@@ -124,7 +95,7 @@ class GameMenu:
 
 
 class GameOverScreen:
-    """SRP: Affiche l'ecran de defaite quand le tuyau est detruit."""
+    """Ecran de defaite quand le tuyau est detruit."""
 
     def __init__(self, game):
         self.game = game
@@ -193,15 +164,10 @@ class MainGame(ShowBase):
         self.pipe_base = PipeBase(self, self.map_collision)
         self.enemies = EnemyManager(self)
         self.player = Player(map_collision=self.map_collision)
-
         self.shooting = ShootingSystem(game=self, player=self.player)
+        self.network = GameNetworkInterface(self)
 
-        self.multiplayer = MultiplayerManager(self, self.player)
-
-        self.inventory = {
-            "ressource": 0
-        }
-
+        self.inventory = {"ressource": 0}
         self.inventory_ui = InventoryUI(self)
         self.player_health_ui = PlayerHealthUI(self, self.player)
         self.pipe_health_ui = PipeHealthUI(self, self.pipe_base)
@@ -212,18 +178,23 @@ class MainGame(ShowBase):
         self.resource_system = ResourceSystem(
             game=self,
             inventory_ui=self.inventory_ui,
-            popup_ui=self.popup_ui
+            popup_ui=self.popup_ui,
         )
         self.resource_system.setup_player_collider(self.player)
         self.resource_system.generate_diamond_ore_zones()
+
+        self.upgrade_system = UpgradeSystem(
+            game=self,
+            inventory_ui=self.inventory_ui,
+            popup_ui=self.popup_ui,
+        )
+        self.upgrade_system.generate_campfire_zones()
 
         self.vague_manager = VagueManager(self, self.enemies)
         self.vague_manager.start()
 
         self.accept("escape", self.menu.toggle)
         self.accept("window-close", self.exit_game)
-
-        # shooting.py doit envoyer "enemy-hit" quand un projectile tue un ennemi.
         self.accept("enemy-hit", self.reward_enemy_hit)
         self.accept("player-take-damage", self.player.take_damage)
         self.accept("pipe-destroyed", self.trigger_game_over)
@@ -235,9 +206,8 @@ class MainGame(ShowBase):
         self.inventory["ressource"] = self.inventory.get("ressource", 0) + 1
         self.inventory_ui.update()
         self.popup_ui.show_popup(
-            f"Ennemi touché : ressource +1 ! (Total : {self.inventory['ressource']})"
+            f"Ennemi touche : ressource +1 ! (Total : {self.inventory['ressource']})"
         )
-
         self.vague_manager.enemy_killed()
 
     def damage_pipe(self, amount=1):
@@ -261,7 +231,7 @@ class MainGame(ShowBase):
     def exit_game(self):
         self.taskMgr.remove("update")
         self.enemies.clear()
-        self.multiplayer.exit()
+        self.network.exit()
         self.userExit()
 
     def update(self, task):
@@ -269,13 +239,15 @@ class MainGame(ShowBase):
 
         if self.is_game_over:
             self.player.update(dt)
+            self.network.update()
             self.player_health_ui.update()
             self.pipe_health_ui.update()
             return task.cont
 
         self.player.update(dt)
-        self.multiplayer.update()
+        self.network.update()
         self.resource_system.update()
+        self.upgrade_system.update()
         self.inventory_ui.update()
         self.enemies.update(dt)
         self.player_health_ui.update()

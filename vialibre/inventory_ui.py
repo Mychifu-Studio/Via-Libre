@@ -19,7 +19,7 @@ class InventoryUI:
         self.inventory_bg = DirectFrame(
             parent=parent,
             frameColor=(0.02, 0.02, 0.02, 0.72),
-            frameSize=(0.00, 0.68, -0.24, 0.00),
+            frameSize=(0.00, 0.86, -0.24, 0.00),
             pos=(0.03, 0, -0.03),
         )
         self._prepare_gui_node(self.inventory_bg, 20)
@@ -47,7 +47,7 @@ class InventoryUI:
 
         self.help_label = OnscreenText(
             parent=parent,
-            text="C : construire   E : récolter",
+            text="C : construire   E : recolter   U : ameliorer",
             pos=(0.07, -0.195),
             scale=0.032,
             fg=(0.82, 0.82, 0.82, 1),

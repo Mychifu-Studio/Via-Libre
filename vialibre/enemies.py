@@ -1,7 +1,8 @@
 import math
 import os
 import random
-from panda3d.core import CardMaker, Filename, TransparencyAttrib, Vec3
+from panda3d.core import CardMaker, Filename, Point3, TransparencyAttrib, Vec3
+from .utils import powLerp, shortest_angle_lerp
 
 
 class MathUtils:
@@ -51,7 +52,7 @@ class DogEnemy:
     MAX_HP = 3
     CONTACT_RADIUS = 1.5
     HEALTH_BAR_WIDTH = 1.1
-    
+
     def __init__(
         self,
         game,
@@ -66,8 +67,10 @@ class DogEnemy:
         area_bounds=None,
         objective_callback=None,
         objective_reach_radius=1.0,
+        enemy_id=None,
     ):
         self.game = game
+        self.id = enemy_id or f"enemy_{id(self)}"
         self.map_collision = getattr(self.game, "map_collision", None)
         self.speed = speed
         self.chase_speed = chase_speed if chase_speed is not None else speed * 1.25
@@ -81,7 +84,7 @@ class DogEnemy:
         self.hp = self.MAX_HP
 
         self.is_chasing = False
-        
+
         self.start_pos = Vec3(start_pos)
         self.end_pos = Vec3(end_pos)
 
@@ -277,6 +280,34 @@ class DogEnemy:
         dist = MathUtils.distance_segment_to_point(start_pos, end_pos, self.node.getPos(self.game.render))
         return dist <= hit_radius
 
+    def sync_state(self, x, y, z, h, hp):
+        self.hp = hp
+        self.target_pos = Point3(x, y, z)
+        self.target_h = h
+        if not hasattr(self, 'target_pos_init'):
+            self.node.setPos(self.target_pos)
+            self.node.setH(self.target_h)
+            self.target_pos_init = True
+        elif (self.target_pos - self.node.getPos(self.game.render)).length() > 5.0:
+            self.node.setPos(self.target_pos)
+
+        self._update_health_bar()
+        if self.hp <= 0:
+            self.destroy()
+
+    def interpolate(self, dt):
+        if not hasattr(self, 'target_pos'):
+            return
+        curr_pos = self.node.getPos(self.game.render)
+        new_x = powLerp(curr_pos.x, self.target_pos.x, dt, 0.1)
+        new_y = powLerp(curr_pos.y, self.target_pos.y, dt, 0.1)
+        new_z = powLerp(curr_pos.z, self.target_pos.z, dt, 0.1)
+        self.node.setPos(new_x, new_y, new_z)
+
+        curr_h = self.node.getH(self.game.render)
+        new_h = shortest_angle_lerp(curr_h, self.target_h, dt, 0.1)
+        self.node.setH(new_h)
+
     def respawn(self):
         if self.is_dead:
             return
@@ -292,12 +323,97 @@ class DogEnemy:
         self.node.removeNode()
 
 
+
+class WaypointEnemy:
+    """Ennemi qui suit une liste de waypoints a vitesse fixe puis disparait."""
+    MAX_HP = 3
+    CONTACT_RADIUS = 1.5
+    WAYPOINT_REACH_THRESHOLD = 0.3
+
+    def __init__(self, game, waypoints, speed=4.0, scale=1.0, on_finish=None):
+        self.game      = game
+        self.waypoints = [Vec3(wp) for wp in waypoints]
+        self.speed     = speed
+        self.on_finish = on_finish
+        self.is_dead   = False
+        self.hp        = self.MAX_HP
+        self._index    = 0
+
+        self.node = self._load_model()
+        self.node.reparentTo(self.game.render)
+        self.node.setScale(scale)
+        self.node.setPos(self.waypoints[0])
+
+        if len(self.waypoints) > 1:
+            self.node.lookAt(self.waypoints[1])
+
+    def _load_model(self):
+        base_dir = os.path.dirname(os.path.abspath(__file__))
+        path = Filename.fromOsSpecific(os.path.join(base_dir, "../assets", "dog.bam")).getFullpath()
+        return self.game.loader.loadModel(path)
+
+    def take_damage(self, amount=1):
+        if self.is_dead:
+            return False
+        self.hp -= amount
+        if self.hp <= 0:
+            self.destroy()
+            return True
+        return False
+
+    def is_touched_by_segment(self, start_pos, end_pos, hit_radius):
+        if self.is_dead:
+            return False
+        dist = MathUtils.distance_segment_to_point(start_pos, end_pos, self.node.getPos(self.game.render))
+        return dist <= hit_radius
+
+    def is_touching_point(self, point):
+        if self.is_dead:
+            return False
+        pos = self.node.getPos(self.game.render)
+        return Vec3(point.x - pos.x, point.y - pos.y, 0).length() <= self.CONTACT_RADIUS
+
+    def update(self, dt):
+        if self.is_dead:
+            return
+
+        next_index = self._index + 1
+        if next_index >= len(self.waypoints):
+            self.destroy()
+            return
+
+        target      = self.waypoints[next_index]
+        current_pos = self.node.getPos(self.game.render)
+        to_target   = Vec3(target.x - current_pos.x, target.y - current_pos.y, 0)
+        dist        = to_target.length()
+
+        if dist <= self.WAYPOINT_REACH_THRESHOLD:
+            self._index = next_index
+            self.node.setPos(target)
+            if self._index + 1 < len(self.waypoints):
+                self.node.lookAt(self.waypoints[self._index + 1])
+            return
+
+        direction = to_target / dist
+        step      = min(self.speed * dt, dist)
+        self.node.setPos(Vec3(current_pos.x + direction.x * step, current_pos.y + direction.y * step, current_pos.z))
+
+    def destroy(self):
+        if self.is_dead:
+            return
+        self.is_dead = True
+        self.node.removeNode()
+        if self.on_finish:
+            self.on_finish()
+
 class EnemyManager:
     BASE_DAMAGE_PER_ENEMY = 1
 
     def __init__(self, game):
         self.game = game
         self.enemies = []
+        self._next_id = 0
+        self._player_cooldowns = {}
 
     def spawn_dog(self, start_pos, end_pos, **kwargs):
         allow_blocked_end = kwargs.pop("allow_blocked_end", False)
@@ -305,6 +421,10 @@ class EnemyManager:
             return None
         if not allow_blocked_end and not self._is_valid_position(end_pos):
             return None
+
+        enemy_id = f"enemy_{self._next_id}"
+        self._next_id += 1
+        kwargs["enemy_id"] = enemy_id
 
         dog = DogEnemy(self.game, start_pos, end_pos, **kwargs)
         if not dog.is_dead:
@@ -397,6 +517,21 @@ class EnemyManager:
 
         return start, end
 
+    def spawn_waypoint_dog(self, waypoints, speed=4.0, scale=1.0, on_finish=None):
+        """
+        Spawne un ennemi qui parcourt la liste de waypoints a vitesse fixe
+        et disparait apres le dernier point.
+
+        waypoints : liste de Vec3 ou de tuples (x, y, z).
+                    Le premier point est la position d'apparition.
+        on_finish : callback optionnel appele quand l'ennemi atteint le dernier point.
+        """
+        if len(waypoints) < 2:
+            raise ValueError("Il faut au moins 2 waypoints.")
+        enemy = WaypointEnemy(self.game, waypoints, speed=speed, scale=scale, on_finish=on_finish)
+        self.enemies.append(enemy)
+        return enemy
+
     def _random_valid_position(self, min_x, max_x, min_y, max_y):
         for _ in range(200):
             pos = Vec3(random.uniform(min_x, max_x), random.uniform(min_y, max_y), 0)
@@ -436,13 +571,14 @@ class EnemyManager:
 
         return map_collision.is_position_allowed(pos)
 
-    def check_projectile_hit(self, start_pos, end_pos, hit_radius):
+    def check_projectile_hit(self, start_pos, end_pos, hit_radius, apply_damage=True, damage=1):
         for enemy in self.enemies[:]:
             if enemy.is_touched_by_segment(start_pos, end_pos, hit_radius):
-                killed = enemy.take_damage(1)
-                if killed:
-                    self.enemies.remove(enemy)
-                    self.game.messenger.send("enemy-hit")
+                if apply_damage:
+                    killed = enemy.take_damage(max(1, int(damage)))
+                    if killed:
+                        self.enemies.remove(enemy)
+                        self.game.messenger.send("enemy-hit")
                 return True
         return False
 
@@ -453,17 +589,62 @@ class EnemyManager:
         return False
 
     def update(self, dt):
-        for enemy in self.enemies:
-            enemy.update(dt)
+        is_host = True
+        net_iface = getattr(self.game, 'network', None)
+        if net_iface is not None and getattr(net_iface, 'net', None) is not None:
+            is_host = net_iface.net.is_host
+
+        if is_host:
+            for enemy in self.enemies:
+                enemy.update(dt)
+
+            if hasattr(self.game, 'player'):
+                player_np = getattr(self.game.player, 'player', None)
+                if player_np is not None:
+                    player_pos = player_np.getPos(self.game.render)
+                    if self.check_player_contact(player_pos):
+                        self.game.messenger.send("player-take-damage")
+
+            if net_iface is not None:
+                for name, model in net_iface.other_players.items():
+                    if name not in self._player_cooldowns:
+                        self._player_cooldowns[name] = 0.0
+                    if self._player_cooldowns[name] > 0:
+                        self._player_cooldowns[name] = max(0.0, self._player_cooldowns[name] - dt)
+                        continue
+
+                    p_pos = model.getPos(self.game.render)
+                    if self.check_player_contact(p_pos):
+                        current_hp = model.getPythonTag("hp") or 10
+                        if current_hp > 0:
+                            model.setPythonTag("hp", current_hp - 1)
+                            self._player_cooldowns[name] = 0.5
+        else:
+            for enemy in self.enemies:
+                enemy.interpolate(dt)
+
         self.enemies = [e for e in self.enemies if not e.is_dead]
 
-        if hasattr(self.game, 'player'):
-            player_np = getattr(self.game.player, 'player', None)
-            if player_np is not None:
-                player_pos = player_np.getPos(self.game.render)
-                if self.check_player_contact(player_pos):
-                    self.game.messenger.send("player-take-damage")
-                    
+    def sync_from_snapshot(self, enemies_data):
+        known_ids = set()
+        for e_data in enemies_data:
+            eid = e_data['id']
+            known_ids.add(eid)
+            existing = next((e for e in self.enemies if e.id == eid), None)
+            if existing:
+                existing.sync_state(e_data['x'], e_data['y'], e_data['z'], e_data['h'], e_data['hp'])
+            else:
+                dog = DogEnemy(self.game, (e_data['x'], e_data['y'], e_data['z']), (e_data['x'] + 0.1, e_data['y'], e_data['z']), enemy_id=eid)
+                dog.is_dead = False
+                dog.sync_state(e_data['x'], e_data['y'], e_data['z'], e_data['h'], e_data['hp'])
+                self.enemies.append(dog)
+
+        for enemy in list(self.enemies):
+            if enemy.id not in known_ids:
+                enemy.destroy()
+
+        self.enemies = [e for e in self.enemies if not e.is_dead]
+
     def clear(self):
         for enemy in self.enemies:
             enemy.destroy()

@@ -106,7 +106,16 @@ class VagueManager:
         self.waiting_next_wave = False
         self.start_current_wave()
 
+    def _is_host(self):
+        net_iface = getattr(self.game, 'network', None)
+        if net_iface is None or getattr(net_iface, 'net', None) is None:
+            return True
+        return net_iface.net.is_host
+
     def start_current_wave(self):
+        if not self._is_host():
+            return
+
         if self.current_wave_index >= len(self.waves):
             self.finish_game()
             return
@@ -136,6 +145,9 @@ class VagueManager:
         )
 
     def enemy_killed(self):
+        if not self._is_host():
+            return
+
         if self.is_finished:
             return
 
@@ -164,6 +176,9 @@ class VagueManager:
             self.message_timer -= dt
             if self.message_timer <= 0:
                 self.wave_panel.hide()
+
+        if not self._is_host():
+            return
 
         if self.waiting_next_wave:
             self.next_wave_timer -= dt
@@ -196,3 +211,13 @@ class VagueManager:
             enemy.destroy()
 
         self.enemy_manager.enemies.clear()
+
+    def sync_from_snapshot(self, wave_index, is_finished):
+        if self.current_wave_index != wave_index and not is_finished:
+            self.current_wave_index = wave_index
+            if self.current_wave_index < len(self.waves):
+                wave = self.waves[self.current_wave_index]
+                self.show_message(f"{wave['name']}\nÉlimine {wave['enemy_count']} ennemis !", duration=2.5)
+
+        if is_finished and not self.is_finished:
+            self.finish_game()
