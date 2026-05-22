@@ -60,10 +60,10 @@ class EnemyState:
         self.z = z
         self.h = h
         self.hp = hp
-        
+
     def to_dict(self) -> Dict[str, Any]:
         return {"id": self.id, "x": self.x, "y": self.y, "z": self.z, "h": self.h, "hp": self.hp}
-        
+
     @staticmethod
     def from_dict(data: Dict[str, Any]) -> "EnemyState":
         return EnemyState(data["id"], data["x"], data["y"], data["z"], data.get("h", 0.0), data.get("hp", 1))
@@ -73,7 +73,7 @@ class GameState:
         self.wave_index = wave_index
         self.is_finished = is_finished
         self.team_resources = team_resources
-        
+
     def to_dict(self) -> Dict[str, Any]:
         return {"wave_index": self.wave_index, "is_finished": self.is_finished, "team_resources": self.team_resources}
 
@@ -109,7 +109,7 @@ class Snapshot:
 
     def to_dict(self) -> Dict[str, Any]:
         return {
-            "tick": self.tick, 
+            "tick": self.tick,
             "players": [p.to_dict() for p in self.players],
             "enemies": [e.to_dict() for e in self.enemies],
             "game_state": self.game_state.to_dict() if self.game_state else None,
@@ -484,14 +484,14 @@ class GameNetworkInterface:
         for name, model in self.other_players.items():
             hp = model.getPythonTag("hp") or 10
             players.append(PlayerState(name, name, model.getX(self.base.render), model.getY(self.base.render), model.getZ(self.base.render), model.getH(self.base.render), hp))
-        
+
         enemies = []
         if hasattr(self.base, 'enemies'):
             for enemy in self.base.enemies.enemies:
                 if not enemy.is_dead and hasattr(enemy, 'id'):
                     pos = enemy.node.getPos(self.base.render)
                     enemies.append(EnemyState(enemy.id, pos.x, pos.y, pos.z, enemy.node.getH(self.base.render), enemy.hp))
-        
+
         game_state = None
         if hasattr(self.base, 'vague_manager'):
             game_state = GameState(
@@ -557,7 +557,7 @@ class GameNetworkInterface:
         for name in list(self.other_players.keys()):
             if name not in known_players:
                 self._despawn_player(name)
-                
+
         if not self.net.is_host:
             # Sync Game State
             g_data = payload.get('game_state')
@@ -571,7 +571,7 @@ class GameNetworkInterface:
             e_data = payload.get('enemies', [])
             if hasattr(self.base, 'enemies'):
                 self.base.enemies.sync_from_snapshot(e_data)
-                
+
             # Sync Structures
             s_data = payload.get('structures', [])
             if hasattr(self.local_player, 'build_manager'):

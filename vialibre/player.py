@@ -133,7 +133,7 @@ class Player(DirectObject):
             input_vec.normalize()
 
         from math import atan2, degrees
-        
+
         current_H = self.modelNode.getH(self.base.render)
 
         if input_vec.length() > self.lastMovement.length():

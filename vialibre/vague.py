@@ -115,7 +115,7 @@ class VagueManager:
     def start_current_wave(self):
         if not self._is_host():
             return
-            
+
         if self.current_wave_index >= len(self.waves):
             self.finish_game()
             return
@@ -140,26 +140,25 @@ class VagueManager:
         self.current_enemy_target = spawned_count or wave["enemy_count"]
 
         self.show_message(
-            f"{wave['name']}\nÉlimine {self.current_enemy_target} ennemis !",
+            f"{wave['name']}\nProtege le tuyau contre {self.current_enemy_target} ennemis !",
             duration=2.5,
         )
 
     def enemy_killed(self):
         if not self._is_host():
             return
-            
+
         if self.is_finished:
             return
 
         if self.waiting_next_wave:
             return
 
-        wave = self.waves[self.current_wave_index]
         self.killed_in_current_wave += 1
 
-        print(f"Ennemi tué : {self.killed_in_current_wave}/{wave['enemy_count']}")
+        print(f"Ennemi retire : {self.killed_in_current_wave}/{self.current_enemy_target}")
 
-        if self.killed_in_current_wave >= wave["enemy_count"]:
+        if self.killed_in_current_wave >= self.current_enemy_target:
             self.current_wave_index += 1
 
             if self.current_wave_index >= len(self.waves):
@@ -168,6 +167,9 @@ class VagueManager:
                 self.waiting_next_wave = True
                 self.next_wave_timer = 2.0
                 self.show_message("Vague terminée !", duration=2.0)
+
+    def enemy_reached_base(self):
+        self.enemy_killed()
 
     def update(self, dt):
         if self.message_timer > 0:
@@ -196,6 +198,13 @@ class VagueManager:
         self.clear_enemies()
         self.wave_panel.hide()
         self.final_screen.show()
+
+    def game_over(self):
+        self.is_finished = True
+        self.waiting_next_wave = False
+        self.clear_enemies()
+        self.wave_panel.hide()
+        self.final_screen.hide()
 
     def clear_enemies(self):
         for enemy in list(self.enemy_manager.enemies):

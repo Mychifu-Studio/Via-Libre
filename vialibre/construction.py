@@ -9,54 +9,54 @@ from vialibre.radialMenu import RadialMenu
 
 def load_turret(base, np):
     pivot = base.render.attachNewNode("turret_pivot")
-    
+
     try:
         model = base.loader.loadModel("./assets/Turrets/Crossbow.obj")
         model.reparentTo(pivot)
-        
+
         texture = base.loader.loadTexture("./assets/Turrets/Crossbow.png")
         model.setTexture(texture, 1)
-        
+
         min_bounds, max_bounds = model.getTightBounds()
         center = (min_bounds + max_bounds) / 2.0
-        
+
         tweak_x = 0.0
         tweak_y = 1.0
         tweak_z = 0.0
-        
+
         model.setPos(-center[0] + tweak_x, -center[1] + tweak_y, -center[2] + tweak_z)
         pivot.setHpr(0, 90, 0)
-        
+
     except Exception as e:
         print(f"Erreur de chargement : {e}")
 
-    pivot.setPos(0, 0, 0) 
+    pivot.setPos(0, 0, 0)
     pivot.reparentTo(np)
-    
+
     return pivot
 
 def load_hologram(base, np):
     pivot = base.render.attachNewNode("hologram_pivot")
-    
+
     try:
         model = base.loader.loadModel("./assets/arrow.bam")
         model.setScale(0.1)
         model.reparentTo(pivot)
-        
+
         min_bounds, max_bounds = model.getTightBounds()
         center = (min_bounds + max_bounds) / 2.0
-        
+
         tweak_x = 0.0
         tweak_y = -0.4
         tweak_z = 0.0
-        
+
         model.setPos(-center[0] + tweak_x, -center[1] + tweak_y, -center[2] + tweak_z)
         pivot.setHpr(0, -90, 0)
-        
+
     except Exception as e:
         print(f"Erreur de chargement : {e}")
 
-    pivot.setPos(0, 0, 0) 
+    pivot.setPos(0, 0, 0)
     pivot.reparentTo(np)
 
     return pivot
@@ -73,7 +73,7 @@ class FloatingUI:
         self.text_node.setCardColor(0, 0, 0, 0.7)
         self.text_node.setCardAsMargin(0.2, 0.2, 0.1, 0.1)
         self.text_node.setCardDecal(True)
-        
+
         self.ui_np = parent_node.attachNewNode(self.text_node)
         self.ui_np.setScale(0.25)
         self.ui_np.setPos(0, 0, 1)
@@ -94,19 +94,19 @@ class Structure:
         self.id = struct_id or f"struct_{id(self)}"
         self.on_destroy_callback = on_destroy_callback
         self.enemy_manager = enemy_manager
-        
+
         self.np = NodePath("structure_root")
         self.np.reparentTo(self.base.render)
         self.np.setPos(position)
         self.np.setHpr(rotation)
-        
+
         self.model = load_turret(self.base, self.np)
 
         min_point, max_point = self.model.getTightBounds()
         c_box = CollisionBox(min_point, max_point)
         col_node = CollisionNode('structure_col')
         col_node.addSolid(c_box)
-        
+
         self.col_np = self.np.attachNewNode(col_node)
         self.col_np.setPythonTag("structure", self)
 
@@ -118,11 +118,11 @@ class Structure:
         self.time_since_last_shot = 0.0
 
         # Options possibles: "closest" (plus proche) ou "lowest_hp" (moins de PV)
-        self.targeting_mode = "lowest_hp" 
+        self.targeting_mode = "lowest_hp"
 
         self.offset_turret = Vec3(0, 0, 0.5)
         self.offset_enemies = Vec3(0, 0, 0)
-        
+
         # --- NOUVEAU : Tâche de mise à jour propre à la tourelle ---
         self.task_name = f"turret_update_{id(self)}"
         self.base.taskMgr.add(self.update_task, self.task_name)
@@ -132,28 +132,28 @@ class Structure:
         lines = LineSegs()
         lines.setThickness(4.0)
         lines.setColor(1.0, 0.8, 0.2, 1.0) # Couleur jaune-orangée
-        
+
         direction = target_pos - start_pos
         distance = direction.length()
-        if distance < 0.1: 
+        if distance < 0.1:
             return
-            
+
         direction.normalize()
         # Le tracer est un petit segment (max 1.5 unité de long)
-        tracer_length = min(1.5, distance) 
-        
+        tracer_length = min(1.5, distance)
+
         lines.moveTo(0, 0, 0)
         lines.drawTo(direction * tracer_length)
-        
+
         # 2. Ajout du tracer dans le monde
         tracer_np = self.base.render.attachNewNode(lines.create())
         tracer_np.setPos(start_pos)
         tracer_np.setLightOff() # Rend le tracer lumineux même sans lumière dynamique
-        
+
         # 3. Animation
         speed = 120.0 # Vitesse de déplacement très rapide
         duration = distance / speed
-        
+
         # Sequence exécute les actions l'une après l'autre :
         # - Déplace le tracer de A vers B
         # - Puis appelle une fonction pour le supprimer
@@ -171,13 +171,13 @@ class Structure:
             return task.cont
 
         my_pos = self.np.getPos(self.base.render)
-        
+
         # 1. Récupérer tous les ennemis valides (dans le rayon d'activation)
         valid_enemies = []
         for enemy in self.enemy_manager.enemies:
             enemy_pos = enemy.node.getPos(self.base.render)
             dist = (enemy_pos - my_pos).length()
-            
+
             if dist <= self.activation_radius:
                 # On stocke un tuple avec (l'ennemi, sa distance, ses PV)
                 valid_enemies.append((enemy, dist, enemy.hp))
@@ -199,10 +199,10 @@ class Structure:
 
         # 3. S'orienter et tirer sur la cible choisie
         enemy_pos = target_enemy.node.getPos(self.base.render)
-        
+
         if min_dist > 0.1:
             self.np.lookAt(enemy_pos)
-            self.np.setHpr(self.np.getH() + 180, 0, 0) 
+            self.np.setHpr(self.np.getH() + 180, 0, 0)
 
         self.time_since_last_shot += dt
         if self.time_since_last_shot >= self.fire_rate:
@@ -214,10 +214,10 @@ class Structure:
                 target_pos_visuel = Point3(enemy_pos.x, enemy_pos.y, enemy_pos.z + 0.5) + self.offset_enemies
 
                 self.create_tracer_effect(start_pos_visuel, target_pos_visuel)
-                
-                # Application des dégâts
+
+                # Application des degats
                 self.enemy_manager.check_projectile_hit(my_pos, enemy_pos, hit_radius=1.0)
-                
+
                 if getattr(self.base, 'network', None) and getattr(self.base.network, 'net', None) and self.base.network.net.is_host:
                     self.base.network.net.broadcast_msg('turret_shoot', {
                         'struct_id': self.id,
@@ -229,7 +229,7 @@ class Structure:
     def detruire(self):
         # Nettoyer la tâche lorsqu'on supprime la tourelle
         self.base.taskMgr.remove(self.task_name)
-        
+
         self.np.removeNode()
         if self.on_destroy_callback:
             self.on_destroy_callback(self)
@@ -246,18 +246,18 @@ class Hologram:
         self.base = base
         self.np = NodePath("hologramme_root")
         self.np.reparentTo(self.base.render)
-        
+
         self.model = load_hologram(self.base, self.np)
-        
+
         self.np.setTransparency(TransparencyAttrib.MAlpha)
-        self.np.setColorScale(0.2, 0.5, 1.0, 0.5) 
-        self.np.hide() 
+        self.np.setColorScale(0.2, 0.5, 1.0, 0.5)
+        self.np.hide()
 
     def show(self): self.np.show()
     def hide(self): self.np.hide()
     def get_pos(self): return self.np.getPos(self.base.render)
     def get_hpr(self): return self.np.getHpr(self.base.render)
-    
+
     def update_transform(self, pos, hpr):
         self.np.setPos(pos)
         self.np.setHpr(hpr)
@@ -265,20 +265,20 @@ class Hologram:
 class BuildManager(DirectObject):
     # --- MODIFIÉ : Ajout de enemy_manager en argument ---
     def __init__(self, showbase, player_root, camera, mouse):
-        super().__init__() 
+        super().__init__()
         self.base = showbase
         self.player_root = player_root
         self.camera = camera
         self.mouse = mouse
         self.enemy_manager = self.base.enemies # <-- Sauvegarde de la référence
-        
+
         self.mode_actif = False
-        self.distance_construction = 2.5 
-        self.distance_min = 1        
+        self.distance_construction = 2.5
+        self.distance_min = 1
         self.rayon_max_construction = 5
 
         self.cost = 5
-        
+
         self.plan_sol = Plane(Vec3(0, 0, 1), Point3(0, 0, 0))
         self.structures = []
         self.hologramme = Hologram(self.base)
@@ -322,11 +322,11 @@ class BuildManager(DirectObject):
     def basculer_mode(self):
         self.mode_actif = not self.mode_actif
         self.camera.setZoomLock(self.mode_actif)
-        if self.mode_actif: 
+        if self.mode_actif:
             self.hologramme.show()
             self.accept("mouse1", self.ouvrir_menu_construction)
             self.accept("mouse1-up", self.fermer_menu_construction)
-        else: 
+        else:
             self.hologramme.hide()
             self.ignore("mouse1")
             self.ignore("mouse1-up")
@@ -381,8 +381,8 @@ class BuildManager(DirectObject):
                 existing.np.setPos(s_data['x'], s_data['y'], s_data['z'])
             else:
                 struct = Structure(
-                    self.base, 
-                    Point3(s_data['x'], s_data['y'], s_data['z']), 
+                    self.base,
+                    Point3(s_data['x'], s_data['y'], s_data['z']),
                     Vec3(s_data['h'], s_data['p'], s_data['r']),
                     self._on_structure_detruite,
                     self.enemy_manager,
@@ -402,9 +402,9 @@ class BuildManager(DirectObject):
     #     if self.mode_actif and self.base.inventory["ressource"] >= self.cost:
     #         # --- MODIFIÉ : On passe l'enemy_manager à la nouvelle structure ---
     #         nouvelle_structure = Structure(
-    #             self.base, 
-    #             self.hologramme.get_pos(), 
-    #             self.hologramme.get_hpr(), 
+    #             self.base,
+    #             self.hologramme.get_pos(),
+    #             self.hologramme.get_hpr(),
     #             self._on_structure_detruite,
     #             self.enemy_manager
     #         )
@@ -421,7 +421,7 @@ class BuildManager(DirectObject):
         pos_joueur.setZ(0)
         vecteur_diff = position_cible - pos_joueur
         distance_actuelle = vecteur_diff.length()
-        
+
         if distance_actuelle > self.rayon_max_construction:
             vecteur_diff.normalize()
             return pos_joueur + (vecteur_diff * self.rayon_max_construction)
@@ -438,15 +438,16 @@ class BuildManager(DirectObject):
     def update(self):
         if not self.mode_actif or self.radial_menu.is_open:
             return
-            
-        if self.base.mouseWatcherNode.hasMouse():
-            mpos = self.base.mouseWatcherNode.getMouse()
+
+        mouse_watcher = getattr(self.base, "mouseWatcherNode", None)
+        if mouse_watcher is not None and mouse_watcher.hasMouse():
+            mpos = mouse_watcher.getMouse()
             p1, p2 = Point3(), Point3()
             self.base.camLens.extrude(mpos, p1, p2)
-            
+
             p1_global = self.base.render.getRelativePoint(self.base.camera, p1)
             p2_global = self.base.render.getRelativePoint(self.base.camera, p2)
-            
+
             point_intersection = Point3()
             if self.plan_sol.intersectsLine(point_intersection, p1_global, p2_global):
                 position_restreinte = self.contraindre_distance(point_intersection)
