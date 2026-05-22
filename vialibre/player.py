@@ -1,29 +1,29 @@
 # player.py
 from direct.showbase.ShowBase import ShowBase
-from panda3d.core import Vec3, NodePath
 from direct.showbase.DirectObject import DirectObject
-from direct.actor.Actor import Actor
 
-from direct.gui.OnscreenImage import OnscreenImage
-from panda3d.core import TransparencyAttrib
-from direct.interval.IntervalGlobal import LerpScaleInterval
+from panda3d.core import Vec3
 
 from vialibre.camera import Camera
 from vialibre.construction import BuildManager
 from vialibre.interaction import InteractionManager
 
+from vialibre.utils import shortest_angle_lerp, powLerp
+
 
 class Player(DirectObject):
     MAX_HP = 10
     DAMAGE_COOLDOWN = 0.5
+    MIN_HARVEST_TIME_MULTIPLIER = 0.35
 
-    def __init__(self, showbase: ShowBase = None):
+    def __init__(self, showbase: ShowBase = None, map_collision=None):
         self.base = showbase if showbase else base
+        self.map_collision = map_collision
 
         self.player = self.base.render.attachNewNode('player')
         self.modelNode = self.player.attachNewNode('player-model')
 
-        self.model = Actor(
+                self.model = Actor(
             './assets/Tony_idle.bam',
             {
                 'idle': './assets/Tony_idle.bam',
@@ -86,54 +86,35 @@ class Player(DirectObject):
         self.playerSpeed = 10
         self.turnSpeed = 10.0
 
+        self.MAX_HP = type(self).MAX_HP
         self.hp = self.MAX_HP
+        self.damage = 1
+        self.harvest_time_multiplier = 1.0
         self._damage_cooldown_remaining = 0.0
 
         self.is_paused = False
 
-        self.cursorRoot = NodePath("cursorRoot")
-        self.cursorRoot.reparentTo(self.base.aspect2d)
-        self.cursorRoot.setBin("gui-popup", 100)
-        self.cursorRoot.setDepthTest(False)
-        self.cursorRoot.setDepthWrite(False)
-
-        self.cursor = OnscreenImage(image='./assets/cursor_resized.png', parent=self.cursorRoot)
-        self.cursor.setTransparency(TransparencyAttrib.MAlpha)
-        self.cursor.setPos(1, 0, -1)
-
-        scale = (0.04, 1, 0.04)
-        scale_anim = (0.03, 1, 0.03)
-        self.cursorRoot.setScale(*scale)
-
-        self.cursorScaleDown = LerpScaleInterval(
-            self.cursorRoot, duration=0.05, scale=scale_anim, startScale=scale
-        )
-        self.cursorScaleUp = LerpScaleInterval(
-            self.cursorRoot, duration=0.1, scale=scale, startScale=scale_anim
-        )
-
-        self.accept('raw-w', self.updateKeyMap, ['forward', True])
-        self.accept('raw-w-up', self.updateKeyMap, ['forward', False])
-        self.accept('raw-a', self.updateKeyMap, ['left', True])
-        self.accept('raw-a-up', self.updateKeyMap, ['left', False])
-        self.accept('raw-s', self.updateKeyMap, ['backward', True])
+        self.accept('raw-w',    self.updateKeyMap, ['forward',  True])
+        self.accept('raw-w-up', self.updateKeyMap, ['forward',  False])
+        self.accept('raw-a',    self.updateKeyMap, ['left',     True])
+        self.accept('raw-a-up', self.updateKeyMap, ['left',     False])
+        self.accept('raw-s',    self.updateKeyMap, ['backward', True])
         self.accept('raw-s-up', self.updateKeyMap, ['backward', False])
-        self.accept('raw-d', self.updateKeyMap, ['right', True])
-        self.accept('raw-d-up', self.updateKeyMap, ['right', False])
-        self.accept('control', self.updateKeyMap, ['ctrl', True])
+        self.accept('raw-d',    self.updateKeyMap, ['right',    True])
+        self.accept('raw-d-up', self.updateKeyMap, ['right',    False])
+        self.accept('control',    self.updateKeyMap, ['ctrl', True])
         self.accept('control-up', self.updateKeyMap, ['ctrl', False])
 
-        self.accept('c', self.build_manager.basculer_mode)
+        self.accept('c',     self.build_manager.basculer_mode)
 
         self.accept('mouse1', self.handleLeftClick)
-        self.accept('mouse1-up', self.cursorScaleUp.start)
 
         self.keyMap = {
             "forward": False, "backward": False,
-            "left": False, "right": False,
+            "left": False,    "right": False,
             "ctrl": False,
         }
-
+        
     def play_anim(self, anim_name):
         if self.current_anim != anim_name:
             self.model.loop(anim_name)
@@ -154,8 +135,21 @@ class Player(DirectObject):
         if self.hp <= 0:
             self.base.messenger.send("player-dead")
 
+    def upgrade_max_hp(self, amount):
+        self.MAX_HP += amount
+        self.hp = min(self.MAX_HP, self.hp + amount)
+        self.base.messenger.send("player-hp-changed", [self.hp])
+
+    def upgrade_damage(self, amount):
+        self.damage += amount
+
+    def upgrade_harvest_speed(self, multiplier_reduction):
+        self.harvest_time_multiplier = max(
+            self.MIN_HARVEST_TIME_MULTIPLIER,
+            self.harvest_time_multiplier - multiplier_reduction,
+        )
+
     def handleLeftClick(self):
-        self.cursorScaleDown.start()
         cible = self.interaction_manager.structure_cible
         if cible:
             cible.detruire()
@@ -164,59 +158,57 @@ class Player(DirectObject):
             pass
 
     def update(self, dt):
-        self.updateCursor()
+        self.camera.updateCursor()
+        if self.build_manager.mode_actif:
+            self.camera.mouse.hideCursor()
 
         if self._damage_cooldown_remaining > 0:
             self._damage_cooldown_remaining = max(0.0, self._damage_cooldown_remaining - dt)
 
         if self.is_paused:
-            self.cursor.show()
             self.play_anim('idle')
+            self.camera.mouse.showCursor()
             return
 
         forward = self.base.render.getRelativeVector(self.camera.pivot, Vec3(0, 1, 0))
-        right = self.base.render.getRelativeVector(self.camera.pivot, Vec3(1, 0, 0))
+        right   = self.base.render.getRelativeVector(self.camera.pivot, Vec3(1, 0, 0))
 
         forward.setZ(0)
         right.setZ(0)
 
-        if forward.lengthSquared() > 0:
-            forward.normalize()
-        if right.lengthSquared() > 0:
-            right.normalize()
+        if forward.lengthSquared() > 0: forward.normalize()
+        if right.lengthSquared() > 0:   right.normalize()
 
         input_vec = Vec3(0)
-        if self.keyMap['forward']:
-            input_vec += forward
-        if self.keyMap['backward']:
-            input_vec -= forward
-        if self.keyMap['right']:
-            input_vec += right
-        if self.keyMap['left']:
-            input_vec -= right
+        if self.keyMap['forward']:  input_vec += forward
+        if self.keyMap['backward']: input_vec -= forward
+        if self.keyMap['right']:    input_vec += right
+        if self.keyMap['left']:     input_vec -= right
 
-        is_moving = input_vec.lengthSquared() > 0
-
-        if is_moving:
+        if input_vec.lengthSquared() > 0:
             input_vec.normalize()
-            self.play_anim('run')
-        else:
-            self.play_anim('idle')
+
+        from math import atan2, degrees
+
+        current_H = self.modelNode.getH(self.base.render)
 
         if input_vec.length() > self.lastMovement.length():
-            self.modelNode.lookAt(self.modelNode.getPos() + input_vec)
+            target_H = degrees(atan2(-input_vec.x, input_vec.y))  # adapte les axes si besoin
+            new_H = shortest_angle_lerp(current_H, target_H, dt, .1)
+            self.modelNode.setH(self.base.render, new_H)
 
         for axis in range(3):
             maxSpeedTime = .5 if input_vec[axis] else .08
-            self.movementVector[axis] = self.camera.powLerp(
-                self.lastMovement[axis], input_vec[axis], dt, maxSpeedTime
-            )
+            self.movementVector[axis] = powLerp(self.lastMovement[axis], input_vec[axis], dt, maxSpeedTime)
 
-        self.player.setPos(self.player.getPos() + self.movementVector * self.playerSpeed * dt)
+        current_pos = self.player.getPos(self.base.render)
+        desired_pos = current_pos + self.movementVector * self.playerSpeed * dt
+        if self.map_collision is not None:
+            desired_pos = self.map_collision.move(current_pos, desired_pos)
 
-        new_cam_pos = self.camera.calculateCameraPos(
-            dt, self.movementVector, self.lastMovement, self.keyMap["ctrl"] or self.is_paused
-        )
+        self.player.setPos(desired_pos)
+
+        new_cam_pos = self.camera.calculateCameraPos(dt, self.movementVector, self.lastMovement, self.keyMap["ctrl"] or self.is_paused)
         self.camera.setPos(new_cam_pos)
 
         if not (self.is_paused or self.keyMap['ctrl']):
@@ -226,18 +218,6 @@ class Player(DirectObject):
 
         self.interaction_manager.update()
         self.build_manager.update()
-
-    def updateCursor(self):
-        if getattr(self.base, 'win', None) is None:
-            return
-        if self.base.mouseWatcherNode.hasMouse() and (not self.build_manager.mode_actif or self.is_paused):
-            self.cursor.show()
-            x = self.base.mouseWatcherNode.getMouseX()
-            y = self.base.mouseWatcherNode.getMouseY()
-            ratio = self.base.getAspectRatio()
-            self.cursorRoot.setPos(x * ratio, 0, y)
-        else:
-            self.cursor.hide()
 
     def updateKeyMap(self, key, value):
         self.keyMap[key] = value

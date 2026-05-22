@@ -8,10 +8,10 @@ class InteractionManager:
         self.player_root = player_root
         self.camera = camera
         self.build_manager = build_manager
-        
-        self.rayon_interaction = 2 
-        self.structure_cible = None 
-        
+
+        self.rayon_interaction = 2
+        self.structure_cible = None
+
         self.picker = CollisionTraverser()
         self.picker_queue = CollisionHandlerQueue()
         self.picker_node = CollisionNode('mouseRay')
@@ -24,12 +24,13 @@ class InteractionManager:
         self.picker_node.setIntoCollideMask(0)
 
     def get_structure_sous_souris(self):
-        if not self.base.mouseWatcherNode.hasMouse():
+        mouse_watcher = getattr(self.base, "mouseWatcherNode", None)
+        if mouse_watcher is None or not mouse_watcher.hasMouse():
             return None
-        mpos = self.base.mouseWatcherNode.getMouse()
+        mpos = mouse_watcher.getMouse()
         self.picker_ray.setFromLens(self.base.camNode, mpos.getX(), mpos.getY())
         self.picker.traverse(self.base.render)
-        
+
         if self.picker_queue.getNumEntries() > 0:
             self.picker_queue.sortEntries()
             noeud_touche = self.picker_queue.getEntry(0).getIntoNodePath()
@@ -53,7 +54,7 @@ class InteractionManager:
                 self.structure_cible = structure
                 self.structure_cible.surligner()
                 self.structure_cible.ui.show() # Affiche l'UI quand survolé
-                
+
         if self.structure_cible is not None:
             self.build_manager.hologramme.hide()
         elif self.build_manager.mode_actif:
