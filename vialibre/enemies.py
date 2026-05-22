@@ -615,7 +615,10 @@ class EnemyManager:
 
                     p_pos = model.getPos(self.game.render)
                     if self.check_player_contact(p_pos):
-                        current_hp = model.getPythonTag("hp") or 10
+                        if hasattr(model, "hasPythonTag") and model.hasPythonTag("hp"):
+                            current_hp = model.getPythonTag("hp")
+                        else:
+                            current_hp = 10
                         if current_hp > 0:
                             model.setPythonTag("hp", current_hp - 1)
                             self._player_cooldowns[name] = 0.5

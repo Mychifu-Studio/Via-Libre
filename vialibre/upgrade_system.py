@@ -417,6 +417,17 @@ class UpgradeSystem:
             self.update_ui()
             return
 
+        net_iface = getattr(self.game, "network", None)
+        is_client = (
+            net_iface is not None
+            and getattr(net_iface, "net", None) is not None
+            and not net_iface.net.is_host
+        )
+        if is_client:
+            net_iface.net.send_msg("upgrade_request", {"key": key})
+            self.popup_ui.show_popup("Achat demande...")
+            return
+
         self.game.inventory["ressource"] = resources - cost
         self.levels[key] += 1
         self._apply_upgrade(key)
@@ -426,6 +437,8 @@ class UpgradeSystem:
         title = self.UPGRADE_DEFS[key]["title"]
         level = self.levels[key]
         self.popup_ui.show_popup(f"{title} ameliore au niveau {level} !")
+        if net_iface is not None and getattr(net_iface, "net", None) is not None and net_iface.net.is_host:
+            net_iface._broadcast_snapshot(force=True)
 
     def _apply_upgrade(self, key):
         if key == "health":

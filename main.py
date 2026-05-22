@@ -209,6 +209,8 @@ class MainGame(ShowBase):
             f"Ennemi touche : ressource +1 ! (Total : {self.inventory['ressource']})"
         )
         self.vague_manager.enemy_killed()
+        if getattr(self.network, "net", None) is not None and self.network.net.is_host:
+            self.network._broadcast_snapshot(force=True)
 
     def damage_pipe(self, amount=1):
         if self.is_game_over:
@@ -216,6 +218,8 @@ class MainGame(ShowBase):
 
         self.pipe_base.take_damage(amount)
         self.pipe_health_ui.update()
+        if getattr(self.network, "net", None) is not None and self.network.net.is_host:
+            self.network._broadcast_snapshot(force=True)
 
     def trigger_game_over(self):
         if self.is_game_over:

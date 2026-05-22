@@ -97,7 +97,7 @@ class Player(DirectObject):
     def handleLeftClick(self):
         cible = self.interaction_manager.structure_cible
         if cible:
-            cible.detruire()
+            self.build_manager.request_destroy_structure(cible)
             return
         if self.build_manager.mode_actif:
             pass
