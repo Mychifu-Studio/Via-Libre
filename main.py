@@ -5,7 +5,7 @@ from direct.gui.DirectGui import DirectFrame, DirectButton
 import simplepbr
 
 from vialibre.player import Player
-from vialibre.multiplayer import MultiplayerManager
+from vialibre.multiplayer import GameNetworkInterface
 from vialibre.resource_system import ResourceSystem
 from vialibre.inventory_ui import InventoryUI
 from vialibre.popup_ui import PopupUI
@@ -274,7 +274,7 @@ class MainGame(ShowBase):
         # car shooting.py récupère lui-même player.player.
         self.shooting = ShootingSystem(game=self, player=self.player)
 
-        self.multiplayer = MultiplayerManager(self, self.player)
+        self.multiplayer = GameNetworkInterface(self, self.player)
 
         # UI & inventaire
         self.inventory = {
