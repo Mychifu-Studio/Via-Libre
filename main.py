@@ -299,7 +299,7 @@ class MainGame(ShowBase):
         self.pipe_base = PipeBase(self, self.map_collision)
         self.enemies = EnemyManager(self)
         self.player = Player(map_collision=self.map_collision)
-        self.player.tp_shop()
+        # self.player.tp_shop()
         self.shooting = ShootingSystem(game=self, player=self.player)
         self.network = GameNetworkInterface(self)
 
