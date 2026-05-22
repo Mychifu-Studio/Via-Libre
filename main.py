@@ -1,5 +1,6 @@
 from direct.gui.DirectGui import DirectButton, DirectFrame, DirectLabel
 from direct.showbase.ShowBase import ShowBase
+from direct.actor.Actor import Actor
 from panda3d.core import AmbientLight, AntialiasAttrib, TextNode, WindowProperties, load_prc_file_data, Spotlight, PerspectiveLens
 import simplepbr
 
@@ -37,32 +38,35 @@ class EnvironmentManager:
         self.setup_lights()
 
     def generate_ground(self):
-        # size = 256
-        # img = PNMImage(size, size)
-
-        # for x in range(size):
-        #     for y in range(size):
-        #         r = min(max(0.25 + random.uniform(-0.05, 0.05), 0), 1)
-        #         g = min(max(0.70 + random.uniform(-0.1, 0.1), 0), 1)
-        #         b = min(max(0.25 + random.uniform(-0.05, 0.05), 0), 1)
-        #         img.setXel(x, y, r, g, b)
-
-        # texture = Texture("groundTexture")
-        # texture.load(img)
-        # texture.setWrapU(Texture.WM_repeat)
-        # texture.setWrapV(Texture.WM_repeat)
-
-        # cm = CardMaker("ground")
-        # cm.setFrame(-50, 50, -50, 50)
-        # cm.setUvRange((0, 0), (10, 10))
-
-        # ground = self.render.attachNewNode(cm.generate())
-        # ground.setP(-90)
-        # ground.setTexture(texture)
         self.jungle = loader.loadModel('assets/Jungle3.bam')
         self.jungle.setPos(0, 0, 0)
         self.jungle.setH(-90)
         self.jungle.reparentTo(self.render)
+
+        self.shop = loader.loadModel('assets/Shop.bam')
+        self.shop.setPos(100, 0, 0)
+        self.shop.reparentTo(self.render)
+
+        self.bartender = Actor('assets/bartender.bam')
+        self.bartender.reparentTo(self.render)
+        self.bartender.setPos(100, 0.5, 0)
+        self.bartender.setScale(0.90)
+
+        bartender_anims = self.bartender.getAnimNames()
+        print("Animations bartender :", bartender_anims)
+        if bartender_anims:
+            self.bartender.loop(bartender_anims[0])
+
+        self.quest_guy = Actor('assets/quest_guy.bam')
+        self.quest_guy.reparentTo(self.render)
+        self.quest_guy.setPos(116, 1.5, 0.05)
+        self.quest_guy.setH(-90)
+        self.quest_guy.setScale(0.83)
+
+        quest_guy_anims = self.quest_guy.getAnimNames()
+        print("Animations quest_guy :", quest_guy_anims)
+        if quest_guy_anims:
+            self.quest_guy.loop(quest_guy_anims[0])
 
     def add_spotlight(self, name, color, pos, target, fov=45, near=1, far=50):
         spot = Spotlight(name)
@@ -94,7 +98,6 @@ class EnvironmentManager:
             fov=140
         )
 
-        
         self.mid_haut = self.add_spotlight(
             name="mid haut",
             color=(0, 0.2, 1, 1),
@@ -102,68 +105,33 @@ class EnvironmentManager:
             target=(0, 15, 0),
             fov=140
         )
-        # #DOORS
-        # self.door1 = self.add_spotlight(
-        #     name="door1",
-        #     color=(1, 0, 0, 1),
-        #     pos=(-38, -9, 3),
-        #     target=(-38, -9, 0),
-        #     fov=90
-        # )
-        # self.door2= self.add_spotlight(
-        #     name="door2",
-        #     color=(1, 0, 0, 1),
-        #     pos=(38, -9, 3),
-        #     target=(38, -9, 0),
-        #     fov=90
-        # )
 
-        # self.door3 = self.add_spotlight(
-        #     name="door3",
-        #     color=(1, 0, 0, 1),
-        #     pos=(-22.8, 17, 3),
-        #     target=(-22.8, 17, 0),
-        #     fov=90
-        # )
-        # self.door4= self.add_spotlight(
-        #     name="door4",
-        #     color=(1, 0, 0, 1),
-        #     pos=(21.2, 17, 3),
-        #     target=(21.2, 17, 0),
-        #     fov=90
-        # )
-
-        # self.door5 = self.add_spotlight(
-        #     name="door5",
-        #     color=(1, 0, 0, 1),
-        #     pos=(6, 23.8, 3),
-        #     target=(6, 23.8, 0),
-        #     fov=90
-        # )
-
-        
-
-
+        self.mid_haut = self.add_spotlight(
+            name="mid haut",
+            color=(0.8, 0.6, 0.2, 1),
+            pos=(110, 0, 10),
+            target=(110, 0, 0),
+            fov=140
+        )
 
         self.spot_minerai_left = self.add_spotlight(
             name="spot_minerai_left",
-            color=(0, 0, 0.9, 1), #color=(0.7, 0.6, 0.9, 1),
+            color=(0, 0, 0.9, 1),
             pos=(-30, 6, 3),
             target=(-35, 8, 0),
             fov=70
         )
         self.spot_minerai_right = self.add_spotlight(
             name="spot_minerai_right",
-            color=(0, 0, 0.9, 1), #color=(0.7, 0.6, 0.9, 1),
+            color=(0, 0, 0.9, 1),
             pos=(30, 7, 3),
             target=(35, 10, 0),
             fov=70
         )
 
-
         self.spot_caillou_right = self.add_spotlight(
             name="spot_caillou_right",
-            color=(0, 0, 0.9, 1), #color=(0.7, 0.6, 0.9, 1),
+            color=(0, 0, 0.9, 1),
             pos=(22, 9, 6),
             target=(22, 9, 0),
             fov=140
@@ -171,24 +139,22 @@ class EnvironmentManager:
 
         self.spot_caillou_left = self.add_spotlight(
             name="spot_caillou_left",
-            color=(0, 0, 0.9, 1), #color=(0.7, 0.6, 0.9, 1),
+            color=(0, 0, 0.9, 1),
             pos=(-22, 9, 6),
             target=(-22, 9, 0),
             fov=140
         )
 
-
-
         self.spot_caillou_bas_left = self.add_spotlight(
             name="spot_caillou_bas_left",
-            color=(0, 0.3, 0.9, 1), #color=(0.7, 0.6, 0.9, 1),
+            color=(0, 0.3, 0.9, 1),
             pos=(-30, -9, 6),
             target=(-30, -9, 0),
             fov=140
         )
         self.spot_caillou_bas_right = self.add_spotlight(
             name="spot_caillou_right",
-            color=(0, 0.3, 0.9, 1), #color=(0.7, 0.6, 0.9, 1),
+            color=(0, 0.3, 0.9, 1),
             pos=(30, -9, 6),
             target=(30, -9, 0),
             fov=140
@@ -196,12 +162,11 @@ class EnvironmentManager:
 
         self.spot_caillou_bas_right = self.add_spotlight(
             name="spot_caillou_right",
-            color=(0, 0.3, 0.9, 1), #color=(0.7, 0.6, 0.9, 1),
+            color=(0, 0.3, 0.9, 1),
             pos=(30, -9, 6),
             target=(30, -9, 0),
             fov=140
         )
-
 
         self.spot_mid = self.add_spotlight(
             name="spot_mid",
@@ -218,7 +183,6 @@ class EnvironmentManager:
             target=(0, -33, 0),
             fov=100
         )
-
 
 
 class GameMenu:
@@ -334,6 +298,7 @@ class MainGame(ShowBase):
         self.pipe_base = PipeBase(self, self.map_collision)
         self.enemies = EnemyManager(self)
         self.player = Player(map_collision=self.map_collision)
+        self.player.tp_shop()
         self.shooting = ShootingSystem(game=self, player=self.player)
         self.network = GameNetworkInterface(self)
 
