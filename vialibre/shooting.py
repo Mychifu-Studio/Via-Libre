@@ -30,7 +30,7 @@ class ShootingSystem:
 
     BULLET_SPEED = 50.0
     BULLET_LIFE = 3.0
-    BULLET_SCALE = 10
+    BULLET_SCALE = 0.2
     HIT_RADIUS = 1.5
 
     def __init__(self, game, player):
@@ -87,7 +87,8 @@ class ShootingSystem:
         node.reparentTo(self.game.render)
         node.setPos(origin)
         node.lookAt(origin + direction)
-        node.setH(node.getH() + 90)
+        node.setH(node.getH())
+        node.setP(node.getP() -45)
 
         bullet = Bullet(node, direction, speed, life, damage)
         self.bullets.append(bullet)

@@ -61,6 +61,32 @@ def load_hologram(base, np):
 
     return pivot
 
+def load_hologram(base, np):
+    pivot = base.render.attachNewNode("hologram_pivot")
+    
+    try:
+        model = base.loader.loadModel("./assets/arrow.bam")
+        model.setScale(0.1)
+        model.reparentTo(pivot)
+        
+        min_bounds, max_bounds = model.getTightBounds()
+        center = (min_bounds + max_bounds) / 2.0
+        
+        tweak_x = 0.0
+        tweak_y = -0.4
+        tweak_z = 0.0
+        
+        model.setPos(-center[0] + tweak_x, -center[1] + tweak_y, -center[2] + tweak_z)
+        pivot.setHpr(0, -90, 0)
+        
+    except Exception as e:
+        print(f"Erreur de chargement : {e}")
+
+    pivot.setPos(0, 0, 0) 
+    pivot.reparentTo(np)
+
+    return pivot
+
 from panda3d.core import BillboardEffect
 
 class FloatingUI:
@@ -180,13 +206,13 @@ class Structure:
             return task.cont
 
         my_pos = self.np.getPos(self.base.render)
-
+        
         # 1. Récupérer tous les ennemis valides (dans le rayon d'activation)
         valid_enemies = []
         for enemy in self.enemy_manager.enemies:
             enemy_pos = enemy.node.getPos(self.base.render)
             dist = (enemy_pos - my_pos).length()
-
+            
             if dist <= self.activation_radius:
                 # On stocke un tuple avec (l'ennemi, sa distance, ses PV)
                 valid_enemies.append((enemy, dist, enemy.hp))
@@ -208,10 +234,10 @@ class Structure:
 
         # 3. S'orienter et tirer sur la cible choisie
         enemy_pos = target_enemy.node.getPos(self.base.render)
-
+        
         if min_dist > 0.1:
             self.np.lookAt(enemy_pos)
-            self.np.setHpr(self.np.getH() + 180, 0, 0)
+            self.np.setHpr(self.np.getH() + 180, 0, 0) 
 
         self.time_since_last_shot += dt
         if self.time_since_last_shot >= self.fire_rate:
@@ -253,9 +279,9 @@ class Hologram:
         self.base = base
         self.np = NodePath("hologramme_root")
         self.np.reparentTo(self.base.render)
-
+        
         self.model = load_hologram(self.base, self.np)
-
+        
         self.np.setTransparency(TransparencyAttrib.MAlpha)
         self.np.setColorScale(0.2, 0.5, 1.0, 0.5)
         self.np.hide()
