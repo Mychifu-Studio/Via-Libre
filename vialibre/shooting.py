@@ -87,7 +87,8 @@ class ShootingSystem:
         node.reparentTo(self.game.render)
         node.setPos(origin)
         node.lookAt(origin + direction)
-        node.setH(node.getH() + 90)
+        node.setH(node.getH())
+        node.setP(node.getP() -45)
 
         bullet = Bullet(node, direction, speed, life, damage)
         self.bullets.append(bullet)

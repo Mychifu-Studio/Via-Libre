@@ -1,9 +1,7 @@
-# player.py
 from direct.showbase.ShowBase import ShowBase
 from direct.showbase.DirectObject import DirectObject
 
 from panda3d.core import Vec3
-from direct.actor.Actor import Actor
 
 from vialibre.camera import Camera
 from vialibre.construction import BuildManager
@@ -24,7 +22,7 @@ class Player(DirectObject):
         self.player = self.base.render.attachNewNode('player')
         self.modelNode = self.player.attachNewNode('player-model')
 
-        self.model = Actor(
+                self.model = Actor(
             './assets/Tony_idle.bam',
             {
                 'idle': './assets/Tony_idle.bam',
@@ -186,13 +184,7 @@ class Player(DirectObject):
         if self.keyMap['right']:    input_vec += right
         if self.keyMap['left']:     input_vec -= right
 
-        is_moving = input_vec.lengthSquared() > 0
-        
-        if is_moving:
-            input_vec.normalize()
-            self.play_anim('run')
-        else:
-            self.play_anim('idle')
+
 
         from math import atan2, degrees
 
