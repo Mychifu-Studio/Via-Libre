@@ -488,8 +488,8 @@ class GameNetworkInterface:
         self.last_sent_h = self.predicted_h
         self.send_threshold_pos = 0.05
         self.send_threshold_h = 1.0
-        self.correct_threshold_pos = 5
-        self.correct_threshold_h = 30.0
+        self.correct_threshold_pos = 25.0
+        self.correct_threshold_h = 120.0
         self.next_input_seq = 0
         self.last_processed_seq = -1
         self.last_input_send_time = 0.0
@@ -620,11 +620,30 @@ class GameNetworkInterface:
             dh = 360 - dh
         return dh > self.send_threshold_h
 
+    def _snapshot_transform_for_remote(self, model) -> Tuple[Point3, float]:
+        auth_pos = self._get_python_tag(model, "auth_pos", None)
+        if auth_pos is None:
+            auth_pos = self._get_python_tag(model, "target_pos", None)
+
+        if auth_pos is not None:
+            pos = Point3(auth_pos[0], auth_pos[1], auth_pos[2])
+        else:
+            pos = model.getPos(self.base.render)
+
+        auth_h = self._get_python_tag(model, "auth_h", None)
+        if auth_h is None:
+            auth_h = self._get_python_tag(model, "target_h", None)
+
+        h = float(auth_h) if auth_h is not None else model.getH(self.base.render)
+        return pos, h
+
     def _apply_authoritative_correction(self, payload: dict):
         server_pos = None
         server_h = None
         seq_by_player = payload.get('last_processed_seq_by_player', {})
         last_seq = seq_by_player.get(self.net.player_name, payload.get('last_processed_seq', -1))
+        self.input_history = [seq for seq in self.input_history if seq > last_seq]
+
         for p_data in payload.get('players', []):
             if p_data.get('id') == self.net.player_name:
                 server_pos = Point3(p_data['x'], p_data['y'], p_data['z'])
@@ -640,19 +659,8 @@ class GameNetworkInterface:
         if dh > 180:
             dh = 360 - dh
         if dist > self.correct_threshold_pos or abs(dh) > self.correct_threshold_h:
-            strength = 0.3
-            correction = diff * strength
-            self.local_player.player.setPos(self.base.render, current_local + correction)
-            self.local_player.modelNode.setH(self.base.render, current_h + dh * strength)
-        self.input_history = [(seq, inp) for seq, inp in self.input_history if seq > last_seq]
-        for seq, inp in self.input_history:
-            if seq <= last_seq:
-                continue
-            self._replay_local_input(inp)
-
-    def _replay_local_input(self, inp: dict):
-        self.local_player.player.setPos(self.base.render, inp.get('x', 0), inp.get('y', 0), inp.get('z', 0))
-        self.local_player.modelNode.setH(self.base.render, inp.get('h', 0.0))
+            self.local_player.player.setPos(self.base.render, server_pos)
+            self.local_player.modelNode.setH(self.base.render, server_h)
 
     def _send_input(self):
         if self.net is None or not self.net.connected:
@@ -668,7 +676,7 @@ class GameNetworkInterface:
             return
         seq = self._next_input_seq()
         raw_input = {'x': _q(pos.x), 'y': _q(pos.y), 'z': _q(pos.z), 'h': _q(h, 1)}
-        self.input_history.append((seq, raw_input.copy()))
+        self.input_history.append(seq)
         if len(self.input_history) > INPUT_TICK * 2:
             self.input_history = self.input_history[-INPUT_TICK * 2:]
         self.net.send_msg('input', {'seq': seq, **raw_input})
@@ -711,14 +719,15 @@ class GameNetworkInterface:
         ]
         for name, model in self.other_players.items():
             payload = self._remote_player_payload(name, model)
+            pos, h = self._snapshot_transform_for_remote(model)
             players.append(
                 PlayerState(
                     name,
                     name,
-                    model.getX(self.base.render),
-                    model.getY(self.base.render),
-                    model.getZ(self.base.render),
-                    model.getH(self.base.render),
+                    pos.x,
+                    pos.y,
+                    pos.z,
+                    h,
                     payload["hp"],
                     payload["max_hp"],
                     payload["damage"],
@@ -789,8 +798,12 @@ class GameNetworkInterface:
         if self.net is None or not self.net.is_host or sender_id not in self.other_players:
             return
         model = self.other_players[sender_id]
-        model.setPythonTag("target_pos", (payload['x'], payload['y'], payload['z']))
-        model.setPythonTag("target_h", payload.get('h', 0.0))
+        pos = (payload['x'], payload['y'], payload['z'])
+        h = payload.get('h', 0.0)
+        model.setPythonTag("auth_pos", pos)
+        model.setPythonTag("auth_h", h)
+        model.setPythonTag("target_pos", pos)
+        model.setPythonTag("target_h", h)
 
     def _apply_game_state_snapshot(self, g_data: dict):
         if "team_resources" in g_data:
