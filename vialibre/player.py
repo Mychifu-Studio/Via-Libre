@@ -115,6 +115,8 @@ class Player(DirectObject):
             "left": False,    "right": False,
             "ctrl": False,
         }
+    def tp_shop(self):
+        self.player.setPos(100,0,0)
 
     def play_anim(self, anim_name):
         if self.current_anim != anim_name:
