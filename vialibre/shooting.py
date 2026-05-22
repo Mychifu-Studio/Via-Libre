@@ -30,7 +30,7 @@ class ShootingSystem:
 
     BULLET_SPEED = 50.0
     BULLET_LIFE = 3.0
-    BULLET_SCALE = 10
+    BULLET_SCALE = 0.2
     HIT_RADIUS = 1.5
 
     def __init__(self, game, player):
