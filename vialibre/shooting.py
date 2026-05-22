@@ -3,11 +3,12 @@ from panda3d.core import Vec3, Point3
 
 class Bullet:
     """SRP: Représente le cycle de vie et le déplacement d'un projectile."""
-    def __init__(self, node, direction, speed, life):
+    def __init__(self, node, direction, speed, life, damage=1):
         self.node = node
         self.direction = direction
         self.speed = speed
         self.life = life
+        self.damage = damage
 
     def update(self, dt):
         """Retourne False si la balle doit être détruite (fin de vie)."""
@@ -56,7 +57,7 @@ class ShootingSystem:
         t = -near_w.z / dz
         return Vec3(near_w.x + t * (far_w.x - near_w.x), near_w.y + t * (far_w.y - near_w.y), 0)
 
-    def _spawn_bullet(self, origin, direction, speed=None, life=None, shot_id=None):
+    def _spawn_bullet(self, origin, direction, speed=None, life=None, shot_id=None, damage=1):
         speed = speed if speed is not None else self.BULLET_SPEED
         life = life if life is not None else self.BULLET_LIFE
         if shot_id is not None and shot_id in self._handled_remote_shots:
@@ -73,17 +74,18 @@ class ShootingSystem:
         node.setPos(origin)
         node.lookAt(origin + direction)
         node.setH(node.getH() + 90)
-        bullet = Bullet(node, direction, speed, life)
+        bullet = Bullet(node, direction, speed, life, damage)
         self.bullets.append(bullet)
         return bullet
 
-    def spawn_network_bullet(self, origin, direction, speed=None, life=None, shot_id=None):
-        return self._spawn_bullet(origin, direction, speed, life, shot_id=shot_id)
+    def spawn_network_bullet(self, origin, direction, speed=None, life=None, shot_id=None, damage=1):
+        return self._spawn_bullet(origin, direction, speed, life, shot_id=shot_id, damage=damage)
 
     def _send_shoot_network(self, origin, direction):
         net_iface = getattr(self.game, "network", None)
+        damage = getattr(self.player_sys, "damage", 1)
         if net_iface is None or getattr(net_iface, "net", None) is None:
-            self._spawn_bullet(origin, direction)
+            self._spawn_bullet(origin, direction, damage=damage)
             return
         self._local_shot_seq += 1
         shot_id = f"{net_iface.net.player_name}:{self._local_shot_seq}"
@@ -93,9 +95,10 @@ class ShootingSystem:
             "direction": {"x": direction.x, "y": direction.y, "z": direction.z},
             "speed": self.BULLET_SPEED,
             "life": self.BULLET_LIFE,
+            "damage": damage,
         }
         if net_iface.net.is_host:
-            self._spawn_bullet(origin, direction, shot_id=shot_id)
+            self._spawn_bullet(origin, direction, shot_id=shot_id, damage=damage)
             net_iface.net.broadcast_msg("shoot", payload)
         else:
             net_iface.net.send_msg("shoot_request", payload)
@@ -120,7 +123,7 @@ class ShootingSystem:
         if kind == "shoot":
             origin = payload.get("origin", {})
             direction = payload.get("direction", {})
-            self.spawn_network_bullet(Vec3(origin.get("x", 0), origin.get("y", 0), origin.get("z", 0)), Vec3(direction.get("x", 0), direction.get("y", 0), direction.get("z", 0)), payload.get("speed", self.BULLET_SPEED), payload.get("life", self.BULLET_LIFE), shot_id=payload.get("shot_id"))
+            self.spawn_network_bullet(Vec3(origin.get("x", 0), origin.get("y", 0), origin.get("z", 0)), Vec3(direction.get("x", 0), direction.get("y", 0), direction.get("z", 0)), payload.get("speed", self.BULLET_SPEED), payload.get("life", self.BULLET_LIFE), shot_id=payload.get("shot_id"), damage=payload.get("damage", 1))
         elif kind == "shoot_request":
             net_iface = getattr(self.game, "network", None)
             if net_iface is None or not net_iface.net.is_host:
@@ -128,7 +131,7 @@ class ShootingSystem:
             origin = payload.get("origin", {})
             direction = payload.get("direction", {})
             shot_id = payload.get("shot_id")
-            self.spawn_network_bullet(Vec3(origin.get("x", 0), origin.get("y", 0), origin.get("z", 0)), Vec3(direction.get("x", 0), direction.get("y", 0), direction.get("z", 0)), payload.get("speed", self.BULLET_SPEED), payload.get("life", self.BULLET_LIFE), shot_id=shot_id)
+            self.spawn_network_bullet(Vec3(origin.get("x", 0), origin.get("y", 0), origin.get("z", 0)), Vec3(direction.get("x", 0), direction.get("y", 0), direction.get("z", 0)), payload.get("speed", self.BULLET_SPEED), payload.get("life", self.BULLET_LIFE), shot_id=shot_id, damage=payload.get("damage", 1))
             net_iface.net.broadcast_msg("shoot", payload)
 
     def update(self):
@@ -142,7 +145,7 @@ class ShootingSystem:
             has_hit = False
             if hasattr(self.game, "enemies"):
                 is_host = getattr(self.game, 'network', None) is None or getattr(self.game.network, 'net', None) is None or self.game.network.net.is_host
-                has_hit = self.game.enemies.check_projectile_hit(old_pos, new_pos, self.HIT_RADIUS, apply_damage=is_host)
+                has_hit = self.game.enemies.check_projectile_hit(old_pos, new_pos, self.HIT_RADIUS, apply_damage=is_host, damage=bullet.damage)
             if has_hit:
                 bullet.destroy()
             elif is_alive:
