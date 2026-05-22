@@ -1,6 +1,6 @@
 from direct.gui.DirectGui import DirectButton, DirectFrame, DirectLabel
 from direct.showbase.ShowBase import ShowBase
-from panda3d.core import AmbientLight, AntialiasAttrib, TextNode, WindowProperties, load_prc_file_data
+from panda3d.core import AmbientLight, AntialiasAttrib, TextNode, WindowProperties, load_prc_file_data, Spotlight, PerspectiveLens
 import simplepbr
 
 from vialibre.enemies import EnemyManager
@@ -59,10 +59,10 @@ class EnvironmentManager:
         # ground = self.render.attachNewNode(cm.generate())
         # ground.setP(-90)
         # ground.setTexture(texture)
-        jungle = loader.loadModel('assets/Jungle3.bam')
-        jungle.setPos(0, 0, 0)
-        jungle.setH(-90)
-        jungle.reparentTo(self.render)
+        self.jungle = loader.loadModel('assets/Jungle3.bam')
+        self.jungle.setPos(0, 0, 0)
+        self.jungle.setH(-90)
+        self.jungle.reparentTo(self.render)
 
     def add_spotlight(self, name, color, pos, target, fov=45, near=1, far=50):
         spot = Spotlight(name)
