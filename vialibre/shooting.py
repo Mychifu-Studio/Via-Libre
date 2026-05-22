@@ -26,7 +26,7 @@ class ShootingSystem:
     """SRP: Gère uniquement la logique de tir et la trajectoire des balles."""
     BULLET_SPEED = 50.0
     BULLET_LIFE = 3.0
-    BULLET_SCALE = 10
+    BULLET_SCALE = 0.2
     HIT_RADIUS = 1.5
 
     def __init__(self, game, player):
@@ -88,7 +88,7 @@ class ShootingSystem:
         node.setPos(player_pos + Vec3(0, 0, 1)) # Départ légèrement en hauteur depuis le joueur
 
         node.lookAt(player_pos + direction)
-        node.setH(node.getH() + 90)
+        node.setH(node.getH())
 
         self.bullets.append(Bullet(node, direction, self.BULLET_SPEED, self.BULLET_LIFE))
 

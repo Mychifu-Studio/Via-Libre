@@ -2,6 +2,7 @@
 from direct.showbase.ShowBase import ShowBase
 from panda3d.core import Vec3, NodePath
 from direct.showbase.DirectObject import DirectObject
+from direct.actor.Actor import Actor
 
 from direct.gui.OnscreenImage import OnscreenImage
 from panda3d.core import TransparencyAttrib
@@ -22,9 +23,53 @@ class Player(DirectObject):
         self.player = self.base.render.attachNewNode('player')
         self.modelNode = self.player.attachNewNode('player-model')
 
-        self.model = self.base.loader.loadModel('./assets/dog.bam')
-        self.model.setScale(self.model.getScale())
+        self.model = Actor(
+            './assets/Tony_idle.bam',
+            {
+                'idle': './assets/Tony_idle.bam',
+                'run': './assets/Tony_run.bam',
+            }
+        )
         self.model.reparentTo(self.modelNode)
+
+        self.model.setScale(0.4)
+        self.model.setH(180)
+        self.model.setZ(0)
+
+        self.current_anim = 'idle'
+        self.model.loop('idle')
+
+        # Gun séparé attaché à la main droite
+        self.right_hand = None
+        possible_hand_bones = [
+            "RightHand",
+            "Hand.R",
+            "hand_r",
+            "mixamorig:RightHand",
+            "Bip001 R Hand",
+        ]
+
+        for bone_name in possible_hand_bones:
+            joint = self.model.exposeJoint(None, "modelRoot", bone_name)
+            if not joint.isEmpty():
+                self.right_hand = joint
+                print("Main droite trouvée :", bone_name)
+                break
+
+        self.hand_gun = None
+        if self.right_hand is None:
+            print("Impossible de trouver le bone de la main droite.")
+        else:
+            self.hand_gun = self.base.loader.loadModel("./assets/hand_gun.bam")
+            self.hand_gun.reparentTo(self.right_hand)
+
+            # REGLAGES DU GUN — à ajuster
+            self.hand_gun.setScale(0.40)
+            self.hand_gun.setPos(0, 0, 0)
+            self.hand_gun.setHpr(0, -90, 0)
+
+            # Caché au départ, visible seulement quand on court
+            self.hand_gun.hide()
 
         self.shoulderNode = self.modelNode.attach_new_node('shoulder')
         self.shoulderNode.setZ(3)
@@ -33,7 +78,7 @@ class Player(DirectObject):
 
         self.camera = Camera(self.player)
 
-        self.build_manager = BuildManager(self.base, self.player, self.camera)
+        self.build_manager = BuildManager(self.base, self.player, self.camera, self.camera.mouse)
         self.interaction_manager = InteractionManager(self.base, self.player, self.camera, self.build_manager)
 
         self.movementVector = Vec3(0)
@@ -60,30 +105,45 @@ class Player(DirectObject):
         scale_anim = (0.03, 1, 0.03)
         self.cursorRoot.setScale(*scale)
 
-        self.cursorScaleDown = LerpScaleInterval(self.cursorRoot, duration=0.05, scale=scale_anim, startScale=scale)
-        self.cursorScaleUp  = LerpScaleInterval(self.cursorRoot, duration=0.1,  scale=scale,      startScale=scale_anim)
+        self.cursorScaleDown = LerpScaleInterval(
+            self.cursorRoot, duration=0.05, scale=scale_anim, startScale=scale
+        )
+        self.cursorScaleUp = LerpScaleInterval(
+            self.cursorRoot, duration=0.1, scale=scale, startScale=scale_anim
+        )
 
-        self.accept('raw-w',    self.updateKeyMap, ['forward',  True])
-        self.accept('raw-w-up', self.updateKeyMap, ['forward',  False])
-        self.accept('raw-a',    self.updateKeyMap, ['left',     True])
-        self.accept('raw-a-up', self.updateKeyMap, ['left',     False])
-        self.accept('raw-s',    self.updateKeyMap, ['backward', True])
+        self.accept('raw-w', self.updateKeyMap, ['forward', True])
+        self.accept('raw-w-up', self.updateKeyMap, ['forward', False])
+        self.accept('raw-a', self.updateKeyMap, ['left', True])
+        self.accept('raw-a-up', self.updateKeyMap, ['left', False])
+        self.accept('raw-s', self.updateKeyMap, ['backward', True])
         self.accept('raw-s-up', self.updateKeyMap, ['backward', False])
-        self.accept('raw-d',    self.updateKeyMap, ['right',    True])
-        self.accept('raw-d-up', self.updateKeyMap, ['right',    False])
-        self.accept('control',    self.updateKeyMap, ['ctrl', True])
+        self.accept('raw-d', self.updateKeyMap, ['right', True])
+        self.accept('raw-d-up', self.updateKeyMap, ['right', False])
+        self.accept('control', self.updateKeyMap, ['ctrl', True])
         self.accept('control-up', self.updateKeyMap, ['ctrl', False])
 
-        self.accept('c',     self.build_manager.basculer_mode)
-        self.accept('space', self.build_manager.valider_construction)
-        self.accept('mouse1',    self.handleLeftClick)
+        self.accept('c', self.build_manager.basculer_mode)
+
+        self.accept('mouse1', self.handleLeftClick)
         self.accept('mouse1-up', self.cursorScaleUp.start)
 
         self.keyMap = {
             "forward": False, "backward": False,
-            "left": False,    "right": False,
+            "left": False, "right": False,
             "ctrl": False,
         }
+
+    def play_anim(self, anim_name):
+        if self.current_anim != anim_name:
+            self.model.loop(anim_name)
+            self.current_anim = anim_name
+
+        if self.hand_gun is not None:
+            if anim_name == 'run':
+                self.hand_gun.show()
+            else:
+                self.hand_gun.hide()
 
     def take_damage(self, amount=1):
         if self._damage_cooldown_remaining > 0:
@@ -101,7 +161,7 @@ class Player(DirectObject):
             cible.detruire()
             return
         if self.build_manager.mode_actif:
-            self.build_manager.valider_construction()
+            pass
 
     def update(self, dt):
         self.updateCursor()
@@ -111,36 +171,52 @@ class Player(DirectObject):
 
         if self.is_paused:
             self.cursor.show()
+            self.play_anim('idle')
             return
 
         forward = self.base.render.getRelativeVector(self.camera.pivot, Vec3(0, 1, 0))
-        right   = self.base.render.getRelativeVector(self.camera.pivot, Vec3(1, 0, 0))
+        right = self.base.render.getRelativeVector(self.camera.pivot, Vec3(1, 0, 0))
 
         forward.setZ(0)
         right.setZ(0)
 
-        if forward.lengthSquared() > 0: forward.normalize()
-        if right.lengthSquared() > 0:   right.normalize()
+        if forward.lengthSquared() > 0:
+            forward.normalize()
+        if right.lengthSquared() > 0:
+            right.normalize()
 
         input_vec = Vec3(0)
-        if self.keyMap['forward']:  input_vec += forward
-        if self.keyMap['backward']: input_vec -= forward
-        if self.keyMap['right']:    input_vec += right
-        if self.keyMap['left']:     input_vec -= right
+        if self.keyMap['forward']:
+            input_vec += forward
+        if self.keyMap['backward']:
+            input_vec -= forward
+        if self.keyMap['right']:
+            input_vec += right
+        if self.keyMap['left']:
+            input_vec -= right
 
-        if input_vec.lengthSquared() > 0:
+        is_moving = input_vec.lengthSquared() > 0
+
+        if is_moving:
             input_vec.normalize()
+            self.play_anim('run')
+        else:
+            self.play_anim('idle')
 
         if input_vec.length() > self.lastMovement.length():
             self.modelNode.lookAt(self.modelNode.getPos() + input_vec)
 
         for axis in range(3):
             maxSpeedTime = .5 if input_vec[axis] else .08
-            self.movementVector[axis] = self.camera.powLerp(self.lastMovement[axis], input_vec[axis], dt, maxSpeedTime)
+            self.movementVector[axis] = self.camera.powLerp(
+                self.lastMovement[axis], input_vec[axis], dt, maxSpeedTime
+            )
 
         self.player.setPos(self.player.getPos() + self.movementVector * self.playerSpeed * dt)
 
-        new_cam_pos = self.camera.calculateCameraPos(dt, self.movementVector, self.lastMovement, self.keyMap["ctrl"] or self.is_paused)
+        new_cam_pos = self.camera.calculateCameraPos(
+            dt, self.movementVector, self.lastMovement, self.keyMap["ctrl"] or self.is_paused
+        )
         self.camera.setPos(new_cam_pos)
 
         if not (self.is_paused or self.keyMap['ctrl']):
@@ -154,7 +230,7 @@ class Player(DirectObject):
     def updateCursor(self):
         if getattr(self.base, 'win', None) is None:
             return
-        if self.base.mouseWatcherNode.hasMouse():
+        if self.base.mouseWatcherNode.hasMouse() and (not self.build_manager.mode_actif or self.is_paused):
             self.cursor.show()
             x = self.base.mouseWatcherNode.getMouseX()
             y = self.base.mouseWatcherNode.getMouseY()

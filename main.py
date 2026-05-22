@@ -1,7 +1,10 @@
+from tkinter import N
+
 from direct.showbase.ShowBase import ShowBase
-from panda3d.core import WindowProperties, load_prc_file_data, DirectionalLight, CardMaker, PNMImage, Texture, AntialiasAttrib
+from panda3d.core import WindowProperties, load_prc_file_data, DirectionalLight, CardMaker, PNMImage, Texture, AntialiasAttrib, AmbientLight, Spotlight, PerspectiveLens
 import random
 from direct.gui.DirectGui import DirectFrame, DirectButton
+import simplepbr
 
 from vialibre.player import Player
 from vialibre.multiplayer import MultiplayerManager
@@ -22,7 +25,8 @@ load_prc_file_data(
     'client-sleep 0.001\n'
     'framebuffer-multisample 1\n'
     'multisamples 2\n'
-    'load-file-type p3assimp'
+    'load-file-type p3assimp\n'
+    'load-file-type p3dopenstdl'
 )
 
 
@@ -34,38 +38,189 @@ class EnvironmentManager:
         self.setup_lights()
 
     def generate_ground(self):
-        size = 256
-        img = PNMImage(size, size)
+        # size = 256
+        # img = PNMImage(size, size)
 
-        for x in range(size):
-            for y in range(size):
-                r = min(max(0.25 + random.uniform(-0.05, 0.05), 0), 1)
-                g = min(max(0.70 + random.uniform(-0.1, 0.1), 0), 1)
-                b = min(max(0.25 + random.uniform(-0.05, 0.05), 0), 1)
-                img.setXel(x, y, r, g, b)
+        # for x in range(size):
+        #     for y in range(size):
+        #         r = min(max(0.25 + random.uniform(-0.05, 0.05), 0), 1)
+        #         g = min(max(0.70 + random.uniform(-0.1, 0.1), 0), 1)
+        #         b = min(max(0.25 + random.uniform(-0.05, 0.05), 0), 1)
+        #         img.setXel(x, y, r, g, b)
 
-        texture = Texture("groundTexture")
-        texture.load(img)
-        texture.setWrapU(Texture.WM_repeat)
-        texture.setWrapV(Texture.WM_repeat)
+        # texture = Texture("groundTexture")
+        # texture.load(img)
+        # texture.setWrapU(Texture.WM_repeat)
+        # texture.setWrapV(Texture.WM_repeat)
 
-        cm = CardMaker("ground")
-        cm.setFrame(-50, 50, -50, 50)
-        cm.setUvRange((0, 0), (10, 10))
+        # cm = CardMaker("ground")
+        # cm.setFrame(-50, 50, -50, 50)
+        # cm.setUvRange((0, 0), (10, 10))
 
-        ground = self.render.attachNewNode(cm.generate())
-        ground.setP(-90)
-        ground.setTexture(texture)
+        # ground = self.render.attachNewNode(cm.generate())
+        # ground.setP(-90)
+        # ground.setTexture(texture)
+        jungle = loader.loadModel('assets/Jungle3.bam')
+        jungle.setPos(0, 0, 0)
+        jungle.setH(-90)
+        jungle.reparentTo(self.render)
+
+    def add_spotlight(self, name, color, pos, target, fov=45, near=1, far=50):
+        spot = Spotlight(name)
+        spot.setColor(color)
+
+        lens = PerspectiveLens()
+        lens.setFov(fov)
+        lens.setNearFar(near, far)
+        spot.setLens(lens)
+
+        spotNP = render.attachNewNode(spot)
+        spotNP.setPos(*pos)
+        spotNP.lookAt(*target)
+
+        render.setLight(spotNP)
+        return spotNP
 
     def setup_lights(self):
-        dlight = DirectionalLight('dlight')
-        dlight.setColor((0.8, 0.8, 0.5, 1))
+        ambientLight = AmbientLight('ambientLight')
+        ambientLight.setColor((0.40, 0.40, 0.32, 1))
+        ambientLightNP = render.attachNewNode(ambientLight)
+        render.setLight(ambientLightNP)
 
-        dlnp = self.render.attachNewNode(dlight)
-        dlnp.setHpr(0, -60, 0)
+        self.spot1 = self.add_spotlight(
+            name="feu de camp",
+            color=(1.0, 0.2, 0.1, 1),
+            pos=(0, -7, 2),
+            target=(0, -9, 0),
+            fov=140
+        )
 
-        self.render.setLight(dlnp)
+        
+        self.mid_haut = self.add_spotlight(
+            name="mid haut",
+            color=(0, 0.2, 1, 1),
+            pos=(0, 15, 10),
+            target=(0, 15, 0),
+            fov=140
+        )
+        # #DOORS
+        # self.door1 = self.add_spotlight(
+        #     name="door1",
+        #     color=(1, 0, 0, 1),
+        #     pos=(-38, -9, 3),
+        #     target=(-38, -9, 0),
+        #     fov=90
+        # )
+        # self.door2= self.add_spotlight(
+        #     name="door2",
+        #     color=(1, 0, 0, 1),
+        #     pos=(38, -9, 3),
+        #     target=(38, -9, 0),
+        #     fov=90
+        # )
 
+        # self.door3 = self.add_spotlight(
+        #     name="door3",
+        #     color=(1, 0, 0, 1),
+        #     pos=(-22.8, 17, 3),
+        #     target=(-22.8, 17, 0),
+        #     fov=90
+        # )
+        # self.door4= self.add_spotlight(
+        #     name="door4",
+        #     color=(1, 0, 0, 1),
+        #     pos=(21.2, 17, 3),
+        #     target=(21.2, 17, 0),
+        #     fov=90
+        # )
+
+        # self.door5 = self.add_spotlight(
+        #     name="door5",
+        #     color=(1, 0, 0, 1),
+        #     pos=(6, 23.8, 3),
+        #     target=(6, 23.8, 0),
+        #     fov=90
+        # )
+
+        
+
+
+
+        self.spot_minerai_left = self.add_spotlight(
+            name="spot_minerai_left",
+            color=(0, 0, 0.9, 1), #color=(0.7, 0.6, 0.9, 1),
+            pos=(-30, 6, 3),
+            target=(-35, 8, 0),
+            fov=70
+        )
+        self.spot_minerai_right = self.add_spotlight(
+            name="spot_minerai_right",
+            color=(0, 0, 0.9, 1), #color=(0.7, 0.6, 0.9, 1),
+            pos=(30, 7, 3),
+            target=(35, 10, 0),
+            fov=70
+        )
+
+
+        self.spot_caillou_right = self.add_spotlight(
+            name="spot_caillou_right",
+            color=(0, 0, 0.9, 1), #color=(0.7, 0.6, 0.9, 1),
+            pos=(22, 9, 6),
+            target=(22, 9, 0),
+            fov=140
+        )
+
+        self.spot_caillou_left = self.add_spotlight(
+            name="spot_caillou_left",
+            color=(0, 0, 0.9, 1), #color=(0.7, 0.6, 0.9, 1),
+            pos=(-22, 9, 6),
+            target=(-22, 9, 0),
+            fov=140
+        )
+
+
+
+        self.spot_caillou_bas_left = self.add_spotlight(
+            name="spot_caillou_bas_left",
+            color=(0, 0.3, 0.9, 1), #color=(0.7, 0.6, 0.9, 1),
+            pos=(-30, -9, 6),
+            target=(-30, -9, 0),
+            fov=140
+        )
+        self.spot_caillou_bas_right = self.add_spotlight(
+            name="spot_caillou_right",
+            color=(0, 0.3, 0.9, 1), #color=(0.7, 0.6, 0.9, 1),
+            pos=(30, -9, 6),
+            target=(30, -9, 0),
+            fov=140
+        )
+
+        self.spot_caillou_bas_right = self.add_spotlight(
+            name="spot_caillou_right",
+            color=(0, 0.3, 0.9, 1), #color=(0.7, 0.6, 0.9, 1),
+            pos=(30, -9, 6),
+            target=(30, -9, 0),
+            fov=140
+        )
+
+
+        self.spot_mid = self.add_spotlight(
+            name="spot_mid",
+            color=(0.9, 0.95, 0.80, 1),
+            pos=(0, -9, 14),
+            target=(0, -9, 0),
+            fov=70
+        )
+
+        self.spot_mid_bas = self.add_spotlight(
+            name="spot_mid_bas",
+            color=(0, 0.3, 0.80, 1),
+            pos=(0, -33, 6),
+            target=(0, -33, 0),
+            fov=100
+        )
+
+        
 
 class GameMenu:
     """SRP: Gère l'affichage du menu système (Pause/Quitter)."""
@@ -102,6 +257,7 @@ class GameMenu:
 class MainGame(ShowBase):
     def __init__(self):
         super().__init__(True)
+        simplepbr.init()
 
         self.render.setAntialias(AntialiasAttrib.MMultisample)
         self.disable_mouse()

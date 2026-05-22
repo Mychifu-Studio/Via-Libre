@@ -9,21 +9,15 @@ setup(
             },
 
             'include_patterns': [
-                './assets/dog.bam',
-                './assets/crosshair.png',
-                './assets/cursor_resized.png',
-                './assets/Turrets/*'
+                'assets/*/*',
+                'assets/*'
             ],
 
             # Force l'inclusion des modules locaux du projet
             'include_modules': {
                 '*': [
-                    'vialibre.player',
-                    'vialibre.multiplayer',
-                    'vialibre.camera',
-                    'vialibre.mouseHandler',
-                    'vialibre.construction',
-                    'vialibre.interaction',
+                    'vialibre/*/*',
+                    'vialibre/*',
                     'websocket',
                 ]
             },
