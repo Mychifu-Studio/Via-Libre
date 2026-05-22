@@ -1,4 +1,3 @@
-from tkinter import N
 
 from direct.showbase.ShowBase import ShowBase
 from panda3d.core import WindowProperties, load_prc_file_data, DirectionalLight, CardMaker, PNMImage, Texture, AntialiasAttrib, AmbientLight, Spotlight, PerspectiveLens
