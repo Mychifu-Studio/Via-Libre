@@ -155,7 +155,7 @@ class Player(DirectObject):
     def handleLeftClick(self):
         cible = self.interaction_manager.structure_cible
         if cible:
-            cible.detruire()
+            self.build_manager.request_destroy_structure(cible)
             return
         if self.build_manager.mode_actif:
             pass
@@ -189,7 +189,7 @@ class Player(DirectObject):
         if self.keyMap['left']:     input_vec -= right
 
         is_moving = input_vec.lengthSquared() > 0
-        
+
         if is_moving:
             input_vec.normalize()
             self.play_anim('run')
