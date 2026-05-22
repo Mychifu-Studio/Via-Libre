@@ -427,6 +427,14 @@ class UpgradeSystem:
             net_iface.net.send_msg("upgrade_request", {"key": key})
             self.popup_ui.show_popup("Achat demande...")
             return
+        if net_iface is not None and getattr(net_iface, "net", None) is not None and net_iface.net.is_host:
+            result = net_iface.apply_team_upgrade(key, result_player_id=net_iface.net.player_name)
+            if result.get("success"):
+                self.popup_ui.show_popup(result.get("message", "Amelioration appliquee a l'equipe."))
+            else:
+                self.popup_ui.show_popup(result.get("message", "Amelioration refusee."))
+            self.update_ui()
+            return
 
         self.game.inventory["ressource"] = resources - cost
         self.levels[key] += 1

@@ -15,8 +15,15 @@ SIGNALING_PORT = 8080
 PUNCH_ATTEMPTS = 10
 PUNCH_INTERVAL = 0.2
 FALLBACK_TIMEOUT = 3.0
-SNAPSHOT_TICK = 20
+SNAPSHOT_TICK = 30
 SNAPSHOT_PERIOD = 1.0 / SNAPSHOT_TICK
+INPUT_TICK = 30
+INPUT_PERIOD = 1.0 / INPUT_TICK
+INPUT_KEEPALIVE_PERIOD = 0.15
+
+
+def _q(value: float, digits: int = 2) -> float:
+    return round(float(value), digits)
 
 
 def get_local_ip() -> str:
@@ -66,14 +73,14 @@ class PlayerState:
         return {
             "id": self.id,
             "username": self.username,
-            "x": self.x,
-            "y": self.y,
-            "z": self.z,
-            "h": self.h,
+            "x": _q(self.x),
+            "y": _q(self.y),
+            "z": _q(self.z),
+            "h": _q(self.h, 1),
             "hp": self.hp,
             "max_hp": self.max_hp,
             "damage": self.damage,
-            "harvest_time_multiplier": self.harvest_time_multiplier,
+            "harvest_time_multiplier": _q(self.harvest_time_multiplier, 3),
             "upgrade_levels": self.upgrade_levels,
         }
 
@@ -103,7 +110,7 @@ class EnemyState:
         self.hp = hp
 
     def to_dict(self) -> Dict[str, Any]:
-        return {"id": self.id, "x": self.x, "y": self.y, "z": self.z, "h": self.h, "hp": self.hp}
+        return {"id": self.id, "x": _q(self.x), "y": _q(self.y), "z": _q(self.z), "h": _q(self.h, 1), "hp": self.hp}
 
     @staticmethod
     def from_dict(data: Dict[str, Any]) -> "EnemyState":
@@ -118,6 +125,10 @@ class GameState:
         pipe_hp: int = 20,
         pipe_max_hp: int = 20,
         is_game_over: bool = False,
+        team_max_hp: int = 10,
+        team_damage: int = 1,
+        team_harvest_time_multiplier: float = 1.0,
+        team_upgrade_levels: Optional[Dict[str, int]] = None,
     ):
         self.wave_index = wave_index
         self.is_finished = is_finished
@@ -125,6 +136,10 @@ class GameState:
         self.pipe_hp = pipe_hp
         self.pipe_max_hp = pipe_max_hp
         self.is_game_over = is_game_over
+        self.team_max_hp = team_max_hp
+        self.team_damage = team_damage
+        self.team_harvest_time_multiplier = team_harvest_time_multiplier
+        self.team_upgrade_levels = team_upgrade_levels or {}
 
     def to_dict(self) -> Dict[str, Any]:
         return {
@@ -134,6 +149,10 @@ class GameState:
             "pipe_hp": self.pipe_hp,
             "pipe_max_hp": self.pipe_max_hp,
             "is_game_over": self.is_game_over,
+            "team_max_hp": self.team_max_hp,
+            "team_damage": self.team_damage,
+            "team_harvest_time_multiplier": _q(self.team_harvest_time_multiplier, 3),
+            "team_upgrade_levels": self.team_upgrade_levels,
         }
 
     @staticmethod
@@ -145,6 +164,10 @@ class GameState:
             data.get("pipe_hp", 20),
             data.get("pipe_max_hp", 20),
             data.get("is_game_over", False),
+            data.get("team_max_hp", 10),
+            data.get("team_damage", 1),
+            data.get("team_harvest_time_multiplier", 1.0),
+            data.get("team_upgrade_levels", {}),
         )
 
 class StructureState:
@@ -158,7 +181,7 @@ class StructureState:
         self.r = r
 
     def to_dict(self) -> Dict[str, Any]:
-        return {"id": self.id, "x": self.x, "y": self.y, "z": self.z, "h": self.h, "p": self.p, "r": self.r}
+        return {"id": self.id, "x": _q(self.x), "y": _q(self.y), "z": _q(self.z), "h": _q(self.h, 1), "p": _q(self.p, 1), "r": _q(self.r, 1)}
 
     @staticmethod
     def from_dict(data: Dict[str, Any]) -> "StructureState":
@@ -212,6 +235,7 @@ class NetworkProtocol:
         self.local_ip = get_local_ip()
         self.seq = 0
         self.last_processed_seq_client = -1
+        self.last_processed_seq_by_client: Dict[str, int] = {}
         self.connected = False
         self.last_heartbeat = 0.0
 
@@ -233,7 +257,7 @@ class NetworkProtocol:
 
     def _send_raw(self, msg: Dict[str, Any], address: tuple) -> None:
         try:
-            self.socket.sendto(json.dumps(msg).encode("utf-8"), address)
+            self.socket.sendto(json.dumps(msg, separators=(",", ":")).encode("utf-8"), address)
         except (BlockingIOError, OSError):
             pass
 
@@ -380,6 +404,9 @@ class NetworkProtocol:
                 seq = payload.get('seq', -1)
                 if seq != -1:
                     with self._lock:
+                        previous_seq = self.last_processed_seq_by_client.get(sender_id, -1)
+                        if seq > previous_seq:
+                            self.last_processed_seq_by_client[sender_id] = seq
                         if seq > self.last_processed_seq_client:
                             self.last_processed_seq_client = seq
                 payload = {k: v for k, v in payload.items() if k != 'seq'}
@@ -453,9 +480,11 @@ class GameNetworkInterface:
         self.other_players = {}
         self.tick = 0
         self.last_snapshot_time = 0.0
+        self.last_full_snapshot_time = 0.0
+        self.full_snapshot_period = 1.0
         self.predicted_pos = self.local_player.player.getPos(self.base.render)
         self.predicted_h = self.local_player.modelNode.getH(self.base.render)
-        self.last_sent_pos = self.predicted_pos
+        self.last_sent_pos = Point3(self.predicted_pos)
         self.last_sent_h = self.predicted_h
         self.send_threshold_pos = 0.05
         self.send_threshold_h = 1.0
@@ -463,6 +492,7 @@ class GameNetworkInterface:
         self.correct_threshold_h = 30.0
         self.next_input_seq = 0
         self.last_processed_seq = -1
+        self.last_input_send_time = 0.0
         self.input_history = []
         if self.net is not None:
             self.net.start()
@@ -497,6 +527,34 @@ class GameNetworkInterface:
         if upgrade_system is None:
             return self._empty_upgrade_levels()
         return self._normalise_upgrade_levels(getattr(upgrade_system, "levels", {}))
+
+    def _team_stats_payload(self) -> Dict[str, Any]:
+        return {
+            "max_hp": int(getattr(self.local_player, "MAX_HP", 10)),
+            "damage": int(getattr(self.local_player, "damage", 1)),
+            "harvest_time_multiplier": float(getattr(self.local_player, "harvest_time_multiplier", 1.0)),
+            "upgrade_levels": self._local_upgrade_levels(),
+        }
+
+    def _set_remote_player_stats(self, model, stats: Dict[str, Any], hp: Optional[int] = None) -> None:
+        max_hp = max(1, int(stats.get("max_hp", self._get_python_tag(model, "max_hp", 10))))
+        model.setPythonTag("max_hp", max_hp)
+        model.setPythonTag("damage", max(1, int(stats.get("damage", self._get_python_tag(model, "damage", 1)))))
+        model.setPythonTag(
+            "harvest_time_multiplier",
+            max(
+                self.local_player.MIN_HARVEST_TIME_MULTIPLIER,
+                float(stats.get("harvest_time_multiplier", self._get_python_tag(model, "harvest_time_multiplier", 1.0))),
+            ),
+        )
+        model.setPythonTag("upgrade_levels", self._normalise_upgrade_levels(stats.get("upgrade_levels")))
+
+        current_hp = int(self._get_python_tag(model, "hp", max_hp))
+        model.setPythonTag("hp", max(0, min(max_hp, current_hp if hp is None else int(hp))))
+
+    def _sync_new_remote_player_to_team(self, model) -> None:
+        stats = self._team_stats_payload()
+        self._set_remote_player_stats(model, stats, hp=stats["max_hp"])
 
     def _remote_player_payload(self, name: str, model) -> Dict[str, Any]:
         levels = self._normalise_upgrade_levels(
@@ -565,7 +623,8 @@ class GameNetworkInterface:
     def _apply_authoritative_correction(self, payload: dict):
         server_pos = None
         server_h = None
-        last_seq = payload.get('last_processed_seq', -1)
+        seq_by_player = payload.get('last_processed_seq_by_player', {})
+        last_seq = seq_by_player.get(self.net.player_name, payload.get('last_processed_seq', -1))
         for p_data in payload.get('players', []):
             if p_data.get('id') == self.net.player_name:
                 server_pos = Point3(p_data['x'], p_data['y'], p_data['z'])
@@ -585,6 +644,7 @@ class GameNetworkInterface:
             correction = diff * strength
             self.local_player.player.setPos(self.base.render, current_local + correction)
             self.local_player.modelNode.setH(self.base.render, current_h + dh * strength)
+        self.input_history = [(seq, inp) for seq, inp in self.input_history if seq > last_seq]
         for seq, inp in self.input_history:
             if seq <= last_seq:
                 continue
@@ -597,19 +657,24 @@ class GameNetworkInterface:
     def _send_input(self):
         if self.net is None or not self.net.connected:
             return
+        now = time.time()
         pos = self.local_player.player.getPos(self.base.render)
         h = self.local_player.modelNode.getH(self.base.render)
         need_send = self._pos_changed_significantly(pos, self.last_sent_pos)
         need_send |= self._h_changed_significantly(h, self.last_sent_h)
-        if not need_send:
+        if not need_send and now - self.last_input_send_time < INPUT_KEEPALIVE_PERIOD:
+            return
+        if now - self.last_input_send_time < INPUT_PERIOD:
             return
         seq = self._next_input_seq()
-        raw_input = {'x': pos.x, 'y': pos.y, 'z': pos.z, 'h': h}
+        raw_input = {'x': _q(pos.x), 'y': _q(pos.y), 'z': _q(pos.z), 'h': _q(h, 1)}
         self.input_history.append((seq, raw_input.copy()))
-        self.input_history = sorted(self.input_history, key=lambda x: x[0])
+        if len(self.input_history) > INPUT_TICK * 2:
+            self.input_history = self.input_history[-INPUT_TICK * 2:]
         self.net.send_msg('input', {'seq': seq, **raw_input})
-        self.last_sent_pos = pos
+        self.last_sent_pos = Point3(pos)
         self.last_sent_h = h
+        self.last_input_send_time = now
 
     def _broadcast_snapshot(self, force: bool = False):
         if self.net is None:
@@ -618,13 +683,17 @@ class GameNetworkInterface:
         if not force and now - self.last_snapshot_time < SNAPSHOT_PERIOD:
             return
         if self.net.is_host:
-            snap = self._build_snapshot()
+            include_static = force or now - self.last_full_snapshot_time >= self.full_snapshot_period
+            snap = self._build_snapshot(include_static=include_static)
             snap['last_processed_seq'] = self.net.last_processed_seq_client
+            snap['last_processed_seq_by_player'] = dict(getattr(self.net, "last_processed_seq_by_client", {}))
             self.net.broadcast_msg('snapshot', snap)
             self.last_snapshot_time = now
+            if include_static:
+                self.last_full_snapshot_time = now
         self.tick += 1
 
-    def _build_snapshot(self) -> Dict[str, Any]:
+    def _build_snapshot(self, include_static: bool = True) -> Dict[str, Any]:
         players = [
             PlayerState(
                 self.net.player_name,
@@ -675,28 +744,36 @@ class GameNetworkInterface:
                 pipe_hp=getattr(pipe_base, "hp", 20),
                 pipe_max_hp=getattr(pipe_base, "MAX_HP", 20),
                 is_game_over=getattr(self.base, "is_game_over", False),
+                team_max_hp=self.local_player.MAX_HP,
+                team_damage=self.local_player.damage,
+                team_harvest_time_multiplier=self.local_player.harvest_time_multiplier,
+                team_upgrade_levels=self._local_upgrade_levels(),
             )
 
         structures = []
-        if hasattr(self.local_player, 'build_manager'):
+        if include_static and hasattr(self.local_player, 'build_manager'):
             for struct in self.local_player.build_manager.structures:
                 if hasattr(struct, 'id'):
                     pos = struct.np.getPos(self.base.render)
                     hpr = struct.np.getHpr(self.base.render)
                     structures.append(StructureState(struct.id, pos.x, pos.y, pos.z, hpr.x, hpr.y, hpr.z))
 
-        return Snapshot(tick=self.tick, players=players, enemies=enemies, game_state=game_state, structures=structures).to_dict()
+        snapshot = Snapshot(tick=self.tick, players=players, enemies=enemies, game_state=game_state, structures=structures).to_dict()
+        if not include_static:
+            snapshot.pop("structures", None)
+            for player_data in snapshot.get("players", []):
+                player_data.pop("max_hp", None)
+                player_data.pop("damage", None)
+                player_data.pop("harvest_time_multiplier", None)
+                player_data.pop("upgrade_levels", None)
+        return snapshot
 
     def _spawn_player(self, name: str):
         if self.net is not None and (name in self.other_players or name == self.net.player_name):
             return
         model = self.base.loader.loadModel('./assets/dog.bam')
         model.reparentTo(self.base.render)
-        model.setPythonTag("hp", 10)
-        model.setPythonTag("max_hp", 10)
-        model.setPythonTag("damage", 1)
-        model.setPythonTag("harvest_time_multiplier", 1.0)
-        model.setPythonTag("upgrade_levels", self._empty_upgrade_levels())
+        self._sync_new_remote_player_to_team(model)
         self.other_players[name] = model
         print(f"SYSTEM : {name} a rejoint la partie.")
 
@@ -704,6 +781,8 @@ class GameNetworkInterface:
         if name in self.other_players:
             self.other_players[name].removeNode()
             del self.other_players[name]
+            if self.net is not None and hasattr(self.net, "last_processed_seq_by_client"):
+                self.net.last_processed_seq_by_client.pop(name, None)
             print(f"SYSTEM : {name} a quitté la partie.")
 
     def _apply_input(self, sender_id: str, payload: dict):
@@ -716,6 +795,18 @@ class GameNetworkInterface:
     def _apply_game_state_snapshot(self, g_data: dict):
         if "team_resources" in g_data:
             self._set_team_resources(g_data.get("team_resources", 0))
+
+        team_stats = {}
+        if "team_max_hp" in g_data:
+            team_stats["max_hp"] = g_data.get("team_max_hp")
+        if "team_damage" in g_data:
+            team_stats["damage"] = g_data.get("team_damage")
+        if "team_harvest_time_multiplier" in g_data:
+            team_stats["harvest_time_multiplier"] = g_data.get("team_harvest_time_multiplier")
+        if "team_upgrade_levels" in g_data:
+            team_stats["upgrade_levels"] = g_data.get("team_upgrade_levels")
+        if team_stats:
+            self._apply_local_player_stats(team_stats)
 
         pipe_base = getattr(self.base, "pipe_base", None)
         if pipe_base is not None:
@@ -782,8 +873,8 @@ class GameNetworkInterface:
             if hasattr(self.base, 'enemies'):
                 self.base.enemies.sync_from_snapshot(e_data)
 
-            s_data = payload.get('structures', [])
-            if hasattr(self.local_player, 'build_manager'):
+            s_data = payload.get('structures')
+            if s_data is not None and hasattr(self.local_player, 'build_manager'):
                 self.local_player.build_manager.sync_from_snapshot(s_data)
 
     def _authoritative_damage_for(self, sender_id: str, fallback: int = 1) -> int:
@@ -871,6 +962,91 @@ class GameNetworkInterface:
         data = upgrade_system.UPGRADE_DEFS[key]
         return data["base_cost"] + levels.get(key, 0) * data["cost_step"]
 
+    def _player_stats_for_result(self, player_id: Optional[str] = None) -> Dict[str, Any]:
+        stats = self._team_stats_payload()
+        if self.net is not None and player_id and player_id != self.net.player_name and player_id in self.other_players:
+            stats.update(self._remote_player_payload(player_id, self.other_players[player_id]))
+        else:
+            stats.update({"hp": self.local_player.hp})
+        return stats
+
+    def _apply_team_upgrade_to_remote_player(self, model, key: str, levels: Dict[str, int]) -> None:
+        current_hp = int(self._get_python_tag(model, "hp", 10))
+        max_hp = int(self._get_python_tag(model, "max_hp", 10))
+        damage = int(self._get_python_tag(model, "damage", 1))
+        harvest_time_multiplier = float(self._get_python_tag(model, "harvest_time_multiplier", 1.0))
+
+        if key == "health":
+            max_hp += 2
+            current_hp = min(max_hp, current_hp + 2)
+        elif key == "damage":
+            damage += 1
+        elif key == "harvest":
+            harvest_time_multiplier = max(self.local_player.MIN_HARVEST_TIME_MULTIPLIER, harvest_time_multiplier - 0.15)
+
+        self._set_remote_player_stats(
+            model,
+            {
+                "max_hp": max_hp,
+                "damage": damage,
+                "harvest_time_multiplier": harvest_time_multiplier,
+                "upgrade_levels": levels,
+            },
+            hp=current_hp,
+        )
+
+    def apply_team_upgrade(self, key: str, result_player_id: Optional[str] = None) -> Dict[str, Any]:
+        upgrade_system = getattr(self.base, "upgrade_system", None)
+        if upgrade_system is None or key not in upgrade_system.UPGRADE_DEFS:
+            return {
+                "success": False,
+                "message": "Amelioration impossible.",
+                "team_resources": self.base.inventory.get("ressource", 0),
+            }
+
+        levels = self._local_upgrade_levels()
+        data = upgrade_system.UPGRADE_DEFS[key]
+        if levels[key] >= data["max_level"]:
+            return {
+                "success": False,
+                "message": "Cette amelioration est deja au niveau max.",
+                "team_resources": self.base.inventory.get("ressource", 0),
+                **self._player_stats_for_result(result_player_id),
+            }
+
+        cost = self._upgrade_cost_for(key, levels)
+        resources = self.base.inventory.get("ressource", 0)
+        if cost is None or resources < cost:
+            missing = 0 if cost is None else cost - resources
+            return {
+                "success": False,
+                "message": f"Ressources insuffisantes : il en manque {missing}.",
+                "team_resources": resources,
+                **self._player_stats_for_result(result_player_id),
+            }
+
+        self.base.inventory["ressource"] = resources - cost
+        upgrade_system.levels[key] += 1
+        levels = self._local_upgrade_levels()
+
+        upgrade_system._apply_upgrade(key)
+        for model in self.other_players.values():
+            self._apply_team_upgrade_to_remote_player(model, key, levels)
+
+        if hasattr(self.base, "inventory_ui"):
+            self.base.inventory_ui.update()
+        upgrade_system.update_ui()
+
+        result = {
+            "success": True,
+            "key": key,
+            "team_resources": self.base.inventory.get("ressource", 0),
+            "message": f"{data['title']} ameliore pour toute l'equipe au niveau {levels[key]} !",
+            **self._player_stats_for_result(result_player_id),
+        }
+        self._broadcast_snapshot(force=True)
+        return result
+
     def _handle_upgrade_request(self, sender_id: str, payload: dict, addr) -> None:
         key = payload.get("key")
         model = self.other_players.get(sender_id)
@@ -887,66 +1063,8 @@ class GameNetworkInterface:
             )
             return
 
-        levels = self._normalise_upgrade_levels(self._get_python_tag(model, "upgrade_levels", self._empty_upgrade_levels()))
-        data = upgrade_system.UPGRADE_DEFS[key]
-        if levels[key] >= data["max_level"]:
-            self._send_direct_result(
-                "upgrade_result",
-                {"success": False, "message": "Cette amelioration est deja au niveau max.", "team_resources": self.base.inventory.get("ressource", 0)},
-                addr,
-            )
-            return
-
-        cost = self._upgrade_cost_for(key, levels)
-        resources = self.base.inventory.get("ressource", 0)
-        if cost is None or resources < cost:
-            missing = 0 if cost is None else cost - resources
-            self._send_direct_result(
-                "upgrade_result",
-                {"success": False, "message": f"Ressources insuffisantes : il en manque {missing}.", "team_resources": resources},
-                addr,
-            )
-            return
-
-        self.base.inventory["ressource"] = resources - cost
-        levels[key] += 1
-        model.setPythonTag("upgrade_levels", levels)
-
-        hp = int(self._get_python_tag(model, "hp", 10))
-        max_hp = int(self._get_python_tag(model, "max_hp", 10))
-        damage = int(self._get_python_tag(model, "damage", 1))
-        harvest_time_multiplier = float(self._get_python_tag(model, "harvest_time_multiplier", 1.0))
-
-        if key == "health":
-            max_hp += 2
-            hp = min(max_hp, hp + 2)
-        elif key == "damage":
-            damage += 1
-        elif key == "harvest":
-            min_multiplier = getattr(self.local_player, "MIN_HARVEST_TIME_MULTIPLIER", 0.35)
-            harvest_time_multiplier = max(min_multiplier, harvest_time_multiplier - 0.15)
-
-        model.setPythonTag("hp", hp)
-        model.setPythonTag("max_hp", max_hp)
-        model.setPythonTag("damage", damage)
-        model.setPythonTag("harvest_time_multiplier", harvest_time_multiplier)
-
-        if hasattr(self.base, "inventory_ui"):
-            self.base.inventory_ui.update()
-
-        result = {
-            "success": True,
-            "key": key,
-            "team_resources": self.base.inventory.get("ressource", 0),
-            "hp": hp,
-            "max_hp": max_hp,
-            "damage": damage,
-            "harvest_time_multiplier": harvest_time_multiplier,
-            "upgrade_levels": levels,
-            "message": f"{data['title']} ameliore au niveau {levels[key]} !",
-        }
+        result = self.apply_team_upgrade(key, result_player_id=sender_id)
         self._send_direct_result("upgrade_result", result, addr)
-        self._broadcast_snapshot(force=True)
 
     def _apply_upgrade_result(self, payload: dict) -> None:
         if "team_resources" in payload:
