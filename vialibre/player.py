@@ -203,8 +203,10 @@ class Player(DirectObject):
         if is_moving:
             input_vec.normalize()
             self.play_anim('run')
+            self.base.sound.loopSFX(self.base.sound.walk, (0.5, 0.5), (97, 103))
         else:
             self.play_anim('idle')
+            self.base.sound.stopSFX(self.base.sound.walk)
 
         from math import atan2, degrees
 

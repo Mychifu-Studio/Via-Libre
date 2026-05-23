@@ -16,6 +16,7 @@ from vialibre.resource_system import ResourceSystem
 from vialibre.shooting import ShootingSystem
 from vialibre.upgrade_system import UpgradeSystem
 from vialibre.vague import VagueManager
+from vialibre.soundSystem import SoundEngine
 
 
 load_prc_file_data(
@@ -302,6 +303,7 @@ class MainGame(ShowBase):
         # self.player.tp_shop()
         self.shooting = ShootingSystem(game=self, player=self.player)
         self.network = GameNetworkInterface(self)
+        self.sound = SoundEngine(self)
 
         self.inventory = {"ressource": 0}
         self.inventory_ui = InventoryUI(self)

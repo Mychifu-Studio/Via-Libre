@@ -92,6 +92,7 @@ class ShootingSystem:
 
         bullet = Bullet(node, direction, speed, life, damage)
         self.bullets.append(bullet)
+        self.game.sound.play("gunshot", (97, 103))
         return bullet
 
     def spawn_network_bullet(self, origin, direction, speed=None, life=None, shot_id=None, damage=1):
