@@ -194,6 +194,7 @@ class Structure:
             Func(tracer_np.removeNode)
         )
         seq.start()
+        self.base.sound.play("turret")
 
     def update_task(self, task):
         dt = task.time - getattr(task, 'last_time', task.time)
