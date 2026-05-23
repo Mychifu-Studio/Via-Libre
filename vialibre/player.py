@@ -37,8 +37,6 @@ class Player(DirectObject):
         self.model.setH(180)
         self.model.setZ(0)
 
-        self.current_anim = 'idle'
-        self.model.loop('idle')
 
         # Gun séparé attaché à la main droite
         self.right_hand = None
@@ -74,6 +72,18 @@ class Player(DirectObject):
 
         self.shoulderNode = self.modelNode.attach_new_node('shoulder')
         self.shoulderNode.setZ(3)
+        
+        # Préchauffe les anims pour éviter les freeze
+        self.model.loop('run')
+        self.model.stop()
+        self.model.pose('idle', 0)
+
+        if self.hand_gun:
+            self.hand_gun.show()
+            self.hand_gun.hide()
+            
+        self.current_anim = 'idle'
+        self.model.loop('idle')
 
         self.heading = 0
 
