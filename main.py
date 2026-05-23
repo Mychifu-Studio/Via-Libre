@@ -486,6 +486,7 @@ class MainGame(ShowBase):
             self.network.broadcast_game_start()
 
         self.popup_ui.show_popup("La partie commence !", duration=2.5)
+        self.sound.loop("kawaii")
 
     def set_game_hud_visible(self, visible):
         self.inventory_ui.set_visible(visible)
