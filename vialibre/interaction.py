@@ -38,6 +38,13 @@ class InteractionManager:
         return None
 
     def update(self):
+        if not self.build_manager.mode_actif:
+            if self.structure_cible is not None:
+                self.structure_cible.ui.hide()
+                self.structure_cible.retirer_surlignage()
+            self.structure_cible = None
+            return
+
         for s in self.build_manager.structures:
             s.ui.hide()
             s.retirer_surlignage()

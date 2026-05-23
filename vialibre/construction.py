@@ -7,84 +7,69 @@ from direct.showbase.DirectObject import DirectObject
 
 from vialibre.radialMenu import RadialMenu
 
-def load_turret(base, np):
-    pivot = base.render.attachNewNode("turret_pivot")
+_TURRET_TEMPLATE = None
+_HOLOGRAM_TEMPLATE = None
+
+
+def _center_model(model, tweak=(0.0, 0.0, 0.0)):
+    min_bounds, max_bounds = model.getTightBounds()
+    center = (min_bounds + max_bounds) / 2.0
+    model.setPos(
+        -center[0] + tweak[0],
+        -center[1] + tweak[1],
+        -center[2] + tweak[2],
+    )
+
+
+def _get_turret_template(base):
+    global _TURRET_TEMPLATE
+    if _TURRET_TEMPLATE is not None:
+        return _TURRET_TEMPLATE
+
+    pivot = NodePath("turret_pivot_template")
 
     try:
         model = base.loader.loadModel("./assets/Turrets/Crossbow.obj")
-        model.reparentTo(pivot)
-
         texture = base.loader.loadTexture("./assets/Turrets/Crossbow.png")
         model.setTexture(texture, 1)
-
-        min_bounds, max_bounds = model.getTightBounds()
-        center = (min_bounds + max_bounds) / 2.0
-
-        tweak_x = 0.0
-        tweak_y = 1.0
-        tweak_z = 0.0
-
-        model.setPos(-center[0] + tweak_x, -center[1] + tweak_y, -center[2] + tweak_z)
+        model.reparentTo(pivot)
+        _center_model(model, tweak=(0.0, 1.0, 0.0))
         pivot.setHpr(0, 90, 0)
-
     except Exception as e:
         print(f"Erreur de chargement : {e}")
 
-    pivot.setPos(0, 0, 0)
-    pivot.reparentTo(np)
+    _TURRET_TEMPLATE = pivot
+    return _TURRET_TEMPLATE
 
-    return pivot
 
-def load_hologram(base, np):
-    pivot = base.render.attachNewNode("hologram_pivot")
+def _get_hologram_template(base):
+    global _HOLOGRAM_TEMPLATE
+    if _HOLOGRAM_TEMPLATE is not None:
+        return _HOLOGRAM_TEMPLATE
+
+    pivot = NodePath("hologram_pivot_template")
 
     try:
         model = base.loader.loadModel("./assets/arrow.bam")
         model.setScale(0.1)
         model.reparentTo(pivot)
-
-        min_bounds, max_bounds = model.getTightBounds()
-        center = (min_bounds + max_bounds) / 2.0
-
-        tweak_x = 0.0
-        tweak_y = -0.4
-        tweak_z = 0.0
-
-        model.setPos(-center[0] + tweak_x, -center[1] + tweak_y, -center[2] + tweak_z)
+        _center_model(model, tweak=(0.0, -0.4, 0.0))
         pivot.setHpr(0, -90, 0)
-
     except Exception as e:
         print(f"Erreur de chargement : {e}")
 
-    pivot.setPos(0, 0, 0)
-    pivot.reparentTo(np)
+    _HOLOGRAM_TEMPLATE = pivot
+    return _HOLOGRAM_TEMPLATE
 
+
+def load_turret(base, np):
+    pivot = _get_turret_template(base).copyTo(np)
+    pivot.setName("turret_pivot")
     return pivot
 
 def load_hologram(base, np):
-    pivot = base.render.attachNewNode("hologram_pivot")
-    
-    try:
-        model = base.loader.loadModel("./assets/arrow.bam")
-        model.setScale(0.1)
-        model.reparentTo(pivot)
-        
-        min_bounds, max_bounds = model.getTightBounds()
-        center = (min_bounds + max_bounds) / 2.0
-        
-        tweak_x = 0.0
-        tweak_y = -0.4
-        tweak_z = 0.0
-        
-        model.setPos(-center[0] + tweak_x, -center[1] + tweak_y, -center[2] + tweak_z)
-        pivot.setHpr(0, -90, 0)
-        
-    except Exception as e:
-        print(f"Erreur de chargement : {e}")
-
-    pivot.setPos(0, 0, 0) 
-    pivot.reparentTo(np)
-
+    pivot = _get_hologram_template(base).copyTo(np)
+    pivot.setName("hologram_pivot")
     return pivot
 
 from panda3d.core import BillboardEffect
@@ -145,6 +130,9 @@ class Structure:
 
         # Options possibles: "closest" (plus proche) ou "lowest_hp" (moins de PV)
         self.targeting_mode = "lowest_hp"
+        self.target_scan_interval = 0.12
+        self.target_scan_timer = 0.0
+        self.current_target = None
 
         self.offset_turret = Vec3(0, 0, 0.5)
         self.offset_enemies = Vec3(0, 0, 0)
@@ -197,6 +185,26 @@ class Structure:
         self.base.sound.play("turret")
         self.base.sound.play("turret_reload")
 
+    def _find_target(self, my_pos):
+        activation_radius_sq = self.activation_radius * self.activation_radius
+        valid_enemies = []
+
+        for enemy in self.enemy_manager.enemies:
+            if getattr(enemy, "is_dead", False):
+                continue
+            enemy_pos = enemy.node.getPos(self.base.render)
+            dist_sq = (enemy_pos - my_pos).lengthSquared()
+
+            if dist_sq <= activation_radius_sq:
+                valid_enemies.append((enemy, dist_sq, enemy.hp))
+
+        if not valid_enemies:
+            return None
+
+        if self.targeting_mode == "lowest_hp":
+            return min(valid_enemies, key=lambda x: (x[2], x[1]))[0]
+        return min(valid_enemies, key=lambda x: x[1])[0]
+
     def update_task(self, task):
         dt = task.time - getattr(task, 'last_time', task.time)
         task.last_time = task.time
@@ -205,23 +213,37 @@ class Structure:
             return task.cont
 
         if not self.enemy_manager or not self.enemy_manager.enemies:
+            self.current_target = None
             return task.cont
 
         my_pos = self.np.getPos(self.base.render)
         
         # 1. Récupérer tous les ennemis valides (dans le rayon d'activation)
-        valid_enemies = []
-        for enemy in self.enemy_manager.enemies:
-            enemy_pos = enemy.node.getPos(self.base.render)
-            dist = (enemy_pos - my_pos).length()
-            
-            if dist <= self.activation_radius:
-                # On stocke un tuple avec (l'ennemi, sa distance, ses PV)
-                valid_enemies.append((enemy, dist, enemy.hp))
+        activation_radius_sq = self.activation_radius * self.activation_radius
+        self.target_scan_timer -= dt
+        self.time_since_last_shot += dt
+
+        if (
+            self.target_scan_timer <= 0
+            or self.current_target is None
+            or getattr(self.current_target, "is_dead", False)
+        ):
+            self.current_target = self._find_target(my_pos)
+            self.target_scan_timer = self.target_scan_interval
+
+        target_enemy = self.current_target
 
         # S'il n'y a personne dans le rayon, on ne fait rien
-        if not valid_enemies:
+        if target_enemy is None:
             return task.cont
+
+        enemy_pos = target_enemy.node.getPos(self.base.render)
+        min_dist_sq = (enemy_pos - my_pos).lengthSquared()
+        if min_dist_sq > activation_radius_sq:
+            self.current_target = None
+            return task.cont
+
+        valid_enemies = [(target_enemy, min_dist_sq, target_enemy.hp)]
 
         # 2. Choisir la cible selon le mode
         if self.targeting_mode == "lowest_hp":
@@ -232,16 +254,15 @@ class Structure:
             best_target_data = min(valid_enemies, key=lambda x: x[1])
 
         target_enemy = best_target_data[0]
-        min_dist = best_target_data[1]
+        min_dist_sq = best_target_data[1]
 
         # 3. S'orienter et tirer sur la cible choisie
         enemy_pos = target_enemy.node.getPos(self.base.render)
         
-        if min_dist > 0.1:
+        if min_dist_sq > 0.01:
             self.np.lookAt(enemy_pos)
             self.np.setHpr(self.np.getH() + 180, 0, 0) 
 
-        self.time_since_last_shot += dt
         if self.time_since_last_shot >= self.fire_rate:
             self.time_since_last_shot = 0.0
 

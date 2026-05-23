@@ -1,4 +1,5 @@
 from panda3d.core import Point3, Vec3
+from collections import deque
 
 
 class Bullet:
@@ -41,8 +42,25 @@ class ShootingSystem:
         self.was_building_last_frame = False
         self._local_shot_seq = 0
         self._handled_remote_shots = set()
+        self._handled_remote_shot_order = deque(maxlen=512)
+        self._bullet_model = self.game.loader.loadModel("assets/bullet.bam")
+        self._bullet_model.setScale(self.BULLET_SCALE)
 
         self.game.accept("mouse1", self.shoot)
+
+    def _remember_remote_shot(self, shot_id):
+        if shot_id is None:
+            return True
+        if shot_id in self._handled_remote_shots:
+            return False
+
+        if len(self._handled_remote_shot_order) == self._handled_remote_shot_order.maxlen:
+            oldest = self._handled_remote_shot_order[0]
+            self._handled_remote_shots.discard(oldest)
+
+        self._handled_remote_shots.add(shot_id)
+        self._handled_remote_shot_order.append(shot_id)
+        return True
 
     def _get_mouse_world_pos(self):
         mw = getattr(self.game, "mouseWatcherNode", None)
@@ -72,19 +90,15 @@ class ShootingSystem:
         speed = speed if speed is not None else self.BULLET_SPEED
         life = life if life is not None else self.BULLET_LIFE
 
-        if shot_id is not None and shot_id in self._handled_remote_shots:
+        if not self._remember_remote_shot(shot_id):
             return None
-        if shot_id is not None:
-            self._handled_remote_shots.add(shot_id)
 
         direction = Vec3(direction.x, direction.y, direction.z)
         if direction.length() < 0.001:
             return None
         direction.normalize()
 
-        node = self.game.loader.loadModel("assets/bullet.bam")
-        node.setScale(self.BULLET_SCALE)
-        node.reparentTo(self.game.render)
+        node = self._bullet_model.copyTo(self.game.render)
         node.setPos(origin)
         node.lookAt(origin + direction)
         node.setH(node.getH())

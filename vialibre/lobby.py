@@ -19,6 +19,7 @@ class LobbyManager(DirectObject):
         self.is_active = True
         self.player_inside_start_zone = False
         self.last_status_text = None
+        self.last_world_label_text = None
 
         self.start_pos = self._find_start_position()
         self._create_ui()
@@ -181,7 +182,10 @@ class LobbyManager(DirectObject):
             status = f"Lobby - {level_text} - {players} joueur{plural} connecte{plural}"
             hint = "En attente du host."
 
-        self.world_label_node.setText(self._start_label_text())
+        world_label_text = self._start_label_text()
+        if world_label_text != self.last_world_label_text:
+            self.world_label_node.setText(world_label_text)
+            self.last_world_label_text = world_label_text
 
         next_text = (status, hint)
         if next_text == self.last_status_text:

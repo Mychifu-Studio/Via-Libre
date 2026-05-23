@@ -9,6 +9,8 @@ class PopupUI:
         self.game = game
         self.popup_timer = 0.0
         self.popup_task_name = "popup_auto_hide_task"
+        self._last_popup_message = None
+        self._last_progress_message = None
         self.create_popup_ui()
         self.create_progress_ui()
         self.game.taskMgr.add(self.update, self.popup_task_name)
@@ -65,22 +67,28 @@ class PopupUI:
         self.progress_text.hide()
 
     def show_popup(self, message, duration=2.0):
-        self.popup.setText(message)
+        if message != self._last_popup_message:
+            self.popup.setText(message)
+            self._last_popup_message = message
         self.popup_bg.show()
         self.popup.show()
         self.popup_timer = duration
 
     def hide_popup(self):
         self.popup_timer = 0.0
+        self._last_popup_message = None
         self.popup.hide()
         self.popup_bg.hide()
 
     def show_progress(self, message):
-        self.progress_text.setText(message)
+        if message != self._last_progress_message:
+            self.progress_text.setText(message)
+            self._last_progress_message = message
         self.progress_bg.show()
         self.progress_text.show()
 
     def hide_progress(self):
+        self._last_progress_message = None
         self.progress_text.hide()
         self.progress_bg.hide()
 

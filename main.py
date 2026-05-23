@@ -426,7 +426,7 @@ class MainGame(ShowBase):
     def __init__(self):
         super().__init__(True)
         self.setFullscren()
-        simplepbr.init()
+        simplepbr.init(max_lights=4, msaa_samples=2, enable_shadows=False)
 
         self.render.setAntialias(AntialiasAttrib.MMultisample)
         self.disable_mouse()
@@ -538,6 +538,7 @@ class MainGame(ShowBase):
 
         self.resource_system.generate_diamond_ore_zones()
         self.upgrade_system.generate_campfire_zones()
+        self.enemies.preload_assets()
 
         net_iface = getattr(self, "network", None)
         for model in getattr(net_iface, "other_players", {}).values():

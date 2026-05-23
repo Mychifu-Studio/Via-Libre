@@ -277,6 +277,10 @@ class VagueManager:
         self.final_screen.hide()
 
     def clear_enemies(self):
+        if hasattr(self.enemy_manager, "clear"):
+            self.enemy_manager.clear()
+            return
+
         for enemy in list(self.enemy_manager.enemies):
             enemy.destroy()
         self.enemy_manager.enemies.clear()

@@ -49,6 +49,7 @@ class UpgradeSystem:
         self.is_open = False
         self.buttons = {}
         self.rows = {}
+        self._last_ui_state = None
 
         self._ensure_collision_system()
         self._create_ui()
@@ -472,6 +473,17 @@ class UpgradeSystem:
 
     def update_ui(self):
         resources = self.game.inventory.get("ressource", 0)
+        state = (
+            resources,
+            tuple(self.levels[key] for key in self.UPGRADE_ORDER),
+            getattr(self.game.player, "MAX_HP", None),
+            getattr(self.game.player, "damage", None),
+            round(getattr(self.game.player, "harvest_time_multiplier", 1.0), 3),
+        )
+        if state == self._last_ui_state:
+            return
+        self._last_ui_state = state
+
         self.resource_label.setText(f"{resources} res.")
 
         for key in self.UPGRADE_ORDER:

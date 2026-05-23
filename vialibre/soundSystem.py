@@ -102,6 +102,9 @@ class SoundEngine():
             return
 
         key = "|".join(sorted(valid))
+        if not self.loops.get(key, False):
+            return
+
         self.loops[key] = False
 
         self.base.taskMgr.remove(f"loop_{key}")
