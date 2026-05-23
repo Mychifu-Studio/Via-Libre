@@ -15,7 +15,7 @@ class SoundEngine():
         # self.loop("pigstep")
         
         self.addSong("kawaii", "assets/music/digicoooore_loop.ogg")
-        self.loop("kawaii")
+        # self.loop("kawaii")
         
         self.addSFX("gunshot", "assets/SFX/gunshot.wav")
         self.addSFX("turret", "assets/SFX/turret_fire.wav")

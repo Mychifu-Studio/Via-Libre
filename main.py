@@ -506,6 +506,7 @@ class MainGame(ShowBase):
             f"Niveau {self.current_level}/{self.max_levels} commence !",
             duration=2.5,
         )
+        self.sound.loop("kawaii")
 
     def set_current_level(self, level_number):
         self.current_level = max(1, min(int(level_number), self.max_levels))
