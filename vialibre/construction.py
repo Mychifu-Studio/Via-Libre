@@ -488,6 +488,22 @@ class BuildManager(DirectObject):
         if structure in self.structures:
             self.structures.remove(structure)
 
+    def clear_structures(self):
+        if self.radial_menu.is_open:
+            self.fermer_menu_construction()
+
+        self.mode_actif = False
+        self.locked_build_pos = None
+        self.locked_build_hpr = None
+        self.camera.setZoomLock(False)
+        self.hologramme.hide()
+        self.ignore("mouse1")
+        self.ignore("mouse1-up")
+
+        for structure in list(self.structures):
+            structure.detruire()
+        self.structures.clear()
+
     def contraindre_distance(self, position_cible):
         pos_joueur = self.player_root.getPos(self.base.render)
         pos_joueur.setZ(0)

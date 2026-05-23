@@ -94,7 +94,7 @@ class LobbyManager(DirectObject):
         self.marker.setColor(0.1, 0.95, 0.45, 1)
 
         self.world_label_node = TextNode("lobby_start_label")
-        self.world_label_node.setText("Lancer la partie")
+        self.world_label_node.setText(self._start_label_text())
         self.world_label_node.setTextColor(1, 0.95, 0.65, 1)
         self.world_label_node.setAlign(TextNode.ACenter)
         self.world_label_node.setCardColor(0, 0, 0, 0.62)
@@ -120,6 +120,16 @@ class LobbyManager(DirectObject):
             return 1
         return 1 + len(getattr(net_iface, "other_players", {}))
 
+    def _level_text(self):
+        current_level = getattr(self.game, "current_level", 1)
+        max_levels = getattr(self.game, "max_levels", 5)
+        return f"Niveau {current_level}/{max_levels}"
+
+    def _start_label_text(self):
+        if getattr(self.game, "game_completed", False):
+            return "Jeu termine"
+        return f"Lancer {self._level_text().lower()}"
+
     def on_start_zone_enter(self, entry):
         if not self.is_active:
             return
@@ -141,6 +151,10 @@ class LobbyManager(DirectObject):
         if not self.is_active or getattr(self.game, "game_started", False):
             return
 
+        if getattr(self.game, "game_completed", False):
+            self.game.popup_ui.show_popup("Les 5 niveaux sont termines.")
+            return
+
         if not self._is_local_host():
             self.game.popup_ui.show_popup("Seul le host peut lancer la partie.")
             return
@@ -156,12 +170,18 @@ class LobbyManager(DirectObject):
 
         players = self._connected_player_count()
         plural = "s" if players > 1 else ""
-        if self._is_local_host():
-            status = f"Lobby - {players} joueur{plural} connecte{plural}"
+        level_text = self._level_text()
+        if getattr(self.game, "game_completed", False):
+            status = f"Lobby - Jeu termine - {players} joueur{plural} connecte{plural}"
+            hint = "Les 5 niveaux sont termines."
+        elif self._is_local_host():
+            status = f"Lobby - {level_text} - {players} joueur{plural} connecte{plural}"
             hint = "Va sur le point de depart et appuie sur E pour lancer."
         else:
-            status = f"Lobby - {players} joueur{plural} connecte{plural}"
+            status = f"Lobby - {level_text} - {players} joueur{plural} connecte{plural}"
             hint = "En attente du host."
+
+        self.world_label_node.setText(self._start_label_text())
 
         next_text = (status, hint)
         if next_text == self.last_status_text:

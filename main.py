@@ -316,7 +316,7 @@ class GameMenu:
             self.game.player.is_paused = True
         else:
             self.frame.hide()
-            if not self.game.is_game_over:
+            if not self.game.is_game_over and not getattr(self.game, "game_completed", False):
                 self.game.player.camera.mouse.centerMouse()
                 self.game.player.is_paused = False
 
@@ -430,6 +430,9 @@ class MainGame(ShowBase):
 
         self.game_started = False
         self.is_game_over = False
+        self.game_completed = False
+        self.max_levels = 5
+        self.current_level = 1
         self.pipe_base = PipeBase(self, self.map_collision)
         self.enemies = EnemyManager(self)
         self.player = Player(map_collision=self.map_collision)
@@ -471,21 +474,34 @@ class MainGame(ShowBase):
 
         self.taskMgr.add(self.update, "update")
 
-    def start_game(self, from_network=False):
-        if self.game_started:
+    def start_game(self, from_network=False, level_number=None):
+        if self.game_started or self.game_completed:
             return
 
+        if level_number is not None:
+            self.set_current_level(level_number)
+
+        self.is_game_over = False
         self.game_started = True
         if hasattr(self, "lobby"):
             self.lobby.finish()
 
         self.prepare_game_level()
         self.set_game_hud_visible(True)
+        self.vague_manager.set_level(self.current_level)
         self.vague_manager.start()
         if not from_network and hasattr(self, "network"):
             self.network.broadcast_game_start()
 
-        self.popup_ui.show_popup("La partie commence !", duration=2.5)
+        self.popup_ui.show_popup(
+            f"Niveau {self.current_level}/{self.max_levels} commence !",
+            duration=2.5,
+        )
+
+    def set_current_level(self, level_number):
+        self.current_level = max(1, min(int(level_number), self.max_levels))
+        if hasattr(self, "vague_manager"):
+            self.vague_manager.set_level(self.current_level)
 
     def set_game_hud_visible(self, visible):
         self.inventory_ui.set_visible(visible)
@@ -493,6 +509,7 @@ class MainGame(ShowBase):
         self.pipe_health_ui.set_visible(visible)
 
     def prepare_game_level(self):
+        self.clear_level_objects()
         self.environment.load_game_map()
         self.map_collision = MapCollisionManager(self.render, self.environment.jungle)
 
@@ -500,6 +517,8 @@ class MainGame(ShowBase):
         self.player.player.setPos(*GAME_SPAWN_POS)
         self.player.movementVector.set(0, 0, 0)
         self.player.lastMovement.set(0, 0, 0)
+        self.player.is_paused = False
+        self.player.camera.mouse.centerMouse()
 
         self.pipe_base = PipeBase(self, self.map_collision)
         self.pipe_health_ui.pipe_base = self.pipe_base
@@ -511,6 +530,86 @@ class MainGame(ShowBase):
         net_iface = getattr(self, "network", None)
         for model in getattr(net_iface, "other_players", {}).values():
             model.setPos(*GAME_SPAWN_POS)
+
+    def clear_level_objects(self):
+        self.enemies.clear()
+        if hasattr(self, "shooting"):
+            self.shooting.clear()
+        if hasattr(self, "resource_system"):
+            self.resource_system.clear_resource_zones()
+        if hasattr(self, "upgrade_system"):
+            self.upgrade_system.clear_campfire_zones()
+        build_manager = getattr(getattr(self, "player", None), "build_manager", None)
+        if build_manager is not None and hasattr(build_manager, "clear_structures"):
+            build_manager.clear_structures()
+
+    def _load_lobby_for_next_level(self, popup_text=None):
+        self.clear_level_objects()
+        self.game_started = False
+        self.set_game_hud_visible(False)
+        self.vague_manager.wave_panel.hide()
+        self.vague_manager.final_screen.hide()
+
+        old_lobby = getattr(self, "lobby", None)
+        if old_lobby is not None and getattr(old_lobby, "is_active", False):
+            old_lobby.finish()
+
+        self.environment.load_lobby_map()
+        self.map_collision = MapCollisionManager(self.render, self.environment.jungle)
+        self.player.map_collision = self.map_collision
+        self.lobby = LobbyManager(self)
+        self.player.player.setPos(self.lobby.start_pos)
+        self.player.movementVector.set(0, 0, 0)
+        self.player.lastMovement.set(0, 0, 0)
+        self.player.is_paused = False
+        self.player.camera.mouse.centerMouse()
+
+        net_iface = getattr(self, "network", None)
+        for model in getattr(net_iface, "other_players", {}).values():
+            model.setPos(self.lobby.start_pos)
+
+        if popup_text:
+            self.popup_ui.show_popup(popup_text, duration=3.0)
+
+    def complete_current_level(self):
+        if self.game_completed:
+            return
+
+        completed_level = self.current_level
+        if completed_level >= self.max_levels:
+            self.vague_manager.finish_game()
+            return
+
+        self.set_current_level(completed_level + 1)
+        self._load_lobby_for_next_level(
+            f"Niveau {completed_level}/{self.max_levels} termine ! "
+            f"Lance le niveau {self.current_level} depuis le lobby."
+        )
+
+        if getattr(self.network, "net", None) is not None and self.network.net.is_host:
+            self.network._broadcast_snapshot(force=True)
+
+    def return_to_lobby_from_network(self, level_number=None):
+        if self.game_completed:
+            return
+
+        if level_number is not None:
+            self.set_current_level(level_number)
+        self._load_lobby_for_next_level()
+
+    def mark_game_completed(self):
+        if self.game_completed:
+            return
+
+        self.game_completed = True
+        self.game_started = False
+        self.clear_level_objects()
+        self.set_game_hud_visible(False)
+        self.player.is_paused = True
+        self.player.camera.mouse.showCursor()
+
+        if getattr(self.network, "net", None) is not None and self.network.net.is_host:
+            self.network._broadcast_snapshot(force=True)
 
     def reward_enemy_hit(self):
         self.inventory["ressource"] = self.inventory.get("ressource", 0) + 1
@@ -566,7 +665,8 @@ class MainGame(ShowBase):
         self.pipe_health_ui.update()
 
         if not self.game_started:
-            self.lobby.update()
+            if hasattr(self, "lobby"):
+                self.lobby.update()
             return task.cont
 
         self.upgrade_system.update()
