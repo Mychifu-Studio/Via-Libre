@@ -63,7 +63,6 @@ ENEMY_TYPE_CHOICES = tuple(ENEMY_TYPE_CONFIGS.keys())
 def normalize_enemy_type(enemy_type):
     if enemy_type is None:
         return ENEMY_TYPE_CLASSIC
-
     key = str(enemy_type).strip().lower()
     return ENEMY_TYPE_ALIASES.get(key, ENEMY_TYPE_CLASSIC)
 
@@ -81,15 +80,12 @@ def get_enemy_asset_path(asset_name):
 def load_enemy_actor(asset_name):
     path = get_enemy_asset_path(asset_name)
     actor = Actor(path)
-
     try:
         if ENEMY_ANIMATION_NAME not in actor.getAnimNames():
             actor.loadAnims({ENEMY_ANIMATION_NAME: path})
         actor.loop(ENEMY_ANIMATION_NAME)
     except Exception:
-        # The model can still be used if the animation name is missing.
         pass
-
     return actor
 
 
@@ -264,7 +260,6 @@ class DogEnemy:
     def _move_with_collision(self, current_pos, desired_pos):
         if self.map_collision is None or not hasattr(self.map_collision, "move"):
             return desired_pos
-
         return self.map_collision.move(current_pos, desired_pos)
 
     def take_damage(self, amount=1):
@@ -326,7 +321,6 @@ class DogEnemy:
         if self.objective_callback is not None:
             self.objective_callback(self)
             return
-
         self.respawn()
 
     def _update_straight_line(self, current_pos, dt):
@@ -432,10 +426,13 @@ class DogEnemy:
 
 class WaypointEnemy:
     """Ennemi qui suit une liste de waypoints a vitesse fixe puis disparait."""
-    MAX_HP = BASE_ENEMY_HP
+    # Résolution conflit : on garde MAX_HP=25 (HEAD) comme demandé,
+    # tout en conservant le système de types et dégâts (main).
+    MAX_HP = 25
     BASE_DAMAGE = BASE_ENEMY_DAMAGE
     CONTACT_RADIUS = 1.5
     WAYPOINT_REACH_THRESHOLD = 0.3
+    HEALTH_BAR_WIDTH = 1.5
 
     def __init__(self, game, waypoints, speed=2.0, scale=19, on_finish=None, enemy_type=ENEMY_TYPE_CLASSIC, enemy_id=None, max_hp=None):
         self.game = game
@@ -449,12 +446,14 @@ class WaypointEnemy:
         self.speed = speed * speed_multiplier
         self.on_finish = on_finish
         self.is_dead = False
+        # max_hp explicite > config hp_multiplier > MAX_HP constant
         type_max_hp = self.MAX_HP * self.enemy_config["hp_multiplier"]
         self.max_hp = max(1, int(round(max_hp if max_hp is not None else type_max_hp)))
         self.hp = self.max_hp
         self.damage = max(1, int(round(self.BASE_DAMAGE * self.enemy_config["damage_multiplier"])))
         self.resource_reward = max(0, int(self.enemy_config["resource_reward"]))
         self._index = 0
+        self.health_bar_fill = None
 
         self.node = self._load_model()
         self.node.reparentTo(self.game.render)
@@ -464,17 +463,65 @@ class WaypointEnemy:
         if len(self.waypoints) > 1:
             self.node.lookAt(self.waypoints[1])
 
+        self._create_health_bar()
+
     def _load_model(self):
         return load_enemy_actor(self.asset_name)
+
+    def _create_health_bar(self):
+        self.health_bar_root = self.node.attachNewNode("enemy-health-bar")
+        self.health_bar_root.setZ(2.4)
+        self.health_bar_root.setScale(0.9)
+        self.health_bar_root.setLightOff()
+        self.health_bar_root.setDepthWrite(False)
+        self.health_bar_root.setDepthTest(False)
+        self.health_bar_root.setTransparency(TransparencyAttrib.MAlpha)
+        self.health_bar_root.setBillboardPointEye()
+
+        background_maker = CardMaker("enemy-health-background")
+        background_maker.setFrame(
+            -self.HEALTH_BAR_WIDTH / 2,
+            self.HEALTH_BAR_WIDTH / 2,
+            -0.07,
+            0.07,
+        )
+        background = self.health_bar_root.attachNewNode(background_maker.generate())
+        background.setColor(0.02, 0.02, 0.02, 0.8)
+        background.setTransparency(TransparencyAttrib.MAlpha)
+
+        fill_maker = CardMaker("enemy-health-fill")
+        fill_maker.setFrame(0, self.HEALTH_BAR_WIDTH - 0.08, -0.045, 0.045)
+        self.health_bar_fill = self.health_bar_root.attachNewNode(fill_maker.generate())
+        self.health_bar_fill.setX(-(self.HEALTH_BAR_WIDTH - 0.08) / 2)
+        self.health_bar_fill.setY(-0.01)
+        self.health_bar_fill.setTransparency(TransparencyAttrib.MAlpha)
+        self._update_health_bar()
+
+    def _update_health_bar(self):
+        if self.health_bar_fill is None:
+            return
+        ratio = max(0.0, min(1.0, self.hp / self.max_hp))
+        if ratio > 0.55:
+            color = (0.15, 0.85, 0.28, 0.95)
+        elif ratio > 0.25:
+            color = (0.95, 0.72, 0.18, 0.95)
+        else:
+            color = (0.95, 0.22, 0.18, 0.95)
+        self.health_bar_fill.setSx(max(ratio, 0.001))
+        self.health_bar_fill.setColor(color)
 
     def take_damage(self, amount=1):
         if self.is_dead:
             return False
         self.hp -= amount
+        self._update_health_bar()
         if self.hp <= 0:
             self.destroy()
             return True
         return False
+
+    def has_reached_end(self):
+        return self._index >= len(self.waypoints) - 1
 
     def is_touched_by_segment(self, start_pos, end_pos, hit_radius):
         if self.is_dead:
@@ -494,7 +541,6 @@ class WaypointEnemy:
 
         next_index = self._index + 1
         if next_index >= len(self.waypoints):
-            self.destroy()
             return
 
         target = self.waypoints[next_index]
@@ -524,22 +570,55 @@ class WaypointEnemy:
             self.on_finish()
 
 
+class PortalSpawner:
+    """File d'attente d'un portail : spawne les ennemis un par un avec un delai."""
+
+    def __init__(self, game, waypoints, count, speed, scale, interval, enemy_type=ENEMY_TYPE_CLASSIC):
+        self.game       = game
+        self.waypoints  = waypoints
+        self.speed      = speed
+        self.scale      = scale
+        self.interval   = interval
+        self.enemy_type = enemy_type
+        self.remaining  = count
+        self.timer      = 0.0
+        self.done       = False
+
+    def update(self, dt, enemy_list):
+        if self.done:
+            return
+        self.timer -= dt
+        if self.timer > 0:
+            return
+        enemy = WaypointEnemy(
+            self.game,
+            self.waypoints,
+            speed=self.speed,
+            scale=self.scale,
+            enemy_type=self.enemy_type,
+        )
+        enemy_list.append(enemy)
+        self.remaining -= 1
+        self.timer = self.interval if self.remaining > 0 else 0.0
+        if self.remaining <= 0:
+            self.done = True
+
+
 class EnemyManager:
     BASE_DAMAGE_PER_ENEMY = BASE_ENEMY_DAMAGE
 
     def __init__(self, game):
         self.game = game
         self.enemies = []
+        self._spawners = []
         self._next_id = 0
         self._player_cooldowns = {}
 
     def _choose_enemy_type(self, enemy_type=None):
         if enemy_type in RANDOM_ENEMY_TYPE_VALUES:
             return random.choice(ENEMY_TYPE_CHOICES)
-
         if isinstance(enemy_type, str) and enemy_type.strip().lower() in RANDOM_ENEMY_TYPE_VALUES:
             return random.choice(ENEMY_TYPE_CHOICES)
-
         return normalize_enemy_type(enemy_type)
 
     def spawn_dog(self, start_pos, end_pos, **kwargs):
@@ -587,12 +666,8 @@ class EnemyManager:
         while spawned < count and attempts < max_attempts:
             attempts += 1
             start_pos = self._random_valid_position_away(
-                safe_min_x,
-                safe_max_x,
-                safe_min_y,
-                safe_max_y,
-                target_pos,
-                min_distance=8.0,
+                safe_min_x, safe_max_x, safe_min_y, safe_max_y,
+                target_pos, min_distance=8.0,
             )
             dog = self.spawn_dog(
                 start_pos,
@@ -620,13 +695,10 @@ class EnemyManager:
     def _handle_enemy_reached_base(self, enemy):
         if enemy.is_dead:
             return
-
         if hasattr(self.game, "damage_pipe"):
             self.game.damage_pipe(self._get_enemy_damage(enemy))
-
         if not enemy.is_dead:
             enemy.destroy()
-
         vague_manager = getattr(self.game, "vague_manager", None)
         if vague_manager is not None and hasattr(vague_manager, "enemy_reached_base"):
             vague_manager.enemy_reached_base()
@@ -645,18 +717,39 @@ class EnemyManager:
 
         return start, end
 
-    def spawn_waypoint_dog(self, waypoints, speed=2.0, scale=10.0, on_finish=None, enemy_type=None):
+    def spawn_wave(self, portal_paths, count_per_portal, speed=4.0, scale=19, interval=1.5, enemy_type=ENEMY_TYPE_CLASSIC):
+        """
+        Lance une vague depuis les portails definis dans portal_paths.
+        Ajoute dynamiquement la position du tuyau comme dernier waypoint de chaque chemin.
+        """
+        self._spawners.clear()
+
+        pipe_pos = self._get_pipe_target_pos()
+        chosen_type = self._choose_enemy_type(enemy_type)
+
+        for path in portal_paths:
+            full_path = [Vec3(wp) for wp in path]
+            full_path.append(Vec3(pipe_pos.x, pipe_pos.y, 0))
+            spawner = PortalSpawner(
+                game       = self.game,
+                waypoints  = full_path,
+                count      = count_per_portal,
+                speed      = speed,
+                scale      = scale,
+                interval   = interval,
+                enemy_type = chosen_type,
+            )
+            self._spawners.append(spawner)
+
+        return count_per_portal * len(portal_paths)
+
+    def spawn_waypoint_dog(self, waypoints, speed=2.0, scale=19, on_finish=None, enemy_type=None):
         """
         Spawne un ennemi qui parcourt la liste de waypoints a vitesse fixe
         et disparait apres le dernier point.
-
-        waypoints : liste de Vec3 ou de tuples (x, y, z).
-                    Le premier point est la position d'apparition.
-        on_finish : callback optionnel appele quand l'ennemi atteint le dernier point.
         """
         if len(waypoints) < 2:
             raise ValueError("Il faut au moins 2 waypoints.")
-
         enemy = WaypointEnemy(
             self.game,
             waypoints,
@@ -704,7 +797,6 @@ class EnemyManager:
         map_collision = getattr(self.game, "map_collision", None)
         if map_collision is None:
             return True
-
         return map_collision.is_position_allowed(pos)
 
     def _get_touching_enemy(self, player_pos):
@@ -721,7 +813,6 @@ class EnemyManager:
         if hasattr(self.game, "damage_player"):
             self.game.damage_player(damage)
             return
-
         for _ in range(damage):
             self.game.messenger.send("player-take-damage")
 
@@ -767,7 +858,15 @@ class EnemyManager:
             is_host = net_iface.net.is_host
 
         if is_host:
+            for spawner in self._spawners:
+                spawner.update(dt, self.enemies)
+
             for enemy in self.enemies:
+                if isinstance(enemy, WaypointEnemy) and enemy.has_reached_end():
+                    self.game.damage_pipe(self._get_enemy_damage(enemy))
+                    self.game.messenger.send("enemy-hit")
+                    enemy.destroy()
+                    continue
                 enemy.update(dt)
 
             if hasattr(self.game, 'player'):
@@ -857,6 +956,7 @@ class EnemyManager:
         }
 
     def clear(self):
+        self._spawners.clear()
         for enemy in self.enemies:
             enemy.destroy()
         self.enemies.clear()

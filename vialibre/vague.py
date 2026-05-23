@@ -1,5 +1,27 @@
 from direct.gui.DirectGui import DirectLabel, DirectFrame
-from panda3d.core import TextNode
+from panda3d.core import TextNode, Vec3
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Chemins des 6 portails vers le tuyau.
+# Chaque liste part du portail et aboutit au tuyau.
+# ─────────────────────────────────────────────────────────────────────────────
+PORTAL_PATHS = [
+    # Portail 1
+    [Vec3(6, 25, 0), Vec3(23, 0, 0), Vec3(23, -9, 0), Vec3(19, -9, 0)],
+    # Portail 2
+    [Vec3(-6, 25, 0), Vec3(-23, 0, 0), Vec3(-23, -9, 0), Vec3(-19, -9, 0)],
+    # Portail 3
+    [Vec3(-40, -9, 0), Vec3(-30, -15, 0), Vec3(-25, -15, 0), Vec3(-23, -10, 0), Vec3(-19, -10, 0)],
+    # Portail 4
+    [Vec3(40, -9, 0), Vec3(30, -15, 0), Vec3(25, -15, 0), Vec3(23, -10, 0), Vec3(19, -10, 0)],
+    # Portail 5
+    [Vec3(-23, 17, 0), Vec3(-30, 2, 0), Vec3(-23, 0, 0), Vec3(-23, -9, 0), Vec3(-19, -9, 0)],
+    # Portail 6
+    [Vec3(23, 17, 0), Vec3(30, 2, 0), Vec3(23, 0, 0), Vec3(23, -9, 0), Vec3(19, -9, 0)],
+]
+
+SPAWN_INTERVAL = 1.5   # secondes entre chaque ennemi sur le meme portail
 
 
 class VagueManager:
@@ -24,36 +46,31 @@ class VagueManager:
 
         self.message_timer = 0.0
 
-        # Limites interieures de l'arene.
         self.area_min_x = -35
         self.area_max_x = 35
         self.area_min_y = -28
         self.area_max_y = 22
         self.margin = 1.5
 
+        # Résolution conflit : on retire chase_speed/detection_radius (non utilisés
+        # par WaypointEnemy), on conserve max_hp pour le scaling par niveau.
         self.waves = [
             {
                 "name": "Vague 1",
-                "enemy_count": 5,
+                "enemy_count": 24,   # 4 par portail x 6 portails
                 "speed": 4.0,
-                "chase_speed": 6.0,
-                "detection_radius": 12.0,
                 "max_hp": 3,
             },
             {
                 "name": "Vague 2",
-                "enemy_count": 8,
+                "enemy_count": 36,   # 6 par portail
                 "speed": 4.5,
-                "chase_speed": 6.5,
-                "detection_radius": 14.0,
                 "max_hp": 3,
             },
             {
                 "name": "Vague 3",
-                "enemy_count": 12,
+                "enemy_count": 48,   # 8 par portail
                 "speed": 5.0,
-                "chase_speed": 7.0,
-                "detection_radius": 16.0,
                 "max_hp": 3,
             },
         ]
@@ -134,8 +151,6 @@ class VagueManager:
             **wave,
             "enemy_count": wave["enemy_count"] + level_index * 3 + level_index * wave_index,
             "speed": wave["speed"] + level_index * 0.45,
-            "chase_speed": wave["chase_speed"] + level_index * 0.55,
-            "detection_radius": wave["detection_radius"] + level_index * 1.5,
             "max_hp": wave["max_hp"] + level_index,
         }
 
@@ -158,18 +173,13 @@ class VagueManager:
         self.killed_in_current_wave = 0
         self.clear_enemies()
 
-        spawned_count = self.enemy_manager.spawn_random_dogs_in_area(
-            count=wave["enemy_count"],
-            area_min_x=self.area_min_x,
-            area_max_x=self.area_max_x,
-            area_min_y=self.area_min_y,
-            area_max_y=self.area_max_y,
+        count_per_portal = wave["enemy_count"] // len(PORTAL_PATHS)
+        spawned_count = self.enemy_manager.spawn_wave(
+            portal_paths=PORTAL_PATHS,
+            count_per_portal=count_per_portal,
             speed=wave["speed"],
             scale=1.0,
-            margin=self.margin,
-            chase_speed=wave["chase_speed"],
-            detection_radius=wave["detection_radius"],
-            max_hp=wave["max_hp"],
+            interval=SPAWN_INTERVAL,
         )
         self.current_enemy_target = spawned_count or wave["enemy_count"]
 
@@ -190,8 +200,6 @@ class VagueManager:
             return
 
         self.killed_in_current_wave += 1
-
-        print(f"Ennemi retire : {self.killed_in_current_wave}/{self.current_enemy_target}")
 
         if self.killed_in_current_wave >= self.current_enemy_target:
             self.current_wave_index += 1
@@ -225,7 +233,6 @@ class VagueManager:
 
         if self.waiting_next_wave:
             self.next_wave_timer -= dt
-
             if self.next_wave_timer <= 0:
                 self.waiting_next_wave = False
                 self.start_current_wave()
@@ -272,7 +279,6 @@ class VagueManager:
     def clear_enemies(self):
         for enemy in list(self.enemy_manager.enemies):
             enemy.destroy()
-
         self.enemy_manager.enemies.clear()
 
     def sync_from_snapshot(
@@ -304,11 +310,7 @@ class VagueManager:
                     duration=2.5,
                 )
 
+        # Résolution conflit : finish_game() (HEAD) est la bonne logique ici
+        # car elle gère le cas niveau final vs niveau intermédiaire via finish_level().
         if is_finished and not self.is_finished:
-            self.is_finished = True
-            self.waiting_next_wave = False
-            self.clear_enemies()
-            self.show_message(
-                f"Niveau {self.current_level}/{self.max_levels} termine !\nRetour au lobby...",
-                duration=self.LEVEL_RETURN_DELAY,
-            )
+            self.finish_game()
