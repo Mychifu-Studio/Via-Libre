@@ -2,6 +2,7 @@ import os
 
 from direct.gui.DirectGui import DirectButton, DirectFrame, DirectLabel
 from direct.showbase.ShowBase import ShowBase
+from direct.actor.Actor import Actor
 from panda3d.core import AmbientLight, AntialiasAttrib, TextNode, WindowProperties, load_prc_file_data, Spotlight, PerspectiveLens
 import simplepbr
 
@@ -18,6 +19,7 @@ from vialibre.resource_system import ResourceSystem
 from vialibre.shooting import ShootingSystem
 from vialibre.upgrade_system import UpgradeSystem
 from vialibre.vague import VagueManager
+from vialibre.soundSystem import SoundEngine
 
 
 load_prc_file_data(
@@ -44,18 +46,23 @@ class EnvironmentManager:
         ("assets/Jungle3.bam", -90),
     )
     GAME_MAP = ("assets/Jungle3.bam", -90)
+    BARTENDER_CANDIDATES = ("assets/bartender.bam", "assets/Bartender1.glb")
+    QUEST_GUY_CANDIDATES = ("assets/quest_guy.bam", "assets/Fredi.glb")
 
     def __init__(self, render):
         self.render = render
         self.jungle = None
         self.map_path = None
+        self.lobby_characters = []
         self.load_lobby_map()
         self.setup_lights()
 
     def load_lobby_map(self):
         self._load_map(*self._resolve_lobby_map_path())
+        self._load_lobby_characters()
 
     def load_game_map(self):
+        self._clear_lobby_characters()
         self._load_map(*self.GAME_MAP)
 
     def _load_map(self, map_path, map_heading):
@@ -97,6 +104,62 @@ class EnvironmentManager:
 
         return "assets/Jungle3.bam", -90
 
+    def _resolve_model_path(self, candidates):
+        for path in candidates:
+            if os.path.exists(path):
+                return path
+        return None
+
+    def _load_actor_or_model(self, path):
+        try:
+            return Actor(path)
+        except Exception:
+            return loader.loadModel(path)
+
+    def _load_lobby_character(self, attr_name, candidates, pos, scale, heading=None):
+        path = self._resolve_model_path(candidates)
+        if path is None:
+            setattr(self, attr_name, None)
+            return
+
+        character = self._load_actor_or_model(path)
+        character.reparentTo(self.render)
+        character.setPos(*pos)
+        character.setScale(scale)
+        if heading is not None:
+            character.setH(heading)
+
+        if hasattr(character, "getAnimNames"):
+            anims = character.getAnimNames()
+            print(f"Animations {attr_name} :", anims)
+            if anims:
+                character.loop(anims[0])
+
+        setattr(self, attr_name, character)
+        self.lobby_characters.append(character)
+
+    def _load_lobby_characters(self):
+        self._clear_lobby_characters()
+        self._load_lobby_character(
+            "bartender",
+            self.BARTENDER_CANDIDATES,
+            pos=(100, 0.5, 0),
+            scale=0.90,
+        )
+        self._load_lobby_character(
+            "quest_guy",
+            self.QUEST_GUY_CANDIDATES,
+            pos=(116, 1.5, 0.05),
+            scale=0.83,
+            heading=-90,
+        )
+
+    def _clear_lobby_characters(self):
+        for character in self.lobby_characters:
+            if character is not None and not character.isEmpty():
+                character.removeNode()
+        self.lobby_characters = []
+
     def add_spotlight(self, name, color, pos, target, fov=45, near=1, far=50):
         spot = Spotlight(name)
         spot.setColor(color)
@@ -127,7 +190,7 @@ class EnvironmentManager:
             fov=140
         )
 
-        
+
         self.mid_haut = self.add_spotlight(
             name="mid haut",
             color=(0, 0.2, 1, 1),
@@ -135,68 +198,33 @@ class EnvironmentManager:
             target=(0, 15, 0),
             fov=140
         )
-        # #DOORS
-        # self.door1 = self.add_spotlight(
-        #     name="door1",
-        #     color=(1, 0, 0, 1),
-        #     pos=(-38, -9, 3),
-        #     target=(-38, -9, 0),
-        #     fov=90
-        # )
-        # self.door2= self.add_spotlight(
-        #     name="door2",
-        #     color=(1, 0, 0, 1),
-        #     pos=(38, -9, 3),
-        #     target=(38, -9, 0),
-        #     fov=90
-        # )
 
-        # self.door3 = self.add_spotlight(
-        #     name="door3",
-        #     color=(1, 0, 0, 1),
-        #     pos=(-22.8, 17, 3),
-        #     target=(-22.8, 17, 0),
-        #     fov=90
-        # )
-        # self.door4= self.add_spotlight(
-        #     name="door4",
-        #     color=(1, 0, 0, 1),
-        #     pos=(21.2, 17, 3),
-        #     target=(21.2, 17, 0),
-        #     fov=90
-        # )
-
-        # self.door5 = self.add_spotlight(
-        #     name="door5",
-        #     color=(1, 0, 0, 1),
-        #     pos=(6, 23.8, 3),
-        #     target=(6, 23.8, 0),
-        #     fov=90
-        # )
-
-        
-
-
+        self.mid_haut = self.add_spotlight(
+            name="mid haut",
+            color=(0.8, 0.6, 0.2, 1),
+            pos=(110, 0, 10),
+            target=(110, 0, 0),
+            fov=140
+        )
 
         self.spot_minerai_left = self.add_spotlight(
             name="spot_minerai_left",
-            color=(0, 0, 0.9, 1), #color=(0.7, 0.6, 0.9, 1),
+            color=(0, 0, 0.9, 1),
             pos=(-30, 6, 3),
             target=(-35, 8, 0),
             fov=70
         )
         self.spot_minerai_right = self.add_spotlight(
             name="spot_minerai_right",
-            color=(0, 0, 0.9, 1), #color=(0.7, 0.6, 0.9, 1),
+            color=(0, 0, 0.9, 1),
             pos=(30, 7, 3),
             target=(35, 10, 0),
             fov=70
         )
 
-
         self.spot_caillou_right = self.add_spotlight(
             name="spot_caillou_right",
-            color=(0, 0, 0.9, 1), #color=(0.7, 0.6, 0.9, 1),
+            color=(0, 0, 0.9, 1),
             pos=(22, 9, 6),
             target=(22, 9, 0),
             fov=140
@@ -204,24 +232,22 @@ class EnvironmentManager:
 
         self.spot_caillou_left = self.add_spotlight(
             name="spot_caillou_left",
-            color=(0, 0, 0.9, 1), #color=(0.7, 0.6, 0.9, 1),
+            color=(0, 0, 0.9, 1),
             pos=(-22, 9, 6),
             target=(-22, 9, 0),
             fov=140
         )
 
-
-
         self.spot_caillou_bas_left = self.add_spotlight(
             name="spot_caillou_bas_left",
-            color=(0, 0.3, 0.9, 1), #color=(0.7, 0.6, 0.9, 1),
+            color=(0, 0.3, 0.9, 1),
             pos=(-30, -9, 6),
             target=(-30, -9, 0),
             fov=140
         )
         self.spot_caillou_bas_right = self.add_spotlight(
             name="spot_caillou_right",
-            color=(0, 0.3, 0.9, 1), #color=(0.7, 0.6, 0.9, 1),
+            color=(0, 0.3, 0.9, 1),
             pos=(30, -9, 6),
             target=(30, -9, 0),
             fov=140
@@ -229,12 +255,11 @@ class EnvironmentManager:
 
         self.spot_caillou_bas_right = self.add_spotlight(
             name="spot_caillou_right",
-            color=(0, 0.3, 0.9, 1), #color=(0.7, 0.6, 0.9, 1),
+            color=(0, 0.3, 0.9, 1),
             pos=(30, -9, 6),
             target=(30, -9, 0),
             fov=140
         )
-
 
         self.spot_mid = self.add_spotlight(
             name="spot_mid",
@@ -251,7 +276,6 @@ class EnvironmentManager:
             target=(0, -33, 0),
             fov=100
         )
-
 
 
 class GameMenu:
@@ -412,6 +436,7 @@ class MainGame(ShowBase):
         self.shooting = ShootingSystem(game=self, player=self.player)
         self.network = GameNetworkInterface(self)
         self.host_code_ui = HostCodeUI(self)
+        self.sound = SoundEngine(self)
 
         self.inventory = {"ressource": 0}
         self.inventory_ui = InventoryUI(self)
@@ -494,6 +519,8 @@ class MainGame(ShowBase):
             f"Ennemi touche : ressource +1 ! (Total : {self.inventory['ressource']})"
         )
         self.vague_manager.enemy_killed()
+        if getattr(self.network, "net", None) is not None and self.network.net.is_host:
+            self.network._broadcast_snapshot(force=True)
 
     def damage_pipe(self, amount=1):
         if self.is_game_over:
@@ -501,6 +528,8 @@ class MainGame(ShowBase):
 
         self.pipe_base.take_damage(amount)
         self.pipe_health_ui.update()
+        if getattr(self.network, "net", None) is not None and self.network.net.is_host:
+            self.network._broadcast_snapshot(force=True)
 
     def trigger_game_over(self):
         if self.is_game_over:

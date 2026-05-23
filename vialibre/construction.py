@@ -153,6 +153,12 @@ class Structure:
         self.task_name = f"turret_update_{id(self)}"
         self.base.taskMgr.add(self.update_task, self.task_name)
 
+    def _is_host_authority(self):
+        net_iface = getattr(self.base, 'network', None)
+        if net_iface is None or getattr(net_iface, 'net', None) is None:
+            return True
+        return net_iface.net.is_host
+
     def create_tracer_effect(self, start_pos, target_pos):
         # 1. Création de la forme du tracer
         lines = LineSegs()
@@ -188,10 +194,15 @@ class Structure:
             Func(tracer_np.removeNode)
         )
         seq.start()
+        self.base.sound.play("turret")
+        self.base.sound.play("turret_reload")
 
     def update_task(self, task):
         dt = task.time - getattr(task, 'last_time', task.time)
         task.last_time = task.time
+
+        if not self._is_host_authority():
+            return task.cont
 
         if not self.enemy_manager or not self.enemy_manager.enemies:
             return task.cont
@@ -234,21 +245,19 @@ class Structure:
         if self.time_since_last_shot >= self.fire_rate:
             self.time_since_last_shot = 0.0
 
-            is_host = getattr(self.base, 'network', None) is None or getattr(self.base.network, 'net', None) is None or self.base.network.net.is_host
-            if is_host:
-                start_pos_visuel = Point3(my_pos.x, my_pos.y, my_pos.z + 1.2) + self.offset_turret
-                target_pos_visuel = Point3(enemy_pos.x, enemy_pos.y, enemy_pos.z + 0.5) + self.offset_enemies
+            start_pos_visuel = Point3(my_pos.x, my_pos.y, my_pos.z + 1.2) + self.offset_turret
+            target_pos_visuel = Point3(enemy_pos.x, enemy_pos.y, enemy_pos.z + 0.5) + self.offset_enemies
 
-                self.create_tracer_effect(start_pos_visuel, target_pos_visuel)
+            self.create_tracer_effect(start_pos_visuel, target_pos_visuel)
 
-                # Application des degats
-                self.enemy_manager.check_projectile_hit(my_pos, enemy_pos, hit_radius=1.0)
+            # Application des degats
+            self.enemy_manager.check_projectile_hit(my_pos, enemy_pos, hit_radius=1.0)
 
-                if getattr(self.base, 'network', None) and getattr(self.base.network, 'net', None) and self.base.network.net.is_host:
-                    self.base.network.net.broadcast_msg('turret_shoot', {
-                        'struct_id': self.id,
-                        'target_pos': {'x': target_pos_visuel.x, 'y': target_pos_visuel.y, 'z': target_pos_visuel.z}
-                    })
+            if getattr(self.base, 'network', None) and getattr(self.base.network, 'net', None) and self.base.network.net.is_host:
+                self.base.network.net.broadcast_msg('turret_shoot', {
+                    'struct_id': self.id,
+                    'target_pos': {'x': target_pos_visuel.x, 'y': target_pos_visuel.y, 'z': target_pos_visuel.z}
+                })
 
         return task.cont
 
@@ -390,18 +399,48 @@ class BuildManager(DirectObject):
 
         self.basculer_mode()
 
-    def host_create_structure(self, pos, hpr):
+    def host_create_structure(self, pos, hpr, struct_id=None):
         if self.base.inventory["ressource"] < self.cost:
-            return
+            return False
         nouvelle_structure = Structure(
             self.base, pos, hpr,
             self._on_structure_detruite,
-            self.enemy_manager
+            self.enemy_manager,
+            struct_id=struct_id,
         )
         self.structures.append(nouvelle_structure)
         self.base.inventory["ressource"] -= self.cost
         if hasattr(self.base, 'inventory_ui'):
             self.base.inventory_ui.update()
+        net_iface = getattr(self.base, 'network', None)
+        if net_iface is not None and getattr(net_iface, 'net', None) is not None and net_iface.net.is_host:
+            net_iface._broadcast_snapshot(force=True)
+        return True
+
+    def request_destroy_structure(self, structure):
+        if structure is None:
+            return False
+
+        net_iface = getattr(self.base, 'network', None)
+        is_client = net_iface is not None and getattr(net_iface, 'net', None) is not None and not net_iface.net.is_host
+
+        if is_client:
+            net_iface.net.send_msg('destroy_structure_request', {'struct_id': structure.id})
+            return True
+
+        return self.host_destroy_structure(structure.id)
+
+    def host_destroy_structure(self, struct_id):
+        if not struct_id:
+            return False
+        structure = next((s for s in self.structures if getattr(s, 'id', None) == struct_id), None)
+        if structure is None:
+            return False
+        structure.detruire()
+        net_iface = getattr(self.base, 'network', None)
+        if net_iface is not None and getattr(net_iface, 'net', None) is not None and net_iface.net.is_host:
+            net_iface._broadcast_snapshot(force=True)
+        return True
 
     def sync_from_snapshot(self, structures_data):
         known_ids = set()
@@ -411,6 +450,7 @@ class BuildManager(DirectObject):
             existing = next((s for s in self.structures if s.id == sid), None)
             if existing:
                 existing.np.setPos(s_data['x'], s_data['y'], s_data['z'])
+                existing.np.setHpr(s_data.get('h', 0.0), s_data.get('p', 0.0), s_data.get('r', 0.0))
             else:
                 struct = Structure(
                     self.base,

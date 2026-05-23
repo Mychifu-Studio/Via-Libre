@@ -37,8 +37,6 @@ class Player(DirectObject):
         self.model.setH(180)
         self.model.setZ(0)
 
-        self.current_anim = 'idle'
-        self.model.loop('idle')
 
         # Gun séparé attaché à la main droite
         self.right_hand = None
@@ -74,6 +72,18 @@ class Player(DirectObject):
 
         self.shoulderNode = self.modelNode.attach_new_node('shoulder')
         self.shoulderNode.setZ(3)
+        
+        # Préchauffe les anims pour éviter les freeze
+        self.model.loop('run')
+        self.model.stop()
+        self.model.pose('idle', 0)
+
+        if self.hand_gun:
+            self.hand_gun.show()
+            self.hand_gun.hide()
+            
+        self.current_anim = 'idle'
+        self.model.loop('idle')
 
         self.heading = 0
 
@@ -115,7 +125,9 @@ class Player(DirectObject):
             "left": False,    "right": False,
             "ctrl": False,
         }
-        
+    def tp_shop(self):
+        self.player.setPos(100,0,0)
+
     def play_anim(self, anim_name):
         if self.current_anim != anim_name:
             self.model.loop(anim_name)
@@ -153,7 +165,7 @@ class Player(DirectObject):
     def handleLeftClick(self):
         cible = self.interaction_manager.structure_cible
         if cible:
-            cible.detruire()
+            self.build_manager.request_destroy_structure(cible)
             return
         if self.build_manager.mode_actif:
             pass
@@ -187,12 +199,14 @@ class Player(DirectObject):
         if self.keyMap['left']:     input_vec -= right
 
         is_moving = input_vec.lengthSquared() > 0
-        
+
         if is_moving:
             input_vec.normalize()
             self.play_anim('run')
+            self.base.sound.loopSFX(self.base.sound.walk, (0.5, 0.5), (97, 103))
         else:
             self.play_anim('idle')
+            self.base.sound.stopSFX(self.base.sound.walk)
 
         from math import atan2, degrees
 

@@ -339,6 +339,20 @@ class ResourceSystem:
 
         gain = self.current_max_amount
 
+        net_iface = getattr(self.game, "network", None)
+        is_client = (
+            net_iface is not None
+            and getattr(net_iface, "net", None) is not None
+            and not net_iface.net.is_host
+        )
+        if is_client:
+            net_iface.net.send_msg("harvest_request", {"amount": gain})
+            self.popup_ui.show_popup("Recolte envoyee...")
+            return
+
+        self.grant_resources(gain)
+
+    def grant_resources(self, gain):
         self.game.inventory["ressource"] += gain
         self.inventory_ui.update()
 
@@ -347,8 +361,37 @@ class ResourceSystem:
             f"(Total : {self.game.inventory['ressource']})"
         )
 
+        net_iface = getattr(self.game, "network", None)
+        if net_iface is not None and getattr(net_iface, "net", None) is not None and net_iface.net.is_host:
+            net_iface._broadcast_snapshot(force=True)
+
+        self.schedule_restore_hint()
+
+    def show_network_harvest_result(self, payload):
+        if payload.get("success"):
+            gain = payload.get("amount", 0)
+            total = self.game.inventory.get("ressource", 0)
+            self.popup_ui.show_popup(
+                f"Ressource +{gain} ! "
+                f"(Total : {total})"
+            )
+        else:
+            self.popup_ui.show_popup(payload.get("message", "Recolte refusee."))
+
+        self.schedule_restore_hint()
+
+    def schedule_restore_hint(self):
         self.game.taskMgr.remove("restore_hint")
         self.game.taskMgr.doMethodLater(1.0, self.restore_hint, "restore_hint")
+
+    def is_valid_network_harvest_amount(self, amount):
+        max_amount = 0
+        for zone in self.resource_zones:
+            try:
+                max_amount = max(max_amount, int(zone.getTag("max_amount")))
+            except (TypeError, ValueError):
+                continue
+        return 0 < amount <= max_amount
 
     def restore_hint(self, task):
         if self.in_trigger and self.current_zone is not None:

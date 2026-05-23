@@ -212,7 +212,11 @@ class VagueManager:
 
         self.enemy_manager.enemies.clear()
 
-    def sync_from_snapshot(self, wave_index, is_finished):
+    def sync_from_snapshot(self, wave_index, is_finished, is_game_over=False):
+        if is_game_over:
+            self.game_over()
+            return
+
         if self.current_wave_index != wave_index and not is_finished:
             self.current_wave_index = wave_index
             if self.current_wave_index < len(self.waves):
