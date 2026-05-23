@@ -8,6 +8,11 @@ class SoundEngine():
         self.base: ShowBase = base
         self.sfxs = dict()
         self.loops = dict()
+        self.songs = dict()
+        
+        self.addSong("pigstep", "assets/music/pigstep.flac")
+        self.setVol("pigstep", .1) # Le master est très LOUD
+        self.loop("pigstep")
         
         self.addSFX("gunshot", "assets/SFX/gunshot.wav")
         self.addSFX("turret", "assets/SFX/turret_fire.wav")
@@ -19,16 +24,25 @@ class SoundEngine():
             
         self.walk = [f"step{i}" for i in range(1, 11)]
     
+    def addSong(self, name: str, path: str):
+        song = self.base.loader.loadMusic(path)
+        self.songs[name] = song
+        
+        setattr(self, name, song)
+        
     def addSFX(self, name: str, path: str):
         sound = self.base.loader.loadSfx(path)
         self.sfxs[name] = sound
         
         setattr(self, name, sound)
     
-    def setVol(self, sfx: str, value: float):
-        self.sfxs[sfx].setVolume(value)
+    def setVol(self, name: str, value: float):
+        if name in self.sfxs:
+            self.sfxs[name].setVolume(value)
+        if name in self.songs:
+            self.songs[name].setVolume(value)
         
-    def setPan(self, sfx: str):
+    def setPan(self, name: str):
         ...
         
     def play(self, sfx: str, randomize: tuple[int, int] | None = None):
@@ -38,7 +52,7 @@ class SoundEngine():
         if randomize: self.sfxs[sfx].setPlayRate(randint(*randomize)/100)
         self.sfxs[sfx].play()
         
-    def loop(self, sfx_list: list[str], delay_range: tuple[float, float] = (0.0, 0.0), randomize: tuple[int, int] | None = None):
+    def loopSFX(self, sfx_list: list[str], delay_range: tuple[float, float] = (0.0, 0.0), randomize: tuple[int, int] | None = None):
         valid = [s for s in sfx_list if s in self.sfxs]
         if not valid:
             return
@@ -70,7 +84,16 @@ class SoundEngine():
         self._loop_step(key, valid, delay_range, randomize)
         return task.done
 
-    def stop(self, sfx_list: list[str]):
+    def loop(self, name: str):
+        if name in self.songs:
+            self.songs[name].setLoop(True)
+            self.songs[name].play()
+            
+    def stop(self, name: str):
+        if name in self.songs:
+            self.songs[name].stop()
+
+    def stopSFX(self, sfx_list: list[str]):
         valid = [s for s in sfx_list if s in self.sfxs]
         if not valid:
             return
