@@ -9,10 +9,10 @@ class SoundEngine():
         self.sfxs = dict()
         self.loops = dict()
         self.songs = dict()
+        self.music_started = False
         
         self.addSong("pigstep", "assets/music/pigstep.flac")
         self.setVol("pigstep", .1) # Le master est très LOUD
-        self.loop("pigstep")
         
         self.addSFX("gunshot", "assets/SFX/gunshot.wav")
         self.addSFX("turret", "assets/SFX/turret_fire.wav")
@@ -88,10 +88,19 @@ class SoundEngine():
         if name in self.songs:
             self.songs[name].setLoop(True)
             self.songs[name].play()
-            
+
+    def start_music(self):
+        if self.music_started:
+            return
+
+        self.music_started = True
+        self.loop("pigstep")
+
     def stop(self, name: str):
         if name in self.songs:
             self.songs[name].stop()
+            if name == "pigstep":
+                self.music_started = False
 
     def stopSFX(self, sfx_list: list[str]):
         valid = [s for s in sfx_list if s in self.sfxs]

@@ -9,6 +9,7 @@ import simplepbr
 from vialibre.enemies import EnemyManager
 from vialibre.health_ui import PipeHealthUI, PlayerHealthUI
 from vialibre.inventory_ui import InventoryUI
+from vialibre.intro_screens import IntroScreens
 from vialibre.lobby import LobbyManager
 from vialibre.map_collision import MapCollisionManager
 from vialibre.multiplayer import GameNetworkInterface
@@ -318,6 +319,9 @@ class GameMenu:
         )
 
     def toggle(self):
+        if getattr(self.game, "intro_active", False):
+            return
+
         self.is_open = not self.is_open
 
         if self.is_open:
@@ -472,8 +476,13 @@ class MainGame(ShowBase):
         )
 
         self.vague_manager = VagueManager(self, self.enemies)
-        self.lobby = LobbyManager(self)
+        self.lobby = None
+        self.intro_active = True
+        self.intro_screens = IntroScreens(self)
+        self.intro_screens.create_quote_screen()
         self.set_game_hud_visible(False)
+        self.player.is_paused = True
+        self.player.camera.mouse.hideCursor()
 
         self.accept("escape", self.menu.toggle)
         self.accept("window-close", self.exit_game)
@@ -487,13 +496,19 @@ class MainGame(ShowBase):
         if self.game_started or self.game_completed:
             return
 
+        if getattr(self, "intro_active", False):
+            if not from_network:
+                return
+            self.dismiss_intro()
+
         if level_number is not None:
             self.set_current_level(level_number)
 
         self.is_game_over = False
         self.game_started = True
-        if hasattr(self, "lobby"):
-            self.lobby.finish()
+        lobby = getattr(self, "lobby", None)
+        if lobby is not None:
+            lobby.finish()
 
         self.prepare_game_level()
         self.set_game_hud_visible(True)
@@ -506,6 +521,30 @@ class MainGame(ShowBase):
             f"Niveau {self.current_level}/{self.max_levels} commence !",
             duration=2.5,
         )
+
+    def dismiss_intro(self):
+        intro_screens = getattr(self, "intro_screens", None)
+        if intro_screens is not None:
+            intro_screens.destroy()
+            self.intro_screens = None
+        self.intro_active = False
+
+    def finish_intro(self):
+        if not getattr(self, "intro_active", False):
+            return
+
+        self.intro_screens = None
+        self.intro_active = False
+        self.lobby = LobbyManager(self)
+        self.player.player.setPos(self.lobby.start_pos)
+        self.player.movementVector.set(0, 0, 0)
+        self.player.lastMovement.set(0, 0, 0)
+        self.player.is_paused = False
+        self.player.camera.mouse.centerMouse()
+
+        net_iface = getattr(self, "network", None)
+        for model in getattr(net_iface, "other_players", {}).values():
+            model.setPos(self.lobby.start_pos)
 
     def set_current_level(self, level_number):
         self.current_level = max(1, min(int(level_number), self.max_levels))
@@ -652,12 +691,17 @@ class MainGame(ShowBase):
 
     def exit_game(self):
         self.taskMgr.remove("update")
+        self.dismiss_intro()
         self.enemies.clear()
         self.network.exit()
         self.userExit()
 
     def update(self, task):
         dt = globalClock.getDt()  # pyright: ignore
+
+        if getattr(self, "intro_active", False):
+            self.network.update()
+            return task.cont
 
         if self.is_game_over:
             self.player.update(dt)
