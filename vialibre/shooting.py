@@ -205,3 +205,8 @@ class ShootingSystem:
                 bullet.destroy()
 
         self.bullets = surviving_bullets
+
+    def clear(self):
+        for bullet in self.bullets:
+            bullet.destroy()
+        self.bullets.clear()

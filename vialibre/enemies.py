@@ -68,6 +68,7 @@ class DogEnemy:
         objective_callback=None,
         objective_reach_radius=1.0,
         enemy_id=None,
+        max_hp=None,
     ):
         self.game = game
         self.id = enemy_id or f"enemy_{id(self)}"
@@ -81,7 +82,8 @@ class DogEnemy:
         self.objective_callback = objective_callback
         self.objective_reach_radius = objective_reach_radius
         self.is_dead = False
-        self.hp = self.MAX_HP
+        self.max_hp = max(1, int(max_hp if max_hp is not None else self.MAX_HP))
+        self.hp = self.max_hp
 
         self.is_chasing = False
 
@@ -147,7 +149,7 @@ class DogEnemy:
         if self.health_bar_fill is None:
             return
 
-        ratio = max(0.0, min(1.0, self.hp / self.MAX_HP))
+        ratio = max(0.0, min(1.0, self.hp / self.max_hp))
         if ratio > 0.55:
             color = (0.15, 0.85, 0.28, 0.95)
         elif ratio > 0.25:
@@ -280,7 +282,9 @@ class DogEnemy:
         dist = MathUtils.distance_segment_to_point(start_pos, end_pos, self.node.getPos(self.game.render))
         return dist <= hit_radius
 
-    def sync_state(self, x, y, z, h, hp):
+    def sync_state(self, x, y, z, h, hp, max_hp=None):
+        if max_hp is not None:
+            self.max_hp = max(1, int(max_hp))
         self.hp = hp
         self.target_pos = Point3(x, y, z)
         self.target_h = h
@@ -311,7 +315,7 @@ class DogEnemy:
     def respawn(self):
         if self.is_dead:
             return
-        self.hp = self.MAX_HP
+        self.hp = self.max_hp
         self.is_chasing = False
         if self.respawn_callback:
             self.start_pos, self.end_pos = self.respawn_callback()
@@ -635,11 +639,17 @@ class EnemyManager:
             known_ids.add(eid)
             existing = next((e for e in self.enemies if e.id == eid), None)
             if existing:
-                existing.sync_state(e_data['x'], e_data['y'], e_data['z'], e_data['h'], e_data['hp'])
+                existing.sync_state(e_data['x'], e_data['y'], e_data['z'], e_data['h'], e_data['hp'], e_data.get('max_hp'))
             else:
-                dog = DogEnemy(self.game, (e_data['x'], e_data['y'], e_data['z']), (e_data['x'] + 0.1, e_data['y'], e_data['z']), enemy_id=eid)
+                dog = DogEnemy(
+                    self.game,
+                    (e_data['x'], e_data['y'], e_data['z']),
+                    (e_data['x'] + 0.1, e_data['y'], e_data['z']),
+                    enemy_id=eid,
+                    max_hp=e_data.get('max_hp'),
+                )
                 dog.is_dead = False
-                dog.sync_state(e_data['x'], e_data['y'], e_data['z'], e_data['h'], e_data['hp'])
+                dog.sync_state(e_data['x'], e_data['y'], e_data['z'], e_data['h'], e_data['hp'], e_data.get('max_hp'))
                 self.enemies.append(dog)
 
         for enemy in list(self.enemies):
