@@ -94,7 +94,7 @@ class Player(DirectObject):
 
         self.movementVector = Vec3(0)
         self.lastMovement = Vec3(0)
-        self.playerSpeed =  12 # 6.7
+        self.playerSpeed = 6.7
         self.turnSpeed = 10.0
 
         self.MAX_HP = type(self).MAX_HP
