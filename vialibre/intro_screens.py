@@ -1,6 +1,7 @@
 from direct.gui.OnscreenText import OnscreenText
 from direct.gui.DirectGui import DirectFrame
 from panda3d.core import TextNode
+from math import sin
 
 
 class IntroScreens:
@@ -19,10 +20,14 @@ class IntroScreens:
         self.quote_line2 = None
         self.quote_author = None
         self.intro_bg = None
+        self.intro_panel = None
+        self.intro_title_shadow = None
         self.intro_title = None
+        self.intro_subtitle = None
         self.intro_story = None
         self.intro_hint = None
         self.quote_time = 0.0
+        self.intro_visual_time = 0.0
 
     def _prepare_gui_node(self, node, sort):
         node.setBin("fixed", sort)
@@ -140,56 +145,105 @@ class IntroScreens:
     def create_intro_screen(self):
         self.intro_bg = DirectFrame(
             parent=self.game.aspect2d,
-            frameColor=(0, 0, 0, 1),
+            frameColor=(0.006, 0.005, 0.004, 1),
             frameSize=(-2, 2, -2, 2),
             pos=(0, 0, 0),
         )
         self._prepare_gui_node(self.intro_bg, 230)
 
-        self.intro_title = OnscreenText(
+        self.intro_panel = DirectFrame(
             parent=self.game.aspect2d,
-            text="¡Via Libre!",
-            pos=(0, 0.45),
-            scale=0.12,
-            fg=(1, 1, 1, 1),
+            frameColor=(0.018, 0.016, 0.013, 0.88),
+            frameSize=(-1.18, 1.18, -0.43, 0.43),
+            pos=(0, 0, -0.02),
+        )
+        self._prepare_gui_node(self.intro_panel, 232)
+
+        self.intro_title_shadow = OnscreenText(
+            parent=self.game.aspect2d,
+            text="¡VIA LIBRE!",
+            pos=(0.014, 0.505),
+            scale=0.142,
+            fg=(0.42, 0.035, 0.025, 0.92),
             align=TextNode.ACenter,
         )
-        self._prepare_gui_node(self.intro_title, 231)
+        self._prepare_gui_node(self.intro_title_shadow, 234)
+
+        self.intro_title = OnscreenText(
+            parent=self.game.aspect2d,
+            text="¡VIA LIBRE!",
+            pos=(0, 0.515),
+            scale=0.142,
+            fg=(1, 0.88, 0.55, 1),
+            align=TextNode.ACenter,
+        )
+        self._prepare_gui_node(self.intro_title, 235)
+
+        self.intro_subtitle = OnscreenText(
+            parent=self.game.aspect2d,
+            text="VALPARAISO - L'INSURRECTION COMMENCE",
+            pos=(0, 0.385),
+            scale=0.038,
+            fg=(0.92, 0.22, 0.15, 1),
+            align=TextNode.ACenter,
+        )
+        self._prepare_gui_node(self.intro_subtitle, 235)
 
         self.intro_story = OnscreenText(
             parent=self.game.aspect2d,
             text=(
-                "Dans un pays brisé par l'oppression,\n"
-                "les ressources sont rares et chaque récolte compte.\n\n"
-                "Tu incarnes un survivant de la révolution,\n"
-                "chargé de collecter des ressources\n"
-                "pour reconstruire, résister et faire naître l'espoir.\n\n"
-                "Le peuple attend. La route doit être ouverte."
+                "Alejandro Delacruz, dernier président démocratique de Valparaíso, est mort.\n"
+                "Assassiné pour avoir voulu défendre son peuple.\n\n"
+                "Depuis ce jour, la junte règne par la peur.\n"
+                "Les rues se taisent, les familles disparaissent,\n"
+                "et la liberté n'est plus qu'un souvenir.\n\n"
+                "Mais un peuple opprimé ne reste jamais à genoux éternellement.\n"
+                "Dans l'ombre, une insurrection se prépare.\n"
+                "À sa tête : le fils d'Alejandro.\n\n"
+                "Objectif : renverser la dictature.\n"
+                "Nom de code : ¡VIA LIBRE!"
             ),
-            pos=(0, 0.08),
-            scale=0.06,
-            fg=(0.9, 0.9, 0.9, 1),
+            pos=(0, 0.15),
+            scale=0.046,
+            fg=(0.94, 0.91, 0.84, 1),
             align=TextNode.ACenter,
-            wordwrap=22,
+            wordwrap=34,
         )
-        self._prepare_gui_node(self.intro_story, 231)
+        self._prepare_gui_node(self.intro_story, 235)
 
         self.intro_hint = OnscreenText(
             parent=self.game.aspect2d,
             text="Appuie sur Entrée pour commencer",
-            pos=(0, -0.58),
-            scale=0.06,
+            pos=(0, -0.605),
+            scale=0.052,
             fg=(1, 0.95, 0.6, 1),
             align=TextNode.ACenter,
         )
-        self._prepare_gui_node(self.intro_hint, 231)
+        self._prepare_gui_node(self.intro_hint, 235)
+
+        self.intro_visual_time = 0.0
+        self.game.taskMgr.add(self.update_intro_visuals, "intro_visuals_task")
 
         self.game.accept("enter", self.finish_intro)
         self.game.accept("raw-enter", self.finish_intro)
 
+    def update_intro_visuals(self, task):
+        self.intro_visual_time += globalClock.getDt()
+        pulse = (sin(self.intro_visual_time * 3.2) + 1.0) * 0.5
+        hint_alpha = 0.52 + pulse * 0.48
+
+        if self.intro_hint is not None:
+            self.intro_hint.setFg((1, 0.88, 0.42, hint_alpha))
+
+        return task.cont
+
     def destroy_intro_screen(self):
+        self.game.taskMgr.remove("intro_visuals_task")
         self._destroy_widget("intro_bg")
+        self._destroy_widget("intro_panel")
+        self._destroy_widget("intro_title_shadow")
         self._destroy_widget("intro_title")
+        self._destroy_widget("intro_subtitle")
         self._destroy_widget("intro_story")
         self._destroy_widget("intro_hint")
 
