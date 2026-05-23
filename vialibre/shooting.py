@@ -30,7 +30,7 @@ class ShootingSystem:
 
     BULLET_SPEED = 50.0
     BULLET_LIFE = 3.0
-    BULLET_SCALE = 10
+    BULLET_SCALE = 0.2
     HIT_RADIUS = 1.5
 
     def __init__(self, game, player):
@@ -87,10 +87,12 @@ class ShootingSystem:
         node.reparentTo(self.game.render)
         node.setPos(origin)
         node.lookAt(origin + direction)
-        node.setH(node.getH() + 90)
+        node.setH(node.getH())
+        node.setP(node.getP() -45)
 
         bullet = Bullet(node, direction, speed, life, damage)
         self.bullets.append(bullet)
+        self.game.sound.play("gunshot", (97, 103))
         return bullet
 
     def spawn_network_bullet(self, origin, direction, speed=None, life=None, shot_id=None, damage=1):
@@ -122,6 +124,9 @@ class ShootingSystem:
             net_iface.net.send_msg("shoot_request", payload)
 
     def shoot(self):
+        if not getattr(self.game, "game_started", True):
+            return
+
         if self.player_sys.build_manager.mode_actif or self.was_building_last_frame:
             return
 
@@ -200,3 +205,8 @@ class ShootingSystem:
                 bullet.destroy()
 
         self.bullets = surviving_bullets
+
+    def clear(self):
+        for bullet in self.bullets:
+            bullet.destroy()
+        self.bullets.clear()

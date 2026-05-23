@@ -1,11 +1,15 @@
+import os
+
 from direct.gui.DirectGui import DirectButton, DirectFrame, DirectLabel
 from direct.showbase.ShowBase import ShowBase
-from panda3d.core import AmbientLight, AntialiasAttrib, TextNode, WindowProperties, load_prc_file_data
+from direct.actor.Actor import Actor
+from panda3d.core import AmbientLight, AntialiasAttrib, TextNode, WindowProperties, load_prc_file_data, Spotlight, PerspectiveLens
 import simplepbr
 
 from vialibre.enemies import EnemyManager
 from vialibre.health_ui import PipeHealthUI, PlayerHealthUI
 from vialibre.inventory_ui import InventoryUI
+from vialibre.lobby import LobbyManager
 from vialibre.map_collision import MapCollisionManager
 from vialibre.multiplayer import GameNetworkInterface
 from vialibre.pipe_base import PipeBase
@@ -15,40 +19,273 @@ from vialibre.resource_system import ResourceSystem
 from vialibre.shooting import ShootingSystem
 from vialibre.upgrade_system import UpgradeSystem
 from vialibre.vague import VagueManager
+from vialibre.soundSystem import SoundEngine
 
 
 load_prc_file_data(
     "",
     "sync-video f\n"
     "show-frame-rate-meter t\n"
-    "win-size 1280 720\n"
+    "win-size 1920 1080\n"
     "client-sleep 0.001\n"
     "framebuffer-multisample 1\n"
     "multisamples 2\n"
-    "load-file-type p3assimp"
+    "load-file-type p3assimp\n"
+    "fullscreen true"
 )
+
+GAME_SPAWN_POS = (0, 0, 0)
 
 
 class EnvironmentManager:
-    """Initialise le decor statique."""
+    """SRP: Initialise et gere le decor statique (lumieres, terrain)."""
+
+    LOBBY_MAP_CANDIDATES = (
+        ("assets/Shop.bam", 0),
+        ("assets/shop.bam", 0),
+        ("assets/Shop.glb", 0),
+        ("assets/Jungle3.bam", -90),
+    )
+    GAME_MAP = ("assets/Jungle3.bam", -90)
+    BARTENDER_CANDIDATES = ("assets/bartender.bam", "assets/Bartender1.glb")
+    QUEST_GUY_CANDIDATES = ("assets/quest_guy.bam", "assets/Fredi.glb")
 
     def __init__(self, render):
         self.render = render
         self.jungle = None
-        self.generate_ground()
+        self.map_path = None
+        self.lobby_characters = []
+        self.load_lobby_map()
         self.setup_lights()
 
-    def generate_ground(self):
-        self.jungle = loader.loadModel("assets/Jungle3.bam")
+    def load_lobby_map(self):
+        self._load_map(*self._resolve_lobby_map_path())
+        self._load_lobby_characters()
+
+    def load_game_map(self):
+        self._clear_lobby_characters()
+        self._load_map(*self.GAME_MAP)
+
+    def _load_map(self, map_path, map_heading):
+        if self.jungle is not None and not self.jungle.isEmpty():
+            self._remove_loaded_node(self.jungle)
+
+        # size = 256
+        # img = PNMImage(size, size)
+
+        # for x in range(size):
+        #     for y in range(size):
+        #         r = min(max(0.25 + random.uniform(-0.05, 0.05), 0), 1)
+        #         g = min(max(0.70 + random.uniform(-0.1, 0.1), 0), 1)
+        #         b = min(max(0.25 + random.uniform(-0.05, 0.05), 0), 1)
+        #         img.setXel(x, y, r, g, b)
+
+        # texture = Texture("groundTexture")
+        # texture.load(img)
+        # texture.setWrapU(Texture.WM_repeat)
+        # texture.setWrapV(Texture.WM_repeat)
+
+        # cm = CardMaker("ground")
+        # cm.setFrame(-50, 50, -50, 50)
+        # cm.setUvRange((0, 0), (10, 10))
+
+        # ground = self.render.attachNewNode(cm.generate())
+        # ground.setP(-90)
+        # ground.setTexture(texture)
+        self.map_path = map_path
+        self.jungle = loader.loadModel(map_path)
         self.jungle.setPos(0, 0, 0)
-        self.jungle.setH(-90)
+        self.jungle.setH(map_heading)
         self.jungle.reparentTo(self.render)
 
+    def _resolve_lobby_map_path(self):
+        for path, heading in self.LOBBY_MAP_CANDIDATES:
+            if os.path.exists(path):
+                return path, heading
+
+        return "assets/Jungle3.bam", -90
+
+    def _resolve_model_path(self, candidates):
+        for path in candidates:
+            if os.path.exists(path):
+                return path
+        return None
+
+    def _load_actor_or_model(self, path):
+        try:
+            return Actor(path)
+        except Exception:
+            return loader.loadModel(path)
+
+    def _remove_loaded_node(self, node):
+        if node is None or node.isEmpty():
+            return
+
+        cleanup = getattr(node, "cleanup", None)
+        if callable(cleanup):
+            cleanup()
+
+        node.removeNode()
+
+    def _load_lobby_character(self, attr_name, candidates, pos, scale, heading=None):
+        path = self._resolve_model_path(candidates)
+        if path is None:
+            setattr(self, attr_name, None)
+            return
+
+        character = self._load_actor_or_model(path)
+        character.reparentTo(self.render)
+        character.setPos(*pos)
+        character.setScale(scale)
+        if heading is not None:
+            character.setH(heading)
+
+        if hasattr(character, "getAnimNames"):
+            anims = character.getAnimNames()
+            print(f"Animations {attr_name} :", anims)
+            if anims:
+                character.loop(anims[0])
+
+        setattr(self, attr_name, character)
+        self.lobby_characters.append(character)
+
+    def _load_lobby_characters(self):
+        self._clear_lobby_characters()
+        self._load_lobby_character(
+            "bartender",
+            self.BARTENDER_CANDIDATES,
+            pos=(100, 0.5, 0),
+            scale=0.90,
+        )
+        self._load_lobby_character(
+            "quest_guy",
+            self.QUEST_GUY_CANDIDATES,
+            pos=(116, 1.5, 0.05),
+            scale=0.83,
+            heading=-90,
+        )
+
+    def _clear_lobby_characters(self):
+        for character in self.lobby_characters:
+            self._remove_loaded_node(character)
+        self.lobby_characters = []
+
+    def add_spotlight(self, name, color, pos, target, fov=45, near=1, far=50):
+        spot = Spotlight(name)
+        spot.setColor(color)
+
+        lens = PerspectiveLens()
+        lens.setFov(fov)
+        lens.setNearFar(near, far)
+        spot.setLens(lens)
+
+        spotNP = render.attachNewNode(spot)
+        spotNP.setPos(*pos)
+        spotNP.lookAt(*target)
+
+        render.setLight(spotNP)
+        return spotNP
+
     def setup_lights(self):
-        ambient_light = AmbientLight("ambientLight")
-        ambient_light.setColor((0.5, 0.5, 0.5, 1))
-        ambient_light_np = render.attachNewNode(ambient_light)
-        render.setLight(ambient_light_np)
+        ambientLight = AmbientLight('ambientLight')
+        ambientLight.setColor((0.40, 0.40, 0.32, 1))
+        ambientLightNP = render.attachNewNode(ambientLight)
+        render.setLight(ambientLightNP)
+
+        self.spot1 = self.add_spotlight(
+            name="feu de camp",
+            color=(1.0, 0.2, 0.1, 1),
+            pos=(0, -7, 2),
+            target=(0, -9, 0),
+            fov=140
+        )
+
+
+        self.mid_haut = self.add_spotlight(
+            name="mid haut",
+            color=(0, 0.2, 1, 1),
+            pos=(0, 15, 10),
+            target=(0, 15, 0),
+            fov=140
+        )
+
+        self.mid_haut = self.add_spotlight(
+            name="mid haut",
+            color=(0.8, 0.6, 0.2, 1),
+            pos=(110, 0, 10),
+            target=(110, 0, 0),
+            fov=140
+        )
+
+        self.spot_minerai_left = self.add_spotlight(
+            name="spot_minerai_left",
+            color=(0, 0, 0.9, 1),
+            pos=(-30, 6, 3),
+            target=(-35, 8, 0),
+            fov=70
+        )
+        self.spot_minerai_right = self.add_spotlight(
+            name="spot_minerai_right",
+            color=(0, 0, 0.9, 1),
+            pos=(30, 7, 3),
+            target=(35, 10, 0),
+            fov=70
+        )
+
+        self.spot_caillou_right = self.add_spotlight(
+            name="spot_caillou_right",
+            color=(0, 0, 0.9, 1),
+            pos=(22, 9, 6),
+            target=(22, 9, 0),
+            fov=140
+        )
+
+        self.spot_caillou_left = self.add_spotlight(
+            name="spot_caillou_left",
+            color=(0, 0, 0.9, 1),
+            pos=(-22, 9, 6),
+            target=(-22, 9, 0),
+            fov=140
+        )
+
+        self.spot_caillou_bas_left = self.add_spotlight(
+            name="spot_caillou_bas_left",
+            color=(0, 0.3, 0.9, 1),
+            pos=(-30, -9, 6),
+            target=(-30, -9, 0),
+            fov=140
+        )
+        self.spot_caillou_bas_right = self.add_spotlight(
+            name="spot_caillou_right",
+            color=(0, 0.3, 0.9, 1),
+            pos=(30, -9, 6),
+            target=(30, -9, 0),
+            fov=140
+        )
+
+        self.spot_caillou_bas_right = self.add_spotlight(
+            name="spot_caillou_right",
+            color=(0, 0.3, 0.9, 1),
+            pos=(30, -9, 6),
+            target=(30, -9, 0),
+            fov=140
+        )
+
+        self.spot_mid = self.add_spotlight(
+            name="spot_mid",
+            color=(0.9, 0.95, 0.80, 1),
+            pos=(0, -9, 14),
+            target=(0, -9, 0),
+            fov=70
+        )
+
+        self.spot_mid_bas = self.add_spotlight(
+            name="spot_mid_bas",
+            color=(0, 0.3, 0.80, 1),
+            pos=(0, -33, 6),
+            target=(0, -33, 0),
+            fov=100
+        )
 
 
 class GameMenu:
@@ -89,7 +326,7 @@ class GameMenu:
             self.game.player.is_paused = True
         else:
             self.frame.hide()
-            if not self.game.is_game_over:
+            if not self.game.is_game_over and not getattr(self.game, "game_completed", False):
                 self.game.player.camera.mouse.centerMouse()
                 self.game.player.is_paused = False
 
@@ -144,9 +381,51 @@ class GameOverScreen:
         self.frame.show()
 
 
+class HostCodeUI:
+    """Affiche le code de salon pour le host."""
+
+    def __init__(self, game):
+        self.game = game
+        self.frame = None
+
+        net_iface = getattr(self.game, "network", None)
+        net = getattr(net_iface, "net", None) if net_iface is not None else None
+        if net is None or not net.is_host:
+            return
+
+        if net.game_code:
+            text = f"CODE : {net.game_code}"
+        else:
+            text = f"HOST LOCAL : {net.local_ip}"
+
+        self.frame = DirectFrame(
+            parent=base.aspect2d,
+            frameColor=(0.018, 0.018, 0.018, 0.78),
+            frameSize=(-0.36, 0.36, -0.055, 0.055),
+            pos=(0, 0, 0.94),
+        )
+        self.frame.setBin("fixed", 96)
+        self.frame.setDepthWrite(False)
+        self.frame.setDepthTest(False)
+
+        self.label = DirectLabel(
+            parent=self.frame,
+            text=text,
+            scale=0.038,
+            pos=(0, 0, -0.014),
+            frameColor=(0, 0, 0, 0),
+            text_fg=(1, 0.94, 0.62, 1),
+            text_align=TextNode.ACenter,
+        )
+        self.label.setBin("fixed", 97)
+        self.label.setDepthWrite(False)
+        self.label.setDepthTest(False)
+
+
 class MainGame(ShowBase):
     def __init__(self):
         super().__init__(True)
+        self.setFullscren()
         simplepbr.init()
 
         self.render.setAntialias(AntialiasAttrib.MMultisample)
@@ -160,12 +439,18 @@ class MainGame(ShowBase):
         self.environment = EnvironmentManager(self.render)
         self.map_collision = MapCollisionManager(self.render, self.environment.jungle)
 
+        self.game_started = False
         self.is_game_over = False
+        self.game_completed = False
+        self.max_levels = 5
+        self.current_level = 1
         self.pipe_base = PipeBase(self, self.map_collision)
         self.enemies = EnemyManager(self)
         self.player = Player(map_collision=self.map_collision)
         self.shooting = ShootingSystem(game=self, player=self.player)
         self.network = GameNetworkInterface(self)
+        self.host_code_ui = HostCodeUI(self)
+        self.sound = SoundEngine(self)
 
         self.inventory = {"ressource": 0}
         self.inventory_ui = InventoryUI(self)
@@ -181,17 +466,16 @@ class MainGame(ShowBase):
             popup_ui=self.popup_ui,
         )
         self.resource_system.setup_player_collider(self.player)
-        self.resource_system.generate_diamond_ore_zones()
 
         self.upgrade_system = UpgradeSystem(
             game=self,
             inventory_ui=self.inventory_ui,
             popup_ui=self.popup_ui,
         )
-        self.upgrade_system.generate_campfire_zones()
 
         self.vague_manager = VagueManager(self, self.enemies)
-        self.vague_manager.start()
+        self.lobby = LobbyManager(self)
+        self.set_game_hud_visible(False)
 
         self.accept("escape", self.menu.toggle)
         self.accept("window-close", self.exit_game)
@@ -199,8 +483,145 @@ class MainGame(ShowBase):
         self.accept("player-take-damage", self.player.take_damage)
         self.accept("pipe-destroyed", self.trigger_game_over)
 
-        self.game_started = True
         self.taskMgr.add(self.update, "update")
+
+    def start_game(self, from_network=False, level_number=None):
+        if self.game_started or self.game_completed:
+            return
+
+        if level_number is not None:
+            self.set_current_level(level_number)
+
+        self.is_game_over = False
+        self.game_started = True
+        if hasattr(self, "lobby"):
+            self.lobby.finish()
+
+        self.prepare_game_level()
+        self.set_game_hud_visible(True)
+        self.vague_manager.set_level(self.current_level)
+        self.vague_manager.start()
+        if not from_network and hasattr(self, "network"):
+            self.network.broadcast_game_start()
+
+        self.popup_ui.show_popup(
+            f"Niveau {self.current_level}/{self.max_levels} commence !",
+            duration=2.5,
+        )
+        self.sound.loop("kawaii")
+
+    def set_current_level(self, level_number):
+        self.current_level = max(1, min(int(level_number), self.max_levels))
+        if hasattr(self, "vague_manager"):
+            self.vague_manager.set_level(self.current_level)
+
+    def set_game_hud_visible(self, visible):
+        self.inventory_ui.set_visible(visible)
+        self.player_health_ui.set_visible(visible)
+        self.pipe_health_ui.set_visible(visible)
+
+    def prepare_game_level(self):
+        self.clear_level_objects()
+        self.environment.load_game_map()
+        self.map_collision = MapCollisionManager(self.render, self.environment.jungle)
+
+        self.player.map_collision = self.map_collision
+        self.player.player.setPos(*GAME_SPAWN_POS)
+        self.player.movementVector.set(0, 0, 0)
+        self.player.lastMovement.set(0, 0, 0)
+        self.player.is_paused = False
+        self.player.camera.mouse.centerMouse()
+
+        self.pipe_base = PipeBase(self, self.map_collision)
+        self.pipe_health_ui.pipe_base = self.pipe_base
+        self.pipe_health_ui.update()
+
+        self.resource_system.generate_diamond_ore_zones()
+        self.upgrade_system.generate_campfire_zones()
+
+        net_iface = getattr(self, "network", None)
+        for model in getattr(net_iface, "other_players", {}).values():
+            model.setPos(*GAME_SPAWN_POS)
+
+    def clear_level_objects(self):
+        self.enemies.clear()
+        if hasattr(self, "shooting"):
+            self.shooting.clear()
+        if hasattr(self, "resource_system"):
+            self.resource_system.clear_resource_zones()
+        if hasattr(self, "upgrade_system"):
+            self.upgrade_system.clear_campfire_zones()
+        build_manager = getattr(getattr(self, "player", None), "build_manager", None)
+        if build_manager is not None and hasattr(build_manager, "clear_structures"):
+            build_manager.clear_structures()
+
+    def _load_lobby_for_next_level(self, popup_text=None):
+        self.clear_level_objects()
+        self.game_started = False
+        self.set_game_hud_visible(False)
+        self.vague_manager.wave_panel.hide()
+        self.vague_manager.final_screen.hide()
+
+        old_lobby = getattr(self, "lobby", None)
+        if old_lobby is not None and getattr(old_lobby, "is_active", False):
+            old_lobby.finish()
+
+        self.environment.load_lobby_map()
+        self.map_collision = MapCollisionManager(self.render, self.environment.jungle)
+        self.player.map_collision = self.map_collision
+        self.lobby = LobbyManager(self)
+        self.player.player.setPos(self.lobby.start_pos)
+        self.player.movementVector.set(0, 0, 0)
+        self.player.lastMovement.set(0, 0, 0)
+        self.player.is_paused = False
+        self.player.camera.mouse.centerMouse()
+
+        net_iface = getattr(self, "network", None)
+        for model in getattr(net_iface, "other_players", {}).values():
+            model.setPos(self.lobby.start_pos)
+
+        if popup_text:
+            self.popup_ui.show_popup(popup_text, duration=3.0)
+
+    def complete_current_level(self):
+        if self.game_completed:
+            return
+
+        completed_level = self.current_level
+        if completed_level >= self.max_levels:
+            self.vague_manager.finish_game()
+            return
+
+        self.set_current_level(completed_level + 1)
+        self._load_lobby_for_next_level(
+            f"Niveau {completed_level}/{self.max_levels} termine ! "
+            f"Lance le niveau {self.current_level} depuis le lobby."
+        )
+
+        if getattr(self.network, "net", None) is not None and self.network.net.is_host:
+            self.network._broadcast_snapshot(force=True)
+
+    def return_to_lobby_from_network(self, level_number=None):
+        if self.game_completed:
+            return
+
+        if level_number is not None:
+            self.set_current_level(level_number)
+        self._load_lobby_for_next_level()
+
+    def mark_game_completed(self):
+        if self.game_completed:
+            return
+
+        self.game_completed = True
+        self.game_started = False
+        self.clear_level_objects()
+        self.set_game_hud_visible(False)
+        self.player.is_paused = True
+        self.player.camera.mouse.showCursor()
+
+        if getattr(self.network, "net", None) is not None and self.network.net.is_host:
+            self.network._broadcast_snapshot(force=True)
 
     def reward_enemy_hit(self):
         self.inventory["ressource"] = self.inventory.get("ressource", 0) + 1
@@ -237,6 +658,15 @@ class MainGame(ShowBase):
         self.enemies.clear()
         self.network.exit()
         self.userExit()
+        
+    def setFullscren(self):
+        w = self.pipe.getDisplayWidth()
+        h = self.pipe.getDisplayHeight()
+
+        props = WindowProperties()
+        props.setFullscreen(True)
+        props.setSize(w, h)
+        self.win.requestProperties(props)
 
     def update(self, task):
         dt = globalClock.getDt()  # pyright: ignore
@@ -251,11 +681,17 @@ class MainGame(ShowBase):
         self.player.update(dt)
         self.network.update()
         self.resource_system.update()
-        self.upgrade_system.update()
         self.inventory_ui.update()
-        self.enemies.update(dt)
         self.player_health_ui.update()
         self.pipe_health_ui.update()
+
+        if not self.game_started:
+            if hasattr(self, "lobby"):
+                self.lobby.update()
+            return task.cont
+
+        self.upgrade_system.update()
+        self.enemies.update(dt)
         self.shooting.update()
         self.vague_manager.update(dt)
 

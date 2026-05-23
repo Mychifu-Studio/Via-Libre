@@ -29,6 +29,7 @@ class ResourceSystem:
         self.in_trigger = False
         self.current_zone = None
         self.resource_zones = []
+        self.resource_markers = []
 
         # Données de la zone actuelle
         self.current_min_amount = 0
@@ -116,6 +117,7 @@ class ResourceSystem:
         marker.setScale(radius)
         marker.setTransparency(True)
         marker.setAlphaScale(0.25)
+        self.resource_markers.append(marker)
 
         if max_amount <= 2:
             marker.setColor(0.3, 0.9, 0.3, 1)
@@ -130,6 +132,7 @@ class ResourceSystem:
     # GENERATION DES ZONES SUR LES MINERAIS DE DIAMANT
     # =========================================================
     def generate_diamond_ore_zones(self):
+        self.clear_resource_zones()
         zones = self._generate_diamond_ore_zone_definitions()
         if not zones:
             print("Aucune zone de minerai de diamant trouvee pour generer les ressources.")
@@ -146,6 +149,26 @@ class ResourceSystem:
                 amount,
                 amount
             )
+
+    def clear_resource_zones(self):
+        self.cancel_harvest()
+        self.in_trigger = False
+        self.current_zone = None
+        self.current_min_amount = 0
+        self.current_max_amount = 0
+        self.base_harvest_required_time = 0.0
+        self.harvest_required_time = 0.0
+
+        for index, zone_np in enumerate(self.resource_zones):
+            self.game.ignore(f"player-into-trigger_zone_{index}")
+            self.game.ignore(f"player-out-trigger_zone_{index}")
+            zone_np.removeNode()
+
+        for marker in self.resource_markers:
+            marker.removeNode()
+
+        self.resource_zones.clear()
+        self.resource_markers.clear()
 
     def _generate_diamond_ore_zone_definitions(self):
         map_collision = getattr(self.game, "map_collision", None)

@@ -101,20 +101,37 @@ class PlayerState:
         )
 
 class EnemyState:
-    def __init__(self, id: str, x: float, y: float, z: float, h: float, hp: int):
+    def __init__(self, id: str, x: float, y: float, z: float, h: float, hp: int, max_hp: int = 3):
         self.id = id
         self.x = x
         self.y = y
         self.z = z
         self.h = h
         self.hp = hp
+        self.max_hp = max_hp
 
     def to_dict(self) -> Dict[str, Any]:
-        return {"id": self.id, "x": _q(self.x), "y": _q(self.y), "z": _q(self.z), "h": _q(self.h, 1), "hp": self.hp}
+        return {
+            "id": self.id,
+            "x": _q(self.x),
+            "y": _q(self.y),
+            "z": _q(self.z),
+            "h": _q(self.h, 1),
+            "hp": self.hp,
+            "max_hp": self.max_hp,
+        }
 
     @staticmethod
     def from_dict(data: Dict[str, Any]) -> "EnemyState":
-        return EnemyState(data["id"], data["x"], data["y"], data["z"], data.get("h", 0.0), data.get("hp", 1))
+        return EnemyState(
+            data["id"],
+            data["x"],
+            data["y"],
+            data["z"],
+            data.get("h", 0.0),
+            data.get("hp", 1),
+            data.get("max_hp", 3),
+        )
 
 class GameState:
     def __init__(
@@ -122,6 +139,7 @@ class GameState:
         wave_index: int,
         is_finished: bool,
         team_resources: int,
+        game_started: bool = False,
         pipe_hp: int = 20,
         pipe_max_hp: int = 20,
         is_game_over: bool = False,
@@ -129,10 +147,14 @@ class GameState:
         team_damage: int = 1,
         team_harvest_time_multiplier: float = 1.0,
         team_upgrade_levels: Optional[Dict[str, int]] = None,
+        current_level: int = 1,
+        max_levels: int = 5,
+        game_completed: bool = False,
     ):
         self.wave_index = wave_index
         self.is_finished = is_finished
         self.team_resources = team_resources
+        self.game_started = game_started
         self.pipe_hp = pipe_hp
         self.pipe_max_hp = pipe_max_hp
         self.is_game_over = is_game_over
@@ -140,12 +162,16 @@ class GameState:
         self.team_damage = team_damage
         self.team_harvest_time_multiplier = team_harvest_time_multiplier
         self.team_upgrade_levels = team_upgrade_levels or {}
+        self.current_level = current_level
+        self.max_levels = max_levels
+        self.game_completed = game_completed
 
     def to_dict(self) -> Dict[str, Any]:
         return {
             "wave_index": self.wave_index,
             "is_finished": self.is_finished,
             "team_resources": self.team_resources,
+            "game_started": self.game_started,
             "pipe_hp": self.pipe_hp,
             "pipe_max_hp": self.pipe_max_hp,
             "is_game_over": self.is_game_over,
@@ -153,6 +179,9 @@ class GameState:
             "team_damage": self.team_damage,
             "team_harvest_time_multiplier": _q(self.team_harvest_time_multiplier, 3),
             "team_upgrade_levels": self.team_upgrade_levels,
+            "current_level": self.current_level,
+            "max_levels": self.max_levels,
+            "game_completed": self.game_completed,
         }
 
     @staticmethod
@@ -161,6 +190,7 @@ class GameState:
             data.get("wave_index", 0),
             data.get("is_finished", False),
             data.get("team_resources", 0),
+            data.get("game_started", False),
             data.get("pipe_hp", 20),
             data.get("pipe_max_hp", 20),
             data.get("is_game_over", False),
@@ -168,6 +198,9 @@ class GameState:
             data.get("team_damage", 1),
             data.get("team_harvest_time_multiplier", 1.0),
             data.get("team_upgrade_levels", {}),
+            data.get("current_level", 1),
+            data.get("max_levels", 5),
+            data.get("game_completed", False),
         )
 
 class StructureState:
@@ -497,6 +530,19 @@ class GameNetworkInterface:
         if self.net is not None:
             self.net.start()
 
+    def broadcast_game_start(self):
+        if self.net is None or not self.net.is_host:
+            return
+
+        self.net.broadcast_msg(
+            "game_start",
+            {
+                "started_at": time.time(),
+                "current_level": getattr(self.base, "current_level", 1),
+                "max_levels": getattr(self.base, "max_levels", 5),
+            },
+        )
+
     def _get_python_tag(self, node, key: str, default=None):
         if hasattr(node, "hasPythonTag") and node.hasPythonTag(key):
             return node.getPythonTag(key)
@@ -741,7 +787,17 @@ class GameNetworkInterface:
             for enemy in self.base.enemies.enemies:
                 if not enemy.is_dead and hasattr(enemy, 'id'):
                     pos = enemy.node.getPos(self.base.render)
-                    enemies.append(EnemyState(enemy.id, pos.x, pos.y, pos.z, enemy.node.getH(self.base.render), enemy.hp))
+                    enemies.append(
+                        EnemyState(
+                            enemy.id,
+                            pos.x,
+                            pos.y,
+                            pos.z,
+                            enemy.node.getH(self.base.render),
+                            enemy.hp,
+                            getattr(enemy, "max_hp", getattr(enemy, "MAX_HP", 3)),
+                        )
+                    )
 
         game_state = None
         if hasattr(self.base, 'vague_manager'):
@@ -750,6 +806,7 @@ class GameNetworkInterface:
                 wave_index=self.base.vague_manager.current_wave_index,
                 is_finished=self.base.vague_manager.is_finished,
                 team_resources=self.base.inventory.get("ressource", 0),
+                game_started=getattr(self.base, "game_started", False),
                 pipe_hp=getattr(pipe_base, "hp", 20),
                 pipe_max_hp=getattr(pipe_base, "MAX_HP", 20),
                 is_game_over=getattr(self.base, "is_game_over", False),
@@ -757,6 +814,9 @@ class GameNetworkInterface:
                 team_damage=self.local_player.damage,
                 team_harvest_time_multiplier=self.local_player.harvest_time_multiplier,
                 team_upgrade_levels=self._local_upgrade_levels(),
+                current_level=getattr(self.base, "current_level", 1),
+                max_levels=getattr(self.base, "max_levels", 5),
+                game_completed=getattr(self.base, "game_completed", False),
             )
 
         structures = []
@@ -806,6 +866,26 @@ class GameNetworkInterface:
         model.setPythonTag("target_h", h)
 
     def _apply_game_state_snapshot(self, g_data: dict):
+        if "max_levels" in g_data:
+            self.base.max_levels = max(1, int(g_data.get("max_levels", getattr(self.base, "max_levels", 5))))
+        if "current_level" in g_data and hasattr(self.base, "set_current_level"):
+            self.base.set_current_level(g_data.get("current_level", 1))
+
+        if g_data.get("game_completed", False):
+            if hasattr(self.base, "vague_manager"):
+                self.base.vague_manager.finish_game()
+            return
+
+        if g_data.get("game_started", False) and not getattr(self.base, "game_started", False):
+            self.base.start_game(from_network=True, level_number=g_data.get("current_level"))
+
+        if (
+            not g_data.get("game_started", False)
+            and getattr(self.base, "game_started", False)
+            and hasattr(self.base, "return_to_lobby_from_network")
+        ):
+            self.base.return_to_lobby_from_network(g_data.get("current_level"))
+
         if "team_resources" in g_data:
             self._set_team_resources(g_data.get("team_resources", 0))
 
@@ -837,11 +917,13 @@ class GameNetworkInterface:
             self.base.trigger_game_over()
             return
 
-        if hasattr(self.base, "vague_manager"):
+        if getattr(self.base, "game_started", False) and hasattr(self.base, "vague_manager"):
             self.base.vague_manager.sync_from_snapshot(
                 g_data.get("wave_index", 0),
                 g_data.get("is_finished", False),
                 is_game_over,
+                g_data.get("current_level"),
+                g_data.get("game_completed", False),
             )
 
     def _apply_snapshot(self, payload: dict):
@@ -1128,6 +1210,11 @@ class GameNetworkInterface:
                 if self.net.is_host:
                     self._spawn_player(sender_id)
                     self._broadcast_snapshot(force=True)
+            elif kind == 'game_start':
+                if not self.net.is_host and hasattr(self.base, "start_game"):
+                    if "max_levels" in payload:
+                        self.base.max_levels = max(1, int(payload.get("max_levels", getattr(self.base, "max_levels", 5))))
+                    self.base.start_game(from_network=True, level_number=payload.get("current_level"))
             elif kind == 'snapshot':
                 self._apply_snapshot(payload)
             elif kind == 'input':

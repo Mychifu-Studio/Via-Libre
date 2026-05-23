@@ -3,6 +3,7 @@ from direct.showbase.ShowBase import ShowBase
 from direct.showbase.DirectObject import DirectObject
 
 from panda3d.core import Vec3
+from direct.actor.Actor import Actor
 
 from vialibre.camera import Camera
 from vialibre.construction import BuildManager
@@ -23,12 +24,66 @@ class Player(DirectObject):
         self.player = self.base.render.attachNewNode('player')
         self.modelNode = self.player.attachNewNode('player-model')
 
-        self.model = self.base.loader.loadModel('./assets/dog.bam')
-        self.model.setScale(self.model.getScale())
+        self.model = Actor(
+            './assets/Tony_idle.bam',
+            {
+                'idle': './assets/Tony_idle.bam',
+                'run': './assets/Tony_run.bam',
+            }
+        )
         self.model.reparentTo(self.modelNode)
+
+        self.model.setScale(0.4)
+        self.model.setH(180)
+        self.model.setZ(0)
+
+
+        # Gun séparé attaché à la main droite
+        self.right_hand = None
+        possible_hand_bones = [
+            "RightHand",
+            "Hand.R",
+            "hand_r",
+            "mixamorig:RightHand",
+            "Bip001 R Hand",
+        ]
+
+        for bone_name in possible_hand_bones:
+            joint = self.model.exposeJoint(None, "modelRoot", bone_name)
+            if not joint.isEmpty():
+                self.right_hand = joint
+                print("Main droite trouvée :", bone_name)
+                break
+
+        self.hand_gun = None
+        if self.right_hand is None:
+            print("Impossible de trouver le bone de la main droite.")
+        else:
+            self.hand_gun = self.base.loader.loadModel("./assets/hand_gun.bam")
+            self.hand_gun.reparentTo(self.right_hand)
+
+            # REGLAGES DU GUN — à ajuster
+            self.hand_gun.setScale(0.40)
+            self.hand_gun.setPos(0, 0, 0)
+            self.hand_gun.setHpr(0, -90, 0)
+
+            # Caché au départ, visible seulement quand on court
+            self.hand_gun.hide()
 
         self.shoulderNode = self.modelNode.attach_new_node('shoulder')
         self.shoulderNode.setZ(3)
+        
+        # Préchauffe les anims pour éviter les freeze
+        self.model.loop('run')
+        self.model.stop()
+        self.model.pose('idle', 0)
+
+        if self.hand_gun:
+            self.hand_gun.show()
+            self.hand_gun.hide()
+            
+        self.current_anim = 'idle'
+        self.model.loop('idle')
 
         self.heading = 0
 
@@ -39,7 +94,7 @@ class Player(DirectObject):
 
         self.movementVector = Vec3(0)
         self.lastMovement = Vec3(0)
-        self.playerSpeed = 10
+        self.playerSpeed = 6.7
         self.turnSpeed = 10.0
 
         self.MAX_HP = type(self).MAX_HP
@@ -70,6 +125,19 @@ class Player(DirectObject):
             "left": False,    "right": False,
             "ctrl": False,
         }
+    def tp_shop(self):
+        self.player.setPos(100,0,0)
+
+    def play_anim(self, anim_name):
+        if self.current_anim != anim_name:
+            self.model.loop(anim_name)
+            self.current_anim = anim_name
+
+        if self.hand_gun is not None:
+            if anim_name == 'run':
+                self.hand_gun.show()
+            else:
+                self.hand_gun.hide()
 
     def take_damage(self, amount=1):
         if self._damage_cooldown_remaining > 0:
@@ -111,6 +179,7 @@ class Player(DirectObject):
             self._damage_cooldown_remaining = max(0.0, self._damage_cooldown_remaining - dt)
 
         if self.is_paused:
+            self.play_anim('idle')
             self.camera.mouse.showCursor()
             return
 
@@ -129,8 +198,15 @@ class Player(DirectObject):
         if self.keyMap['right']:    input_vec += right
         if self.keyMap['left']:     input_vec -= right
 
-        if input_vec.lengthSquared() > 0:
+        is_moving = input_vec.lengthSquared() > 0
+
+        if is_moving:
             input_vec.normalize()
+            self.play_anim('run')
+            self.base.sound.loopSFX(self.base.sound.walk, (0.5, 0.5), (97, 103))
+        else:
+            self.play_anim('idle')
+            self.base.sound.stopSFX(self.base.sound.walk)
 
         from math import atan2, degrees
 

@@ -1,8 +1,92 @@
 import math
 import os
 import random
+
+from direct.actor.Actor import Actor
 from panda3d.core import CardMaker, Filename, Point3, TransparencyAttrib, Vec3
+
 from .utils import powLerp, shortest_angle_lerp
+
+
+BASE_ENEMY_HP = 10
+BASE_ENEMY_DAMAGE = 1
+ENEMY_ANIMATION_NAME = "walk"
+
+ENEMY_TYPE_CLASSIC = "classique"
+ENEMY_TYPE_FAST = "rapide"
+ENEMY_TYPE_HEAVY = "lourd"
+
+ENEMY_TYPE_CONFIGS = {
+    ENEMY_TYPE_CLASSIC: {
+        "asset": "ennemi_classique.bam",
+        "hp_multiplier": 5.0,
+        "speed_multiplier": 0.6,
+        "damage_multiplier": 1.0,
+        "resource_reward": 2,
+    },
+    ENEMY_TYPE_FAST: {
+        "asset": "ennemi_rapide.bam",
+        "hp_multiplier": 3,
+        "speed_multiplier": 0.8,
+        "damage_multiplier": 1.0,
+        "resource_reward": 1,
+    },
+    ENEMY_TYPE_HEAVY: {
+        "asset": "ennemi_lourd.bam",
+        "hp_multiplier": 10.0,
+        "speed_multiplier": 0.4,
+        "damage_multiplier": 2.0,
+        "resource_reward": 3,
+    },
+}
+
+ENEMY_TYPE_ALIASES = {
+    "1": ENEMY_TYPE_CLASSIC,
+    "classic": ENEMY_TYPE_CLASSIC,
+    "normal": ENEMY_TYPE_CLASSIC,
+    "standard": ENEMY_TYPE_CLASSIC,
+    "classique": ENEMY_TYPE_CLASSIC,
+    "2": ENEMY_TYPE_FAST,
+    "fast": ENEMY_TYPE_FAST,
+    "speed": ENEMY_TYPE_FAST,
+    "rapide": ENEMY_TYPE_FAST,
+    "3": ENEMY_TYPE_HEAVY,
+    "heavy": ENEMY_TYPE_HEAVY,
+    "tank": ENEMY_TYPE_HEAVY,
+    "lourd": ENEMY_TYPE_HEAVY,
+}
+
+RANDOM_ENEMY_TYPE_VALUES = {None, "random", "aleatoire"}
+ENEMY_TYPE_CHOICES = tuple(ENEMY_TYPE_CONFIGS.keys())
+
+
+def normalize_enemy_type(enemy_type):
+    if enemy_type is None:
+        return ENEMY_TYPE_CLASSIC
+    key = str(enemy_type).strip().lower()
+    return ENEMY_TYPE_ALIASES.get(key, ENEMY_TYPE_CLASSIC)
+
+
+def get_enemy_type_config(enemy_type):
+    return ENEMY_TYPE_CONFIGS[normalize_enemy_type(enemy_type)]
+
+
+def get_enemy_asset_path(asset_name):
+    base_dir = os.path.dirname(os.path.abspath(__file__))
+    path = os.path.join(base_dir, "../assets", asset_name)
+    return Filename.fromOsSpecific(path).getFullpath()
+
+
+def load_enemy_actor(asset_name):
+    path = get_enemy_asset_path(asset_name)
+    actor = Actor(path)
+    try:
+        if ENEMY_ANIMATION_NAME not in actor.getAnimNames():
+            actor.loadAnims({ENEMY_ANIMATION_NAME: path})
+        actor.loop(ENEMY_ANIMATION_NAME)
+    except Exception:
+        pass
+    return actor
 
 
 class MathUtils:
@@ -48,8 +132,10 @@ class MathUtils:
             pos.z,
         )
 
+
 class DogEnemy:
-    MAX_HP = 3
+    MAX_HP = BASE_ENEMY_HP
+    BASE_DAMAGE = BASE_ENEMY_DAMAGE
     CONTACT_RADIUS = 1.5
     HEALTH_BAR_WIDTH = 1.1
 
@@ -58,8 +144,8 @@ class DogEnemy:
         game,
         start_pos,
         end_pos,
-        speed=4.0,
-        scale=1.0,
+        speed=2.0,
+        scale=100,
         respawn_callback=None,
         player_node=None,
         detection_radius=12.0,
@@ -68,12 +154,24 @@ class DogEnemy:
         objective_callback=None,
         objective_reach_radius=1.0,
         enemy_id=None,
+        max_hp=None,
+        enemy_type=ENEMY_TYPE_CLASSIC,
     ):
         self.game = game
         self.id = enemy_id or f"enemy_{id(self)}"
+        self.enemy_type = normalize_enemy_type(enemy_type)
+        self.enemy_config = get_enemy_type_config(self.enemy_type)
+        self.asset_name = self.enemy_config["asset"]
         self.map_collision = getattr(self.game, "map_collision", None)
-        self.speed = speed
-        self.chase_speed = chase_speed if chase_speed is not None else speed * 1.25
+
+        speed_multiplier = self.enemy_config["speed_multiplier"]
+        self.base_speed = speed
+        self.speed = speed * speed_multiplier
+        base_chase_speed = chase_speed if chase_speed is not None else speed * 1.25
+        self.chase_speed = base_chase_speed * speed_multiplier
+        self.damage = max(1, int(round(self.BASE_DAMAGE * self.enemy_config["damage_multiplier"])))
+        self.resource_reward = max(0, int(self.enemy_config["resource_reward"]))
+
         self.detection_radius = detection_radius
         self.player_node = player_node
         self.area_bounds = area_bounds
@@ -81,7 +179,10 @@ class DogEnemy:
         self.objective_callback = objective_callback
         self.objective_reach_radius = objective_reach_radius
         self.is_dead = False
-        self.hp = self.MAX_HP
+
+        type_max_hp = self.MAX_HP * self.enemy_config["hp_multiplier"]
+        self.max_hp = max(1, int(round(max_hp if max_hp is not None else type_max_hp)))
+        self.hp = self.max_hp
 
         self.is_chasing = False
 
@@ -98,9 +199,7 @@ class DogEnemy:
         self._recalculate_movement()
 
     def _load_model(self):
-        base_dir = os.path.dirname(os.path.abspath(__file__))
-        path = Filename.fromOsSpecific(os.path.join(base_dir, "../assets", "dog.bam")).getFullpath()
-        return self.game.loader.loadModel(path)
+        return load_enemy_actor(self.asset_name)
 
     def _recalculate_movement(self):
         self.node.setPos(self.start_pos)
@@ -147,7 +246,7 @@ class DogEnemy:
         if self.health_bar_fill is None:
             return
 
-        ratio = max(0.0, min(1.0, self.hp / self.MAX_HP))
+        ratio = max(0.0, min(1.0, self.hp / self.max_hp))
         if ratio > 0.55:
             color = (0.15, 0.85, 0.28, 0.95)
         elif ratio > 0.25:
@@ -161,7 +260,6 @@ class DogEnemy:
     def _move_with_collision(self, current_pos, desired_pos):
         if self.map_collision is None or not hasattr(self.map_collision, "move"):
             return desired_pos
-
         return self.map_collision.move(current_pos, desired_pos)
 
     def take_damage(self, amount=1):
@@ -223,7 +321,6 @@ class DogEnemy:
         if self.objective_callback is not None:
             self.objective_callback(self)
             return
-
         self.respawn()
 
     def _update_straight_line(self, current_pos, dt):
@@ -280,7 +377,9 @@ class DogEnemy:
         dist = MathUtils.distance_segment_to_point(start_pos, end_pos, self.node.getPos(self.game.render))
         return dist <= hit_radius
 
-    def sync_state(self, x, y, z, h, hp):
+    def sync_state(self, x, y, z, h, hp, max_hp=None):
+        if max_hp is not None:
+            self.max_hp = max(1, int(max_hp))
         self.hp = hp
         self.target_pos = Point3(x, y, z)
         self.target_h = h
@@ -311,7 +410,7 @@ class DogEnemy:
     def respawn(self):
         if self.is_dead:
             return
-        self.hp = self.MAX_HP
+        self.hp = self.max_hp
         self.is_chasing = False
         if self.respawn_callback:
             self.start_pos, self.end_pos = self.respawn_callback()
@@ -320,25 +419,40 @@ class DogEnemy:
 
     def destroy(self):
         self.is_dead = True
+        if hasattr(self.node, "cleanup"):
+            self.node.cleanup()
         self.node.removeNode()
-
 
 
 class WaypointEnemy:
     """Ennemi qui suit une liste de waypoints a vitesse fixe puis disparait."""
+    # Résolution conflit : on garde MAX_HP=25 (HEAD) comme demandé,
+    # tout en conservant le système de types et dégâts (main).
     MAX_HP = 25
+    BASE_DAMAGE = BASE_ENEMY_DAMAGE
     CONTACT_RADIUS = 1.5
     WAYPOINT_REACH_THRESHOLD = 0.3
     HEALTH_BAR_WIDTH = 1.5
 
-    def __init__(self, game, waypoints, speed=4.0, scale=1.0, on_finish=None):
-        self.game      = game
+    def __init__(self, game, waypoints, speed=2.0, scale=19, on_finish=None, enemy_type=ENEMY_TYPE_CLASSIC, enemy_id=None, max_hp=None):
+        self.game = game
+        self.id = enemy_id or f"waypoint_enemy_{id(self)}"
+        self.enemy_type = normalize_enemy_type(enemy_type)
+        self.enemy_config = get_enemy_type_config(self.enemy_type)
+        self.asset_name = self.enemy_config["asset"]
+
+        speed_multiplier = self.enemy_config["speed_multiplier"]
         self.waypoints = [Vec3(wp) for wp in waypoints]
-        self.speed     = speed
+        self.speed = speed * speed_multiplier
         self.on_finish = on_finish
-        self.is_dead   = False
-        self.hp        = self.MAX_HP
-        self._index    = 0
+        self.is_dead = False
+        # max_hp explicite > config hp_multiplier > MAX_HP constant
+        type_max_hp = self.MAX_HP * self.enemy_config["hp_multiplier"]
+        self.max_hp = max(1, int(round(max_hp if max_hp is not None else type_max_hp)))
+        self.hp = self.max_hp
+        self.damage = max(1, int(round(self.BASE_DAMAGE * self.enemy_config["damage_multiplier"])))
+        self.resource_reward = max(0, int(self.enemy_config["resource_reward"]))
+        self._index = 0
         self.health_bar_fill = None
 
         self.node = self._load_model()
@@ -352,9 +466,7 @@ class WaypointEnemy:
         self._create_health_bar()
 
     def _load_model(self):
-        base_dir = os.path.dirname(os.path.abspath(__file__))
-        path = Filename.fromOsSpecific(os.path.join(base_dir, "../assets", "dog.bam")).getFullpath()
-        return self.game.loader.loadModel(path)
+        return load_enemy_actor(self.asset_name)
 
     def _create_health_bar(self):
         self.health_bar_root = self.node.attachNewNode("enemy-health-bar")
@@ -388,7 +500,7 @@ class WaypointEnemy:
     def _update_health_bar(self):
         if self.health_bar_fill is None:
             return
-        ratio = max(0.0, min(1.0, self.hp / self.MAX_HP))
+        ratio = max(0.0, min(1.0, self.hp / self.max_hp))
         if ratio > 0.55:
             color = (0.15, 0.85, 0.28, 0.95)
         elif ratio > 0.25:
@@ -431,10 +543,10 @@ class WaypointEnemy:
         if next_index >= len(self.waypoints):
             return
 
-        target      = self.waypoints[next_index]
+        target = self.waypoints[next_index]
         current_pos = self.node.getPos(self.game.render)
-        to_target   = Vec3(target.x - current_pos.x, target.y - current_pos.y, 0)
-        dist        = to_target.length()
+        to_target = Vec3(target.x - current_pos.x, target.y - current_pos.y, 0)
+        dist = to_target.length()
 
         if dist <= self.WAYPOINT_REACH_THRESHOLD:
             self._index = next_index
@@ -444,13 +556,15 @@ class WaypointEnemy:
             return
 
         direction = to_target / dist
-        step      = min(self.speed * dt, dist)
+        step = min(self.speed * dt, dist)
         self.node.setPos(Vec3(current_pos.x + direction.x * step, current_pos.y + direction.y * step, current_pos.z))
 
     def destroy(self):
         if self.is_dead:
             return
         self.is_dead = True
+        if hasattr(self.node, "cleanup"):
+            self.node.cleanup()
         self.node.removeNode()
         if self.on_finish:
             self.on_finish()
@@ -459,15 +573,16 @@ class WaypointEnemy:
 class PortalSpawner:
     """File d'attente d'un portail : spawne les ennemis un par un avec un delai."""
 
-    def __init__(self, game, waypoints, count, speed, scale, interval):
-        self.game      = game
-        self.waypoints = waypoints
-        self.speed     = speed
-        self.scale     = scale
-        self.interval  = interval
-        self.remaining = count
-        self.timer     = 0.0
-        self.done      = False
+    def __init__(self, game, waypoints, count, speed, scale, interval, enemy_type=ENEMY_TYPE_CLASSIC):
+        self.game       = game
+        self.waypoints  = waypoints
+        self.speed      = speed
+        self.scale      = scale
+        self.interval   = interval
+        self.enemy_type = enemy_type
+        self.remaining  = count
+        self.timer      = 0.0
+        self.done       = False
 
     def update(self, dt, enemy_list):
         if self.done:
@@ -475,7 +590,13 @@ class PortalSpawner:
         self.timer -= dt
         if self.timer > 0:
             return
-        enemy = WaypointEnemy(self.game, self.waypoints, speed=self.speed, scale=self.scale)
+        enemy = WaypointEnemy(
+            self.game,
+            self.waypoints,
+            speed=self.speed,
+            scale=self.scale,
+            enemy_type=self.enemy_type,
+        )
         enemy_list.append(enemy)
         self.remaining -= 1
         self.timer = self.interval if self.remaining > 0 else 0.0
@@ -484,7 +605,7 @@ class PortalSpawner:
 
 
 class EnemyManager:
-    BASE_DAMAGE_PER_ENEMY = 1
+    BASE_DAMAGE_PER_ENEMY = BASE_ENEMY_DAMAGE
 
     def __init__(self, game):
         self.game = game
@@ -493,8 +614,16 @@ class EnemyManager:
         self._next_id = 0
         self._player_cooldowns = {}
 
+    def _choose_enemy_type(self, enemy_type=None):
+        if enemy_type in RANDOM_ENEMY_TYPE_VALUES:
+            return random.choice(ENEMY_TYPE_CHOICES)
+        if isinstance(enemy_type, str) and enemy_type.strip().lower() in RANDOM_ENEMY_TYPE_VALUES:
+            return random.choice(ENEMY_TYPE_CHOICES)
+        return normalize_enemy_type(enemy_type)
+
     def spawn_dog(self, start_pos, end_pos, **kwargs):
         allow_blocked_end = kwargs.pop("allow_blocked_end", False)
+        enemy_type = self._choose_enemy_type(kwargs.pop("enemy_type", None))
         if not self._is_valid_position(start_pos):
             return None
         if not allow_blocked_end and not self._is_valid_position(end_pos):
@@ -504,7 +633,7 @@ class EnemyManager:
         self._next_id += 1
         kwargs["enemy_id"] = enemy_id
 
-        dog = DogEnemy(self.game, start_pos, end_pos, **kwargs)
+        dog = DogEnemy(self.game, start_pos, end_pos, enemy_type=enemy_type, **kwargs)
         if not dog.is_dead:
             self.enemies.append(dog)
         return dog
@@ -518,7 +647,7 @@ class EnemyManager:
         area_max_y=50,
         margin=2.0,
         detection_radius=12.0,
-        chase_speed=6.0,
+        chase_speed=2.0,
         **kwargs
     ):
         safe_min_x, safe_max_x = area_min_x + margin, area_max_x - margin
@@ -537,12 +666,8 @@ class EnemyManager:
         while spawned < count and attempts < max_attempts:
             attempts += 1
             start_pos = self._random_valid_position_away(
-                safe_min_x,
-                safe_max_x,
-                safe_min_y,
-                safe_max_y,
-                target_pos,
-                min_distance=8.0,
+                safe_min_x, safe_max_x, safe_min_y, safe_max_y,
+                target_pos, min_distance=8.0,
             )
             dog = self.spawn_dog(
                 start_pos,
@@ -570,13 +695,10 @@ class EnemyManager:
     def _handle_enemy_reached_base(self, enemy):
         if enemy.is_dead:
             return
-
         if hasattr(self.game, "damage_pipe"):
-            self.game.damage_pipe(self.BASE_DAMAGE_PER_ENEMY)
-
+            self.game.damage_pipe(self._get_enemy_damage(enemy))
         if not enemy.is_dead:
             enemy.destroy()
-
         vague_manager = getattr(self.game, "vague_manager", None)
         if vague_manager is not None and hasattr(vague_manager, "enemy_reached_base"):
             vague_manager.enemy_reached_base()
@@ -595,42 +717,47 @@ class EnemyManager:
 
         return start, end
 
-    def spawn_wave(self, portal_paths, count_per_portal, speed=4.0, scale=1.0, interval=1.5):
+    def spawn_wave(self, portal_paths, count_per_portal, speed=4.0, scale=19, interval=1.5, enemy_type=ENEMY_TYPE_CLASSIC):
         """
         Lance une vague depuis les portails definis dans portal_paths.
-        Appends dynamiquement la position du tuyau comme dernier waypoint de chaque chemin.
+        Ajoute dynamiquement la position du tuyau comme dernier waypoint de chaque chemin.
         """
         self._spawners.clear()
 
         pipe_pos = self._get_pipe_target_pos()
+        chosen_type = self._choose_enemy_type(enemy_type)
 
         for path in portal_paths:
             full_path = [Vec3(wp) for wp in path]
             full_path.append(Vec3(pipe_pos.x, pipe_pos.y, 0))
             spawner = PortalSpawner(
-                game     = self.game,
-                waypoints = full_path,
-                count    = count_per_portal,
-                speed    = speed,
-                scale    = scale,
-                interval = interval,
+                game       = self.game,
+                waypoints  = full_path,
+                count      = count_per_portal,
+                speed      = speed,
+                scale      = scale,
+                interval   = interval,
+                enemy_type = chosen_type,
             )
             self._spawners.append(spawner)
 
         return count_per_portal * len(portal_paths)
 
-    def spawn_waypoint_dog(self, waypoints, speed=4.0, scale=1.0, on_finish=None):
+    def spawn_waypoint_dog(self, waypoints, speed=2.0, scale=19, on_finish=None, enemy_type=None):
         """
         Spawne un ennemi qui parcourt la liste de waypoints a vitesse fixe
         et disparait apres le dernier point.
-
-        waypoints : liste de Vec3 ou de tuples (x, y, z).
-                    Le premier point est la position d'apparition.
-        on_finish : callback optionnel appele quand l'ennemi atteint le dernier point.
         """
         if len(waypoints) < 2:
             raise ValueError("Il faut au moins 2 waypoints.")
-        enemy = WaypointEnemy(self.game, waypoints, speed=speed, scale=scale, on_finish=on_finish)
+        enemy = WaypointEnemy(
+            self.game,
+            waypoints,
+            speed=speed,
+            scale=scale,
+            on_finish=on_finish,
+            enemy_type=self._choose_enemy_type(enemy_type),
+        )
         self.enemies.append(enemy)
         return enemy
 
@@ -670,8 +797,43 @@ class EnemyManager:
         map_collision = getattr(self.game, "map_collision", None)
         if map_collision is None:
             return True
-
         return map_collision.is_position_allowed(pos)
+
+    def _get_touching_enemy(self, player_pos):
+        for enemy in self.enemies:
+            if enemy.is_touching_point(player_pos):
+                return enemy
+        return None
+
+    def _get_enemy_damage(self, enemy):
+        return max(1, int(getattr(enemy, "damage", self.BASE_DAMAGE_PER_ENEMY)))
+
+    def _damage_local_player(self, damage):
+        damage = max(1, int(damage))
+        if hasattr(self.game, "damage_player"):
+            self.game.damage_player(damage)
+            return
+        for _ in range(damage):
+            self.game.messenger.send("player-take-damage")
+
+    def _grant_enemy_resources(self, enemy):
+        gain = max(0, int(getattr(enemy, "resource_reward", 0)))
+        if gain <= 0:
+            return
+
+        resource_system = getattr(self.game, "resource_system", None)
+        if resource_system is not None and hasattr(resource_system, "grant_resources"):
+            resource_system.grant_resources(gain)
+            return
+
+        inventory = getattr(self.game, "inventory", None)
+        if inventory is None:
+            return
+
+        inventory["ressource"] = inventory.get("ressource", 0) + gain
+        inventory_ui = getattr(self.game, "inventory_ui", None)
+        if inventory_ui is not None and hasattr(inventory_ui, "update"):
+            inventory_ui.update()
 
     def check_projectile_hit(self, start_pos, end_pos, hit_radius, apply_damage=True, damage=1):
         for enemy in self.enemies[:]:
@@ -679,16 +841,15 @@ class EnemyManager:
                 if apply_damage:
                     killed = enemy.take_damage(max(1, int(damage)))
                     if killed:
-                        self.enemies.remove(enemy)
+                        if enemy in self.enemies:
+                            self.enemies.remove(enemy)
+                        self._grant_enemy_resources(enemy)
                         self.game.messenger.send("enemy-hit")
                 return True
         return False
 
     def check_player_contact(self, player_pos):
-        for enemy in self.enemies:
-            if enemy.is_touching_point(player_pos):
-                return True
-        return False
+        return self._get_touching_enemy(player_pos) is not None
 
     def update(self, dt):
         is_host = True
@@ -702,7 +863,7 @@ class EnemyManager:
 
             for enemy in self.enemies:
                 if isinstance(enemy, WaypointEnemy) and enemy.has_reached_end():
-                    self.game.damage_pipe(EnemyManager.BASE_DAMAGE_PER_ENEMY)
+                    self.game.damage_pipe(self._get_enemy_damage(enemy))
                     self.game.messenger.send("enemy-hit")
                     enemy.destroy()
                     continue
@@ -712,8 +873,9 @@ class EnemyManager:
                 player_np = getattr(self.game.player, 'player', None)
                 if player_np is not None:
                     player_pos = player_np.getPos(self.game.render)
-                    if self.check_player_contact(player_pos):
-                        self.game.messenger.send("player-take-damage")
+                    touching_enemy = self._get_touching_enemy(player_pos)
+                    if touching_enemy is not None:
+                        self._damage_local_player(self._get_enemy_damage(touching_enemy))
 
             if net_iface is not None:
                 for name, model in net_iface.other_players.items():
@@ -724,13 +886,14 @@ class EnemyManager:
                         continue
 
                     p_pos = model.getPos(self.game.render)
-                    if self.check_player_contact(p_pos):
+                    touching_enemy = self._get_touching_enemy(p_pos)
+                    if touching_enemy is not None:
                         if hasattr(model, "hasPythonTag") and model.hasPythonTag("hp"):
                             current_hp = model.getPythonTag("hp")
                         else:
                             current_hp = 10
                         if current_hp > 0:
-                            model.setPythonTag("hp", current_hp - 1)
+                            model.setPythonTag("hp", current_hp - self._get_enemy_damage(touching_enemy))
                             self._player_cooldowns[name] = 0.5
         else:
             for enemy in self.enemies:
@@ -738,18 +901,36 @@ class EnemyManager:
 
         self.enemies = [e for e in self.enemies if not e.is_dead]
 
+    def _enemy_type_from_snapshot(self, enemy_data):
+        return normalize_enemy_type(enemy_data.get("enemy_type", enemy_data.get("type", ENEMY_TYPE_CLASSIC)))
+
     def sync_from_snapshot(self, enemies_data):
         known_ids = set()
         for e_data in enemies_data:
             eid = e_data['id']
+            enemy_type = self._enemy_type_from_snapshot(e_data)
             known_ids.add(eid)
             existing = next((e for e in self.enemies if e.id == eid), None)
+
+            if existing and getattr(existing, "enemy_type", ENEMY_TYPE_CLASSIC) != enemy_type:
+                existing.destroy()
+                if existing in self.enemies:
+                    self.enemies.remove(existing)
+                existing = None
+
             if existing:
-                existing.sync_state(e_data['x'], e_data['y'], e_data['z'], e_data['h'], e_data['hp'])
+                existing.sync_state(e_data['x'], e_data['y'], e_data['z'], e_data['h'], e_data['hp'], e_data.get('max_hp'))
             else:
-                dog = DogEnemy(self.game, (e_data['x'], e_data['y'], e_data['z']), (e_data['x'] + 0.1, e_data['y'], e_data['z']), enemy_id=eid)
+                dog = DogEnemy(
+                    self.game,
+                    (e_data['x'], e_data['y'], e_data['z']),
+                    (e_data['x'] + 0.1, e_data['y'], e_data['z']),
+                    enemy_id=eid,
+                    max_hp=e_data.get('max_hp'),
+                    enemy_type=enemy_type,
+                )
                 dog.is_dead = False
-                dog.sync_state(e_data['x'], e_data['y'], e_data['z'], e_data['h'], e_data['hp'])
+                dog.sync_state(e_data['x'], e_data['y'], e_data['z'], e_data['h'], e_data['hp'], e_data.get('max_hp'))
                 self.enemies.append(dog)
 
         for enemy in list(self.enemies):
@@ -757,6 +938,22 @@ class EnemyManager:
                 enemy.destroy()
 
         self.enemies = [e for e in self.enemies if not e.is_dead]
+
+    def get_snapshot(self):
+        return [self._enemy_to_snapshot(enemy) for enemy in self.enemies if not enemy.is_dead]
+
+    def _enemy_to_snapshot(self, enemy):
+        pos = enemy.node.getPos(self.game.render)
+        return {
+            "id": enemy.id,
+            "enemy_type": getattr(enemy, "enemy_type", ENEMY_TYPE_CLASSIC),
+            "x": pos.x,
+            "y": pos.y,
+            "z": pos.z,
+            "h": enemy.node.getH(self.game.render),
+            "hp": enemy.hp,
+            "max_hp": getattr(enemy, "max_hp", enemy.hp),
+        }
 
     def clear(self):
         self._spawners.clear()

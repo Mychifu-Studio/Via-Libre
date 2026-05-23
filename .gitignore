@@ -98,3 +98,8 @@ certif/
 .venv/
 server/
 *.nix
+
+assets/Tony_run.bam
+assets/Shop.bam
+assets/quest_guy.bam
+assets/bartender.bam
