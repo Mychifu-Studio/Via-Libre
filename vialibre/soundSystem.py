@@ -6,13 +6,14 @@ from random import randint
 class SoundEngine():
     def __init__(self, base):
         self.base: ShowBase = base
+        self.sfxs = dict()
         
-        self.gunshot = self.base.loader.loadSfx("assets/SFX/gunshot.wav")
-        
-        self.sfxs = {
-            "gunshot": self.gunshot,
-        }
-        
+        self.addSFX("gunshot", "assets/SFX/gunshot.wav")
+    
+    def addSFX(self, name: str, path: str):
+        exec(f'self.{name} = self.base.loader.loadSfx("{path}")')
+        exec(f'self.sfxs[name] = self.{name}')
+    
     def setVol(self, sfx: str):
         ...
         
