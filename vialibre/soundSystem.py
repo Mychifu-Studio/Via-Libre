@@ -11,6 +11,8 @@ class SoundEngine():
         
         self.addSFX("gunshot", "assets/SFX/gunshot.wav")
         self.addSFX("turret", "assets/SFX/turret_fire.wav")
+        self.addSFX("turret_reload", "assets/SFX/turret_reload.wav")
+        self.setVol("turret_reload", .1)
         for i in range(1, 11):
             self.addSFX(f"step{i}", f"assets/SFX/step{i}.wav")
             self.setVol(f"step{i}", .1)

@@ -195,6 +195,7 @@ class Structure:
         )
         seq.start()
         self.base.sound.play("turret")
+        self.base.sound.play("turret_reload")
 
     def update_task(self, task):
         dt = task.time - getattr(task, 'last_time', task.time)
