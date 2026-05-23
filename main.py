@@ -26,11 +26,12 @@ load_prc_file_data(
     "",
     "sync-video f\n"
     "show-frame-rate-meter t\n"
-    "win-size 1280 720\n"
+    "win-size 1920 1080\n"
     "client-sleep 0.001\n"
     "framebuffer-multisample 1\n"
     "multisamples 2\n"
-    "load-file-type p3assimp"
+    "load-file-type p3assimp\n"
+    "fullscreen true"
 )
 
 GAME_SPAWN_POS = (0, 0, 0)
@@ -424,6 +425,7 @@ class HostCodeUI:
 class MainGame(ShowBase):
     def __init__(self):
         super().__init__(True)
+        self.setFullscren()
         simplepbr.init()
 
         self.render.setAntialias(AntialiasAttrib.MMultisample)
@@ -656,6 +658,15 @@ class MainGame(ShowBase):
         self.enemies.clear()
         self.network.exit()
         self.userExit()
+        
+    def setFullscren(self):
+        w = self.pipe.getDisplayWidth()
+        h = self.pipe.getDisplayHeight()
+
+        props = WindowProperties()
+        props.setFullscreen(True)
+        props.setSize(w, h)
+        self.win.requestProperties(props)
 
     def update(self, task):
         dt = globalClock.getDt()  # pyright: ignore
