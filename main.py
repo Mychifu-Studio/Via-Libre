@@ -67,7 +67,7 @@ class EnvironmentManager:
 
     def _load_map(self, map_path, map_heading):
         if self.jungle is not None and not self.jungle.isEmpty():
-            self.jungle.removeNode()
+            self._remove_loaded_node(self.jungle)
 
         # size = 256
         # img = PNMImage(size, size)
@@ -116,6 +116,16 @@ class EnvironmentManager:
         except Exception:
             return loader.loadModel(path)
 
+    def _remove_loaded_node(self, node):
+        if node is None or node.isEmpty():
+            return
+
+        cleanup = getattr(node, "cleanup", None)
+        if callable(cleanup):
+            cleanup()
+
+        node.removeNode()
+
     def _load_lobby_character(self, attr_name, candidates, pos, scale, heading=None):
         path = self._resolve_model_path(candidates)
         if path is None:
@@ -156,8 +166,7 @@ class EnvironmentManager:
 
     def _clear_lobby_characters(self):
         for character in self.lobby_characters:
-            if character is not None and not character.isEmpty():
-                character.removeNode()
+            self._remove_loaded_node(character)
         self.lobby_characters = []
 
     def add_spotlight(self, name, color, pos, target, fov=45, near=1, far=50):
