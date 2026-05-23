@@ -10,9 +10,12 @@ class SoundEngine():
         self.loops = dict()
         self.songs = dict()
         
-        self.addSong("pigstep", "assets/music/pigstep.flac")
-        self.setVol("pigstep", .1) # Le master est très LOUD
-        self.loop("pigstep")
+        # self.addSong("pigstep", "assets/music/pigstep.flac")
+        # self.setVol("pigstep", .1) # Le master est très LOUD
+        # self.loop("pigstep")
+        
+        self.addSong("kawaii", "assets/music/digicoooore_loop.ogg")
+        self.loop("kawaii")
         
         self.addSFX("gunshot", "assets/SFX/gunshot.wav")
         self.addSFX("turret", "assets/SFX/turret_fire.wav")
