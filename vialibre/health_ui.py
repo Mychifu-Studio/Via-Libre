@@ -74,6 +74,11 @@ class PlayerHealthUI:
         self.bar_fill["frameColor"] = color
         self.bar_fill["frameSize"] = (0.065, fill_right, -0.36, -0.33)
 
+    def set_visible(self, visible):
+        action = "show" if visible else "hide"
+        for node in (self.root, self.label, self.bar_bg, self.bar_fill):
+            getattr(node, action)()
+
 
 class PipeHealthUI:
     """Affiche la barre de vie du tuyau a defendre."""
@@ -145,3 +150,8 @@ class PipeHealthUI:
         self.label.setText(f"Vie tuyau : {hp}/{max_hp}")
         self.bar_fill["frameColor"] = color
         self.bar_fill["frameSize"] = (0.065, fill_right, -0.49, -0.46)
+
+    def set_visible(self, visible):
+        action = "show" if visible else "hide"
+        for node in (self.root, self.label, self.bar_bg, self.bar_fill):
+            getattr(node, action)()

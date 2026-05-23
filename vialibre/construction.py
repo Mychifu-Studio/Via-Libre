@@ -355,6 +355,9 @@ class BuildManager(DirectObject):
         self.locked_build_hpr = None
 
     def basculer_mode(self):
+        if not getattr(self.base, "game_started", True):
+            return
+
         self.mode_actif = not self.mode_actif
         self.camera.setZoomLock(self.mode_actif)
         if self.mode_actif:
@@ -369,6 +372,9 @@ class BuildManager(DirectObject):
                 self.fermer_menu_construction()
 
     def on_radial_select(self, index, option):
+        if not getattr(self.base, "game_started", True):
+            return
+
         if not self.mode_actif:
             return
 

@@ -124,6 +124,9 @@ class ShootingSystem:
             net_iface.net.send_msg("shoot_request", payload)
 
     def shoot(self):
+        if not getattr(self.game, "game_started", True):
+            return
+
         if self.player_sys.build_manager.mode_actif or self.was_building_last_frame:
             return
 

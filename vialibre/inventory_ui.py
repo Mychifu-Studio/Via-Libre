@@ -60,3 +60,13 @@ class InventoryUI:
     def update(self):
         amount = self.game.inventory.get("ressource", 0)
         self.resource_label.setText(f"Ressources : {amount}")
+
+    def set_visible(self, visible):
+        action = "show" if visible else "hide"
+        for node in (
+            self.inventory_bg,
+            self.inventory_title,
+            self.resource_label,
+            self.help_label,
+        ):
+            getattr(node, action)()
