@@ -9,6 +9,7 @@ from direct.interval.IntervalGlobal import Sequence, LerpPosInterval, Func, Wait
 from direct.showbase.DirectObject import DirectObject
 
 from vialibre.radialMenu import RadialMenu
+from panda3d.core import BillboardEffect
 
 
 @dataclass(frozen=True)
@@ -27,6 +28,7 @@ class TurretConfig:
     area_radius: float
     projectile_speed: float
     ammo_scale: float = 1.0
+    turret_scale: float = 1.0
     heading_offset: float = 180.0
     impact_color: tuple[float, float, float, float] = (1.0, 0.8, 0.2, 1.0)
 
@@ -36,7 +38,7 @@ TURRET_CONFIGS = {
     "canon": TurretConfig(
         key="canon",
         display_name="Canon",
-        cost=15,
+        cost=0,#15,
         damage=2,
         static_model="./assets/Turrets/Canon_static.bam",
         moving_model="./assets/Turrets/Canon_moving.bam",
@@ -47,12 +49,14 @@ TURRET_CONFIGS = {
         hit_radius=1.0,
         area_radius=0.0,
         projectile_speed=85.0,
+        ammo_scale=1.0,
+        turret_scale=0.75,
         impact_color=(1.0, 0.74, 0.22, 1.0),
     ),
     "tesla": TurretConfig(
         key="tesla",
         display_name="Tesla",
-        cost=25,
+        cost=0,#25,
         damage=1,
         static_model="./assets/Turrets/Tesla_static.bam",
         moving_model="./assets/Turrets/Tesla_moving.bam",
@@ -63,12 +67,14 @@ TURRET_CONFIGS = {
         hit_radius=0.7,
         area_radius=0.7,
         projectile_speed=130.0,
+        ammo_scale=0.5,
+        turret_scale=0.45,
         impact_color=(0.35, 0.85, 1.0, 1.0),
     ),
     "bomb": TurretConfig(
         key="bomb",
         display_name="Bomb",
-        cost=50,
+        cost=0,#50,
         damage=5,
         static_model="./assets/Turrets/Bomb_static.bam",
         moving_model="./assets/Turrets/Bomb_moving.bam",
@@ -79,6 +85,8 @@ TURRET_CONFIGS = {
         hit_radius=0.8,
         area_radius=1.4,
         projectile_speed=65.0,
+        ammo_scale=1.0,
+        turret_scale=0.5,
         impact_color=(1.0, 0.35, 0.12, 1.0),
     ),
 }
@@ -117,10 +125,13 @@ def load_turret(base, np, turret_config=None):
     except Exception as e:
         print(f"Erreur de chargement {config.moving_model} : {e}")
 
+    root.setScale(config.turret_scale)
+
     root.setPythonTag("turret_aim_node", moving_pivot)
     root.setPythonTag("turret_static_node", static_model)
     root.setPythonTag("turret_moving_node", moving_model)
     return root
+
 
 def load_hologram(base, np):
     pivot = base.render.attachNewNode("hologram_pivot")
@@ -148,33 +159,6 @@ def load_hologram(base, np):
 
     return pivot
 
-def load_hologram(base, np):
-    pivot = base.render.attachNewNode("hologram_pivot")
-    
-    try:
-        model = base.loader.loadModel("./assets/arrow.bam")
-        model.setScale(0.1)
-        model.reparentTo(pivot)
-        
-        min_bounds, max_bounds = model.getTightBounds()
-        center = (min_bounds + max_bounds) / 2.0
-        
-        tweak_x = 0.0
-        tweak_y = -0.4
-        tweak_z = 0.0
-        
-        model.setPos(-center[0] + tweak_x, -center[1] + tweak_y, -center[2] + tweak_z)
-        pivot.setHpr(0, -90, 0)
-        
-    except Exception as e:
-        print(f"Erreur de chargement : {e}")
-
-    pivot.setPos(0, 0, 0) 
-    pivot.reparentTo(np)
-
-    return pivot
-
-from panda3d.core import BillboardEffect
 
 class FloatingUI:
     """SRP: Gère uniquement la création et l'affichage d'un texte flottant en 3D."""
@@ -197,8 +181,12 @@ class FloatingUI:
         self.ui_np.setDepthWrite(False)
         self.ui_np.setBin("fixed", 0)
 
-    def show(self): self.ui_np.show()
-    def hide(self): self.ui_np.hide()
+    def show(self):
+        self.ui_np.show()
+
+    def hide(self):
+        self.ui_np.hide()
+
 
 class Structure:
     """SRP: Gère la représentation d'une structure placée dans le monde et son comportement."""
@@ -229,21 +217,18 @@ class Structure:
 
         self.ui = FloatingUI(self.base, self.np, "Supprimer [Clic]")
 
-        # --- NOUVEAU : Paramètres de combat ---
-        self.activation_radius = self.config.activation_radius  # Distance a partir de laquelle on vise/tire
-        self.fire_rate = self.config.fire_rate                  # Temps en secondes entre chaque tir
+        self.activation_radius = self.config.activation_radius
+        self.fire_rate = self.config.fire_rate
         self.damage = self.config.damage
         self.hit_radius = self.config.hit_radius
         self.area_radius = self.config.area_radius
         self.time_since_last_shot = 0.0
 
-        # Options possibles: "closest" (plus proche) ou "lowest_hp" (moins de PV)
         self.targeting_mode = "closest"
 
         self.offset_turret = Vec3(0, 0, 0.5)
         self.offset_enemies = Vec3(0, 0, 0)
 
-        # --- NOUVEAU : Tâche de mise à jour propre à la tourelle ---
         self.task_name = f"turret_update_{id(self)}"
         self.base.taskMgr.add(self.update_task, self.task_name)
 
@@ -384,8 +369,7 @@ class Structure:
             return task.cont
 
         my_pos = self.np.getPos(self.base.render)
-        
-        # 1. Récupérer tous les ennemis valides (dans le rayon d'activation)
+
         best_enemy = None
         best_distance_sq = None
         best_key = None
@@ -393,6 +377,7 @@ class Structure:
         enemy_iter = self.enemy_manager.enemies
         if hasattr(self.enemy_manager, "iter_enemies_in_radius"):
             enemy_iter = self.enemy_manager.iter_enemies_in_radius(my_pos, self.activation_radius)
+
         for enemy in enemy_iter:
             if enemy.is_dead:
                 continue
@@ -414,16 +399,13 @@ class Structure:
                 best_enemy = enemy
                 best_distance_sq = dist_sq
 
-        # S'il n'y a personne dans le rayon, on ne fait rien
         if best_enemy is None:
             return task.cont
 
         target_enemy = best_enemy
         min_dist = best_distance_sq if best_distance_sq is not None else 0.0
-
-        # 3. S'orienter et tirer sur la cible choisie
         enemy_pos = target_enemy.node.getPos(self.base.render)
-        
+
         if min_dist > 0.01:
             self._aim_at(enemy_pos)
 
@@ -435,8 +417,6 @@ class Structure:
             target_pos_visuel = Point3(enemy_pos.x, enemy_pos.y, enemy_pos.z + 0.5) + self.offset_enemies
 
             self.create_projectile_effect(start_pos_visuel, target_pos_visuel)
-
-            # Application des degats
             self._apply_turret_damage(my_pos, enemy_pos)
 
             if getattr(self.base, 'network', None) and getattr(self.base.network, 'net', None) and self.base.network.net.is_host:
@@ -450,9 +430,7 @@ class Structure:
         return task.cont
 
     def detruire(self):
-        # Nettoyer la tâche lorsqu'on supprime la tourelle
         self.base.taskMgr.remove(self.task_name)
-
         self.np.removeNode()
         if self.on_destroy_callback:
             self.on_destroy_callback(self)
@@ -463,37 +441,45 @@ class Structure:
     def retirer_surlignage(self):
         self.model.clearColorScale()
 
+
 class Hologram:
     """SRP: Gère exclusivement l'affichage du fantôme de construction."""
     def __init__(self, base):
         self.base = base
         self.np = NodePath("hologramme_root")
         self.np.reparentTo(self.base.render)
-        
+
         self.model = load_hologram(self.base, self.np)
-        
+
         self.np.setTransparency(TransparencyAttrib.MAlpha)
         self.np.setColorScale(0.2, 0.5, 1.0, 0.5)
         self.np.hide()
 
-    def show(self): self.np.show()
-    def hide(self): self.np.hide()
-    def get_pos(self): return self.np.getPos(self.base.render)
-    def get_hpr(self): return self.np.getHpr(self.base.render)
+    def show(self):
+        self.np.show()
+
+    def hide(self):
+        self.np.hide()
+
+    def get_pos(self):
+        return self.np.getPos(self.base.render)
+
+    def get_hpr(self):
+        return self.np.getHpr(self.base.render)
 
     def update_transform(self, pos, hpr):
         self.np.setPos(pos)
         self.np.setHpr(hpr)
 
+
 class BuildManager(DirectObject):
-    # --- MODIFIÉ : Ajout de enemy_manager en argument ---
     def __init__(self, showbase, player_root, camera, mouse):
         super().__init__()
         self.base = showbase
         self.player_root = player_root
         self.camera = camera
         self.mouse = mouse
-        self.enemy_manager = self.base.enemies # <-- Sauvegarde de la référence
+        self.enemy_manager = self.base.enemies
 
         self.mode_actif = False
         self.distance_construction = 2.5
@@ -518,9 +504,9 @@ class BuildManager(DirectObject):
                 (f"{TURRET_CONFIGS[key].cost} Ressources", TURRET_CONFIGS[key].menu_icon)
                 for key in RADIAL_TURRET_ORDER
             ],
-            open_event="mouse1",       # Maintien du clic gauche
-            close_event="mouse1-up",   # Relâchement du clic gauche
-            bind_events=False,         # On va lier les events manuellement car on les veut actifs que dans le mode_actif
+            open_event="mouse1",
+            close_event="mouse1-up",
+            bind_events=False,
             on_select=self.on_radial_select,
             on_cancel=self.on_radial_cancel
         )
@@ -606,6 +592,7 @@ class BuildManager(DirectObject):
         turret_config = get_turret_config(turret_type)
         if self.base.inventory["ressource"] < turret_config.cost:
             return False
+
         nouvelle_structure = Structure(
             self.base, pos, hpr,
             self._on_structure_detruite,
@@ -615,11 +602,14 @@ class BuildManager(DirectObject):
         )
         self.structures.append(nouvelle_structure)
         self.base.inventory["ressource"] -= turret_config.cost
+
         if hasattr(self.base, 'inventory_ui'):
             self.base.inventory_ui.update()
+
         net_iface = getattr(self.base, 'network', None)
         if net_iface is not None and getattr(net_iface, 'net', None) is not None and net_iface.net.is_host:
             net_iface._broadcast_snapshot(force=True)
+
         return True
 
     def request_destroy_structure(self, structure):
@@ -638,22 +628,28 @@ class BuildManager(DirectObject):
     def host_destroy_structure(self, struct_id):
         if not struct_id:
             return False
+
         structure = next((s for s in self.structures if getattr(s, 'id', None) == struct_id), None)
         if structure is None:
             return False
+
         structure.detruire()
+
         net_iface = getattr(self.base, 'network', None)
         if net_iface is not None and getattr(net_iface, 'net', None) is not None and net_iface.net.is_host:
             net_iface._broadcast_snapshot(force=True)
+
         return True
 
     def sync_from_snapshot(self, structures_data):
         known_ids = set()
+
         for s_data in structures_data:
             sid = s_data['id']
             known_ids.add(sid)
             turret_type = get_turret_config(s_data.get('turret_type', DEFAULT_TURRET_TYPE)).key
             existing = next((s for s in self.structures if s.id == sid), None)
+
             if existing and getattr(existing, "turret_type", DEFAULT_TURRET_TYPE) != turret_type:
                 existing.detruire()
                 existing = None
@@ -677,23 +673,8 @@ class BuildManager(DirectObject):
             if struct.id not in known_ids:
                 struct.detruire()
 
-
     def on_radial_cancel(self):
         pass
-
-    # def valider_construction(self):
-    #     if self.mode_actif and self.base.inventory["ressource"] >= self.cost:
-    #         # --- MODIFIÉ : On passe l'enemy_manager à la nouvelle structure ---
-    #         nouvelle_structure = Structure(
-    #             self.base,
-    #             self.hologramme.get_pos(),
-    #             self.hologramme.get_hpr(),
-    #             self._on_structure_detruite,
-    #             self.enemy_manager
-    #         )
-    #         self.structures.append(nouvelle_structure)
-    #         self.base.inventory["ressource"] -= self.cost
-    #         self.basculer_mode()
 
     def _on_structure_detruite(self, structure):
         if structure in self.structures:
@@ -732,6 +713,7 @@ class BuildManager(DirectObject):
                 vecteur_diff.setZ(0)
                 vecteur_diff.normalize()
             return pos_joueur + (vecteur_diff * self.distance_min)
+
         return position_cible
 
     def update(self):
