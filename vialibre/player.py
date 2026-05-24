@@ -126,7 +126,7 @@ class Player(DirectObject):
             "ctrl": False,
         }
         
-        self.player.setPos(0, -5, 0)
+        self.player.setPos(0, -5, 0.5)
 
     def play_anim(self, anim_name):
         if self.current_anim != anim_name:

@@ -200,7 +200,7 @@ class LobbyManager(DirectObject):
 
         self.panel.hide()
         self.zone_np.removeNode()
-        self.marker.removeNode()
+        # self.marker.removeNode()
         # self.world_label.removeNode()
         self.game.popup_ui.hide_popup()
 
