@@ -30,7 +30,7 @@ load_prc_file_data(
     "client-sleep 0.001\n"
     "framebuffer-multisample 0\n"
     "multisamples 0\n"
-    # "load-file-type p3assimp\n"
+    # "load-file-type p3assimp\n" 
 )
 
 GAME_SPAWN_POS = (0, 0, 0)
