@@ -42,13 +42,11 @@ class EnvironmentManager:
 
     LOBBY_MAP_CANDIDATES = (
         ("assets/Shop.bam", 0),
-        ("assets/shop.bam", 0),
-        ("assets/Shop.glb", 0),
         ("assets/Jungle3.bam", -90),
     )
     GAME_MAP = ("assets/Jungle3.bam", -90)
-    BARTENDER_CANDIDATES = ("assets/bartender.bam", "assets/Bartender1.glb")
-    QUEST_GUY_CANDIDATES = ("assets/quest_guy.bam", "assets/Fredi.glb")
+    BARTENDER_CANDIDATES = ("assets/bartender.bam", "assets/bartender.bam")
+    QUEST_GUY_CANDIDATES = ("assets/quest_guy.bam", "assets/quest_guy.bam")
 
     def __init__(self, render):
         self.render = render
@@ -434,7 +432,12 @@ class MainGame(ShowBase):
         )
 
         self.disable_mouse()
+        
+        self.initialize()
 
+
+
+    def initialize(self):
         props = WindowProperties()
         props.setCursorHidden(True)
         if hasattr(self.win, "requestProperties"):
