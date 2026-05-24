@@ -1,6 +1,120 @@
+import os
+
 from direct.gui.DirectGui import DirectFrame, DirectLabel
+from direct.gui.OnscreenImage import OnscreenImage
 from direct.showbase.DirectObject import DirectObject
-from panda3d.core import BitMask32, CollisionNode, CollisionSphere, Point3, TextNode
+from panda3d.core import BitMask32, CollisionNode, CollisionSphere, Point3, TextNode, TransparencyAttrib
+
+
+class LobbyManual:
+    PAGE_PATHS = (
+        "./assets/manual/1.png",
+        "./assets/manual/2.png",
+        "./assets/manual/3.png",
+        "./assets/manual/4.png",
+    )
+
+    def __init__(self, game, prepare_gui_node):
+        self.game = game
+        self.prepare_gui_node = prepare_gui_node
+        self.page_index = 0
+        self.visible = False
+        self.previous_player_pause = None
+
+        self.root = DirectFrame(
+            parent=self.game.aspect2d,
+            frameColor=(0, 0, 0, 0.9),
+            frameSize=(-2.0, 2.0, -1.0, 1.0),
+            pos=(0, 0, 0),
+        )
+        self.prepare_gui_node(self.root, 180)
+        self.root.hide()
+
+        self.pages = []
+        for path in self.PAGE_PATHS:
+            if not os.path.exists(path):
+                continue
+
+            image = OnscreenImage(
+                parent=self.root,
+                image=path,
+                pos=(0, 0, 0),
+                scale=(self._aspect_ratio(), 1, 1),
+            )
+            image.setTransparency(TransparencyAttrib.MAlpha)
+            self.prepare_gui_node(image, 181)
+            image.hide()
+            self.pages.append(image)
+
+    def _aspect_ratio(self):
+        return max(1.0, self.game.getAspectRatio())
+
+    def _resize_to_window(self):
+        aspect = self._aspect_ratio()
+        self.root["frameSize"] = (-aspect, aspect, -1, 1)
+        for page in self.pages:
+            page.setScale(aspect, 1, 1)
+
+    def _set_page(self, index):
+        if not self.pages:
+            return
+
+        self.page_index = max(0, min(index, len(self.pages) - 1))
+        for page_number, page in enumerate(self.pages):
+            if page_number == self.page_index:
+                page.show()
+            else:
+                page.hide()
+
+    def show(self):
+        if self.visible or not self.pages:
+            return
+
+        player = getattr(self.game, "player", None)
+        if player is not None:
+            self.previous_player_pause = player.is_paused
+            player.is_paused = True
+            player.movementVector.set(0, 0, 0)
+            player.lastMovement.set(0, 0, 0)
+
+        self._resize_to_window()
+        self._set_page(self.page_index)
+        self.root.show()
+        self.visible = True
+
+    def hide(self):
+        if not self.visible:
+            return
+
+        self.root.hide()
+        self.visible = False
+
+        player = getattr(self.game, "player", None)
+        if player is not None and self.previous_player_pause is not None:
+            player.is_paused = self.previous_player_pause
+            if not player.is_paused:
+                player.camera.mouse.centerMouse()
+        self.previous_player_pause = None
+
+    def toggle(self):
+        if self.visible:
+            self.hide()
+        else:
+            self.show()
+
+    def next_page(self):
+        if self.visible:
+            self._set_page(self.page_index + 1)
+
+    def previous_page(self):
+        if self.visible:
+            self._set_page(self.page_index - 1)
+
+    def destroy(self):
+        self.hide()
+        for page in self.pages:
+            page.destroy()
+        self.root.destroy()
 
 
 class LobbyManager(DirectObject):
@@ -22,9 +136,15 @@ class LobbyManager(DirectObject):
 
         self.start_pos = self._find_start_position()
         self._create_ui()
+        self.manual = LobbyManual(self.game, self._prepare_gui_node)
         self._create_start_zone()
 
         self.accept("e", self.try_start_game)
+        self.accept("m", self.toggle_manual)
+        self.accept("arrow_right", self.next_manual_page)
+        self.accept("arrow_down", self.next_manual_page)
+        self.accept("arrow_left", self.previous_manual_page)
+        self.accept("arrow_up", self.previous_manual_page)
         self.accept(f"player-into-{self.START_ZONE_NAME}", self.on_start_zone_enter)
         self.accept(f"player-out-{self.START_ZONE_NAME}", self.on_start_zone_exit)
 
@@ -153,6 +273,9 @@ class LobbyManager(DirectObject):
         if not self.is_active or getattr(self.game, "game_started", False):
             return
 
+        if self.manual.visible:
+            return
+
         if getattr(self.game, "game_completed", False):
             self.game.popup_ui.show_popup("Les 5 niveaux sont termines.")
             return
@@ -166,6 +289,24 @@ class LobbyManager(DirectObject):
 
         self.game.start_game()
 
+    def toggle_manual(self):
+        if not self.is_active:
+            return
+
+        self.manual.toggle()
+        if self.manual.visible:
+            self.panel.hide()
+        else:
+            self.panel.show()
+
+    def next_manual_page(self):
+        if self.is_active:
+            self.manual.next_page()
+
+    def previous_manual_page(self):
+        if self.is_active:
+            self.manual.previous_page()
+
     def update(self):
         if not self.is_active:
             return
@@ -178,10 +319,10 @@ class LobbyManager(DirectObject):
             hint = "Les 5 niveaux sont termines."
         elif self._is_local_host():
             status = f"Lobby - {level_text} - {players} joueur{plural} connecte{plural}"
-            hint = "Va sur le point de depart et appuie sur E pour lancer."
+            hint = "Va sur le point de depart, E pour lancer. M : manuel."
         else:
             status = f"Lobby - {level_text} - {players} joueur{plural} connecte{plural}"
-            hint = "En attente du host."
+            hint = "En attente du host. M : manuel."
 
         # self.world_label_node.setText(self._start_label_text())
 
@@ -201,11 +342,17 @@ class LobbyManager(DirectObject):
         self.player_inside_start_zone = False
 
         self.panel.hide()
+        self.manual.destroy()
         self.zone_np.removeNode()
         # self.marker.removeNode()
         # self.world_label.removeNode()
         self.game.popup_ui.hide_popup()
 
         self.ignore("e")
+        self.ignore("m")
+        self.ignore("arrow_right")
+        self.ignore("arrow_down")
+        self.ignore("arrow_left")
+        self.ignore("arrow_up")
         self.ignore(f"player-into-{self.START_ZONE_NAME}")
         self.ignore(f"player-out-{self.START_ZONE_NAME}")
