@@ -180,6 +180,7 @@ class VagueManager:
             speed=wave["speed"],
             scale=1.0,
             interval=SPAWN_INTERVAL,
+            max_hp=wave["max_hp"],
         )
         self.current_enemy_target = spawned_count or wave["enemy_count"]
 
@@ -277,9 +278,7 @@ class VagueManager:
         self.final_screen.hide()
 
     def clear_enemies(self):
-        for enemy in list(self.enemy_manager.enemies):
-            enemy.destroy()
-        self.enemy_manager.enemies.clear()
+        self.enemy_manager.clear()
 
     def sync_from_snapshot(
         self,

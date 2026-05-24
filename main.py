@@ -3,7 +3,7 @@ import os
 from direct.gui.DirectGui import DirectButton, DirectFrame, DirectLabel
 from direct.showbase.ShowBase import ShowBase
 from direct.actor.Actor import Actor
-from panda3d.core import AmbientLight, AntialiasAttrib, TextNode, WindowProperties, load_prc_file_data, Spotlight, PerspectiveLens
+from panda3d.core import AmbientLight, DirectionalLight, TextNode, WindowProperties, load_prc_file_data, Spotlight, PerspectiveLens
 import simplepbr
 
 from vialibre.enemies import EnemyManager
@@ -28,13 +28,14 @@ load_prc_file_data(
     "show-frame-rate-meter t\n"
     "win-size 1920 1080\n"
     "client-sleep 0.001\n"
-    "framebuffer-multisample 1\n"
-    "multisamples 2\n"
+    "framebuffer-multisample 0\n"
+    "multisamples 0\n"
     "load-file-type p3assimp\n"
     "fullscreen true"
 )
 
 GAME_SPAWN_POS = (0, 0, 0)
+PERFORMANCE_LIGHTING = True
 
 
 class EnvironmentManager:
@@ -188,9 +189,17 @@ class EnvironmentManager:
 
     def setup_lights(self):
         ambientLight = AmbientLight('ambientLight')
-        ambientLight.setColor((0.40, 0.40, 0.32, 1))
+        ambientLight.setColor((0.62, 0.62, 0.54, 1))
         ambientLightNP = render.attachNewNode(ambientLight)
         render.setLight(ambientLightNP)
+
+        if PERFORMANCE_LIGHTING:
+            sun = DirectionalLight("sun")
+            sun.setColor((0.75, 0.72, 0.62, 1))
+            sunNP = render.attachNewNode(sun)
+            sunNP.setHpr(-35, -60, 0)
+            render.setLight(sunNP)
+            return
 
         self.spot1 = self.add_spotlight(
             name="feu de camp",
@@ -428,7 +437,6 @@ class MainGame(ShowBase):
         self.setFullscren()
         simplepbr.init()
 
-        self.render.setAntialias(AntialiasAttrib.MMultisample)
         self.disable_mouse()
 
         props = WindowProperties()
