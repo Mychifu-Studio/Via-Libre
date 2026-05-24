@@ -31,7 +31,6 @@ load_prc_file_data(
     "framebuffer-multisample 0\n"
     "multisamples 0\n"
     "load-file-type p3assimp\n"
-    "fullscreen true"
 )
 
 GAME_SPAWN_POS = (0, 0, 0)
@@ -155,13 +154,13 @@ class EnvironmentManager:
         self._load_lobby_character(
             "bartender",
             self.BARTENDER_CANDIDATES,
-            pos=(100, 0.5, 0),
+            pos=(0, 0.5, 0),
             scale=0.90,
         )
         self._load_lobby_character(
             "quest_guy",
             self.QUEST_GUY_CANDIDATES,
-            pos=(116, 1.5, 0.05),
+            pos=(16, 1.5, 0.05),
             scale=0.83,
             heading=-90,
         )
@@ -675,6 +674,8 @@ class MainGame(ShowBase):
         props.setFullscreen(True)
         props.setSize(w, h)
         self.win.requestProperties(props)
+        
+        load_prc_file_data("", "fullscreen true")
 
     def update(self, task):
         dt = globalClock.getDt()  # pyright: ignore

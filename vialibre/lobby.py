@@ -83,31 +83,31 @@ class LobbyManager(DirectObject):
         cnode.setFromCollideMask(BitMask32.allOff())
 
         self.zone_np = self.game.render.attachNewNode(cnode)
-        self.zone_np.setPos(self.start_pos)
+        self.zone_np.setPos((16, 1.5, 0))
 
-        self.marker = self.game.loader.loadModel("assets/sphere")
-        self.marker.reparentTo(self.game.render)
-        self.marker.setPos(self.start_pos)
-        self.marker.setScale(self.START_RADIUS)
-        self.marker.setTransparency(True)
-        self.marker.setAlphaScale(0.22)
-        self.marker.setColor(0.1, 0.95, 0.45, 1)
+        # self.marker = self.game.loader.loadModel("assets/sphere")
+        # self.marker.reparentTo(self.game.render)
+        # self.marker.setPos(self.start_pos)
+        # self.marker.setScale(self.START_RADIUS)
+        # self.marker.setTransparency(True)
+        # self.marker.setAlphaScale(0.22)
+        # self.marker.setColor(0.1, 0.95, 0.45, 1)
 
-        self.world_label_node = TextNode("lobby_start_label")
-        self.world_label_node.setText(self._start_label_text())
-        self.world_label_node.setTextColor(1, 0.95, 0.65, 1)
-        self.world_label_node.setAlign(TextNode.ACenter)
-        self.world_label_node.setCardColor(0, 0, 0, 0.62)
-        self.world_label_node.setCardAsMargin(0.25, 0.25, 0.12, 0.12)
-        self.world_label_node.setCardDecal(True)
+        # self.world_label_node = TextNode("lobby_start_label")
+        # self.world_label_node.setText(self._start_label_text())
+        # self.world_label_node.setTextColor(1, 0.95, 0.65, 1)
+        # self.world_label_node.setAlign(TextNode.ACenter)
+        # self.world_label_node.setCardColor(0, 0, 0, 0.62)
+        # self.world_label_node.setCardAsMargin(0.25, 0.25, 0.12, 0.12)
+        # self.world_label_node.setCardDecal(True)
 
-        self.world_label = self.game.render.attachNewNode(self.world_label_node)
-        self.world_label.setPos(self.start_pos.x, self.start_pos.y, self.start_pos.z + 1.7)
-        self.world_label.setScale(0.32)
-        self.world_label.setBillboardPointEye()
-        self.world_label.setDepthTest(False)
-        self.world_label.setDepthWrite(False)
-        self.world_label.setBin("fixed", 1)
+        # self.world_label = self.game.render.attachNewNode(self.world_label_node)
+        # self.world_label.setPos(self.start_pos.x, self.start_pos.y, self.start_pos.z + 1.7)
+        # self.world_label.setScale(0.32)
+        # self.world_label.setBillboardPointEye()
+        # self.world_label.setDepthTest(False)
+        # self.world_label.setDepthWrite(False)
+        # self.world_label.setBin("fixed", 1)
 
     def _is_local_host(self):
         net_iface = getattr(self.game, "network", None)
@@ -181,7 +181,7 @@ class LobbyManager(DirectObject):
             status = f"Lobby - {level_text} - {players} joueur{plural} connecte{plural}"
             hint = "En attente du host."
 
-        self.world_label_node.setText(self._start_label_text())
+        # self.world_label_node.setText(self._start_label_text())
 
         next_text = (status, hint)
         if next_text == self.last_status_text:
@@ -201,7 +201,7 @@ class LobbyManager(DirectObject):
         self.panel.hide()
         self.zone_np.removeNode()
         self.marker.removeNode()
-        self.world_label.removeNode()
+        # self.world_label.removeNode()
         self.game.popup_ui.hide_popup()
 
         self.ignore("e")
