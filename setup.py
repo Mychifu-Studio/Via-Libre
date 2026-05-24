@@ -14,13 +14,13 @@ setup(
             ],
 
             # Force l'inclusion des modules locaux du projet
-            'include_modules': {
-                '*': [
-                    'vialibre/*/*',
-                    'vialibre/*',
-                    'websocket',
-                ]
-            },
+            # 'include_modules': {
+            #     '*': [
+            #         'vialibre/*/*',
+            #         'vialibre/*',
+            #         'websocket',
+            #     ]
+            # },
 
             # Exclut les modules optionnels introuvables de websocket-client
             'exclude_modules': {
