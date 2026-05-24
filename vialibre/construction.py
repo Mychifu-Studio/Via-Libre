@@ -121,8 +121,9 @@ class Structure:
         self.on_destroy_callback = on_destroy_callback
         self.enemy_manager = enemy_manager
 
+        parent = getattr(self.base, "structure_root", self.base.render)
         self.np = NodePath("structure_root")
-        self.np.reparentTo(self.base.render)
+        self.np.reparentTo(parent)
         self.np.setPos(position)
         self.np.setHpr(rotation)
 
@@ -327,6 +328,7 @@ class BuildManager(DirectObject):
 
         self.plan_sol = Plane(Vec3(0, 0, 1), Point3(0, 0, 0))
         self.structures = []
+        self.structure_root = self._ensure_structure_root()
         self.hologramme = Hologram(self.base)
 
         self.locked_build_pos = None
@@ -348,6 +350,13 @@ class BuildManager(DirectObject):
             on_select=self.on_radial_select,
             on_cancel=self.on_radial_cancel
         )
+
+    def _ensure_structure_root(self):
+        root = getattr(self.base, "structure_root", None)
+        if root is None or root.isEmpty():
+            root = self.base.render.attachNewNode("structure_collision_root")
+            self.base.structure_root = root
+        return root
 
     def ouvrir_menu_construction(self):
         if not self.mode_actif or self.radial_menu.is_open:

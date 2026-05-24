@@ -29,7 +29,8 @@ class InteractionManager:
             return None
         mpos = mouse_watcher.getMouse()
         self.picker_ray.setFromLens(self.base.camNode, mpos.getX(), mpos.getY())
-        self.picker.traverse(self.base.render)
+        structure_root = getattr(self.build_manager, "structure_root", self.base.render)
+        self.picker.traverse(structure_root)
 
         if self.picker_queue.getNumEntries() > 0:
             self.picker_queue.sortEntries()
@@ -37,11 +38,27 @@ class InteractionManager:
             return noeud_touche.getPythonTag("structure")
         return None
 
+    def _clear_hover_state(self):
+        if self.structure_cible is None:
+            return
+
+        self.structure_cible.retirer_surlignage()
+        self.structure_cible.ui.hide()
+        self.structure_cible = None
+
     def update(self):
+        if not self.build_manager.mode_actif:
+            self._clear_hover_state()
+            return
+
         for s in self.build_manager.structures:
             s.ui.hide()
             s.retirer_surlignage()
         self.structure_cible = None
+
+        if not self.build_manager.structures:
+            self.build_manager.hologramme.show()
+            return
 
         pos_joueur = self.player_root.getPos(self.base.render)
         pos_joueur.setZ(0)

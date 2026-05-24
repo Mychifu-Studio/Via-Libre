@@ -31,7 +31,6 @@ load_prc_file_data(
     "framebuffer-multisample 0\n"
     "multisamples 0\n"
     "load-file-type p3assimp\n"
-    "fullscreen true"
 )
 
 GAME_SPAWN_POS = (0, 0, 0)
@@ -155,13 +154,13 @@ class EnvironmentManager:
         self._load_lobby_character(
             "bartender",
             self.BARTENDER_CANDIDATES,
-            pos=(100, 0.5, 0),
+            pos=(0, 0.5, 0),
             scale=0.90,
         )
         self._load_lobby_character(
             "quest_guy",
             self.QUEST_GUY_CANDIDATES,
-            pos=(116, 1.5, 0.05),
+            pos=(16, 1.5, 0.05),
             scale=0.83,
             heading=-90,
         )
@@ -435,7 +434,13 @@ class MainGame(ShowBase):
     def __init__(self):
         super().__init__(True)
         self.setFullscren()
-        simplepbr.init()
+        simplepbr.init(
+            msaa_samples=0,
+            enable_shadows=False,
+            max_lights=2,
+            use_emission_maps=False,
+            use_hardware_skinning=True,
+        )
 
         self.disable_mouse()
 
@@ -516,7 +521,7 @@ class MainGame(ShowBase):
             f"Niveau {self.current_level}/{self.max_levels} commence !",
             duration=2.5,
         )
-        self.sound.loop("kawaii")
+        # self.sound.loop("kawaii")
 
     def set_current_level(self, level_number):
         self.current_level = max(1, min(int(level_number), self.max_levels))
@@ -675,6 +680,8 @@ class MainGame(ShowBase):
         props.setFullscreen(True)
         props.setSize(w, h)
         self.win.requestProperties(props)
+        
+        load_prc_file_data("", "fullscreen true")
 
     def update(self, task):
         dt = globalClock.getDt()  # pyright: ignore
@@ -689,14 +696,15 @@ class MainGame(ShowBase):
         self.player.update(dt)
         self.network.update()
         self.resource_system.update()
-        self.inventory_ui.update()
-        self.player_health_ui.update()
-        self.pipe_health_ui.update()
 
         if not self.game_started:
             if hasattr(self, "lobby"):
                 self.lobby.update()
             return task.cont
+
+        self.inventory_ui.update()
+        self.player_health_ui.update()
+        self.pipe_health_ui.update()
 
         self.upgrade_system.update()
         self.enemies.update(dt)
