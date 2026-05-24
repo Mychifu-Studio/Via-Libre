@@ -1,4 +1,6 @@
 # player.py
+from math import atan2, degrees
+
 from direct.showbase.ShowBase import ShowBase
 from direct.showbase.DirectObject import DirectObject
 
@@ -140,9 +142,11 @@ class Player(DirectObject):
                 self.hand_gun.hide()
 
     def take_damage(self, amount=1):
+        if self.hp <= 0:
+            return
         if self._damage_cooldown_remaining > 0:
             return
-        self.hp -= amount
+        self.hp = max(0, self.hp - max(0, int(amount)))
         self._damage_cooldown_remaining = self.DAMAGE_COOLDOWN
         self.base.messenger.send("player-hp-changed", [self.hp])
         if self.hp <= 0:
@@ -208,18 +212,17 @@ class Player(DirectObject):
             self.play_anim('idle')
             self.base.sound.stopSFX(self.base.sound.walk)
 
-        from math import atan2, degrees
-
+        previous_movement = Vec3(self.lastMovement)
         current_H = self.modelNode.getH(self.base.render)
 
-        if input_vec.length() > self.lastMovement.length():
+        if input_vec.length() > previous_movement.length():
             target_H = degrees(atan2(-input_vec.x, input_vec.y))  # adapte les axes si besoin
             new_H = shortest_angle_lerp(current_H, target_H, dt, .1)
             self.modelNode.setH(self.base.render, new_H)
 
         for axis in range(3):
             maxSpeedTime = .5 if input_vec[axis] else .08
-            self.movementVector[axis] = powLerp(self.lastMovement[axis], input_vec[axis], dt, maxSpeedTime)
+            self.movementVector[axis] = powLerp(previous_movement[axis], input_vec[axis], dt, maxSpeedTime)
 
         current_pos = self.player.getPos(self.base.render)
         desired_pos = current_pos + self.movementVector * self.playerSpeed * dt
@@ -228,13 +231,13 @@ class Player(DirectObject):
 
         self.player.setPos(desired_pos)
 
-        new_cam_pos = self.camera.calculateCameraPos(dt, self.movementVector, self.lastMovement, self.keyMap["ctrl"] or self.is_paused)
+        new_cam_pos = self.camera.calculateCameraPos(dt, self.movementVector, previous_movement, self.keyMap["ctrl"] or self.is_paused)
         self.camera.setPos(new_cam_pos)
 
         if not (self.is_paused or self.keyMap['ctrl']):
             self.camera.updateFov(dt, any(self.keyMap.values()))
 
-        self.lastMovement = self.movementVector
+        self.lastMovement = Vec3(self.movementVector)
 
         self.interaction_manager.update()
         self.build_manager.update()

@@ -3,12 +3,13 @@ from direct.showbase.ShowBase import ShowBase
 
 from random import randint
 
-class SoundEngine():
+
+class SoundEngine:
     def __init__(self, base):
         self.base: ShowBase = base
-        self.sfxs = dict()
-        self.loops = dict()
-        self.songs = dict()
+        self.sfxs = {}
+        self.loops = {}
+        self.songs = {}
         
         # self.addSong("pigstep", "assets/music/pigstep.flac")
         # self.setVol("pigstep", .1) # Le master est très LOUD
@@ -44,17 +45,21 @@ class SoundEngine():
             self.sfxs[name].setVolume(value)
         if name in self.songs:
             self.songs[name].setVolume(value)
-        
+
     def setPan(self, name: str):
-        ...
-        
+        return None
+
     def play(self, sfx: str, randomize: tuple[int, int] | None = None):
-        if not sfx in self.sfxs: return
-        
-        if self.sfxs[sfx].status() == self.sfxs[sfx].PLAYING: self.sfxs[sfx].stop()
-        if randomize: self.sfxs[sfx].setPlayRate(randint(*randomize)/100)
-        self.sfxs[sfx].play()
-        
+        if sfx not in self.sfxs:
+            return
+
+        sound = self.sfxs[sfx]
+        if sound.status() == sound.PLAYING:
+            sound.stop()
+        if randomize:
+            sound.setPlayRate(randint(*randomize) / 100)
+        sound.play()
+
     def loopSFX(self, sfx_list: list[str], delay_range: tuple[float, float] = (0.0, 0.0), randomize: tuple[int, int] | None = None):
         valid = [s for s in sfx_list if s in self.sfxs]
         if not valid:

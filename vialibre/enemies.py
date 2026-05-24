@@ -79,7 +79,6 @@ ENEMY_TYPE_ALIASES = {
     "boss": ENEMY_TYPE_MINIBOSS,
     "mini_boss": ENEMY_TYPE_MINIBOSS,
     "miniboss": ENEMY_TYPE_MINIBOSS,
-    "miniboss": ENEMY_TYPE_MINIBOSS,
 }
 
 RANDOM_ENEMY_TYPE_VALUES = {None, "random", "aleatoire"}
@@ -1318,8 +1317,7 @@ class EnemyManager:
         if hasattr(self.game, "damage_player"):
             self.game.damage_player(damage)
             return
-        for _ in range(damage):
-            self.game.messenger.send("player-take-damage")
+        self.game.messenger.send("player-take-damage", [damage])
 
     def _grant_enemy_resources(self, enemy):
         gain = max(0, int(getattr(enemy, "resource_reward", 0)))
@@ -1340,15 +1338,25 @@ class EnemyManager:
         if inventory_ui is not None and hasattr(inventory_ui, "update"):
             inventory_ui.update()
 
+    def _handle_enemy_killed(self, enemy):
+        self._remove_enemy(enemy)
+        self._grant_enemy_resources(enemy)
+        self.game.messenger.send("enemy-killed")
+
+    def _handle_waypoint_enemy_reached_base(self, enemy):
+        self.game.damage_pipe(self._get_enemy_objective_damage(enemy))
+        enemy.destroy()
+        vague_manager = getattr(self.game, "vague_manager", None)
+        if vague_manager is not None and hasattr(vague_manager, "enemy_reached_base"):
+            vague_manager.enemy_reached_base()
+
     def check_projectile_hit(self, start_pos, end_pos, hit_radius, apply_damage=True, damage=1):
         for enemy in self._iter_enemies_along_segment(start_pos, end_pos, hit_radius):
             if enemy.is_touched_by_segment(start_pos, end_pos, hit_radius):
                 if apply_damage:
                     killed = enemy.take_damage(max(1, int(damage)))
                     if killed:
-                        self._remove_enemy(enemy)
-                        self._grant_enemy_resources(enemy)
-                        self.game.messenger.send("enemy-hit")
+                        self._handle_enemy_killed(enemy)
                 return True
         return False
 
@@ -1364,9 +1372,7 @@ class EnemyManager:
 
             killed = enemy.take_damage(max(1, int(damage)))
             if killed:
-                self._remove_enemy(enemy)
-                self._grant_enemy_resources(enemy)
-                self.game.messenger.send("enemy-hit")
+                self._handle_enemy_killed(enemy)
 
         return hit_any
 
@@ -1392,15 +1398,11 @@ class EnemyManager:
                 if enemy.is_dead:
                     continue
                 if isinstance(enemy, WaypointEnemy) and enemy.has_reached_end():
-                    self.game.damage_pipe(self._get_enemy_objective_damage(enemy))
-                    self.game.messenger.send("enemy-hit")
-                    enemy.destroy()
+                    self._handle_waypoint_enemy_reached_base(enemy)
                     continue
                 enemy.update(dt)
                 if isinstance(enemy, WaypointEnemy) and enemy.has_reached_end():
-                    self.game.damage_pipe(self._get_enemy_objective_damage(enemy))
-                    self.game.messenger.send("enemy-hit")
-                    enemy.destroy()
+                    self._handle_waypoint_enemy_reached_base(enemy)
 
             self._spatial_dirty = True
 
@@ -1462,6 +1464,7 @@ class EnemyManager:
                     self.game,
                     (e_data['x'], e_data['y'], e_data['z']),
                     (e_data['x'] + 0.1, e_data['y'], e_data['z']),
+                    scale=1.0,
                     enemy_id=eid,
                     max_hp=e_data.get('max_hp'),
                     enemy_type=enemy_type,

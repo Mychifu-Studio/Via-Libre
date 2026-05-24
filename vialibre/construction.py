@@ -197,6 +197,7 @@ class Structure:
         self.enemy_manager = enemy_manager
         self.config = get_turret_config(turret_type)
         self.turret_type = self.config.key
+        self.is_destroyed = False
 
         parent = getattr(self.base, "structure_root", self.base.render)
         self.np = NodePath("structure_root")
@@ -430,6 +431,11 @@ class Structure:
         return task.cont
 
     def detruire(self):
+        if self.is_destroyed:
+            return
+        self.is_destroyed = True
+
+        # Nettoyer la tâche lorsqu'on supprime la tourelle
         self.base.taskMgr.remove(self.task_name)
         self.np.removeNode()
         if self.on_destroy_callback:
@@ -479,14 +485,12 @@ class BuildManager(DirectObject):
         self.player_root = player_root
         self.camera = camera
         self.mouse = mouse
-        self.enemy_manager = self.base.enemies
+        self.enemy_manager = getattr(self.base, "enemies", None)
 
         self.mode_actif = False
         self.distance_construction = 2.5
         self.distance_min = 1
         self.rayon_max_construction = 5
-
-        self.cost = TURRET_CONFIGS[DEFAULT_TURRET_TYPE].cost
 
         self.plan_sol = Plane(Vec3(0, 0, 1), Point3(0, 0, 0))
         self.structures = []
@@ -522,6 +526,13 @@ class BuildManager(DirectObject):
             root = self.base.render.attachNewNode("structure_collision_root")
             self.base.structure_root = root
         return root
+
+    def _show_message(self, message):
+        popup_ui = getattr(self.base, "popup_ui", None)
+        if popup_ui is not None and hasattr(popup_ui, "show_popup"):
+            popup_ui.show_popup(message)
+        else:
+            print(message)
 
     def ouvrir_menu_construction(self):
         if not self.mode_actif or self.radial_menu.is_open:
@@ -567,7 +578,7 @@ class BuildManager(DirectObject):
         turret_config = get_turret_config(turret_type)
 
         if self.base.inventory["ressource"] < turret_config.cost:
-            print("Ressources insufisantes !")
+            self._show_message("Ressources insuffisantes !")
             self.basculer_mode()
             return
 

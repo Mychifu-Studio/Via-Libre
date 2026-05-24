@@ -44,16 +44,22 @@ class Camera(DirectObject):
 
         self.accept('wheel_up', self.zoomCamera, [-(self.zoomScrollSpeed)])
         self.accept('wheel_down', self.zoomCamera, [self.zoomScrollSpeed])
-        self.accept('mouse3', self.rotateStatus)
-        self.accept('mouse3-up', self.rotateStatus)
+        self.accept('mouse3', self.set_rotation, [True])
+        self.accept('mouse3-up', self.set_rotation, [False])
 
     def rotateStatus(self):
-        self.rotate = not self.rotate
-        if self.rotate: 
+        self.set_rotation(not self.rotate)
+
+    def set_rotation(self, enabled):
+        if self.rotate == enabled:
+            return
+
+        self.rotate = enabled
+        if self.rotate:
             self.lastMousePos = self.mouse.getMousePos()
             self.mouse.hideCursor()
             self.mouse.centerMouse()
-        else: 
+        else:
             # self.mouse.setMousePos(self.lastMousePos)
             self.mouse.showCursor()
 

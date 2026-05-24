@@ -179,25 +179,25 @@ class EnvironmentManager:
         lens.setNearFar(near, far)
         spot.setLens(lens)
 
-        spotNP = render.attachNewNode(spot)
+        spotNP = self.render.attachNewNode(spot)
         spotNP.setPos(*pos)
         spotNP.lookAt(*target)
 
-        render.setLight(spotNP)
+        self.render.setLight(spotNP)
         return spotNP
 
     def setup_lights(self):
         ambientLight = AmbientLight('ambientLight')
         ambientLight.setColor((0.62, 0.62, 0.54, 1))
-        ambientLightNP = render.attachNewNode(ambientLight)
-        render.setLight(ambientLightNP)
+        ambientLightNP = self.render.attachNewNode(ambientLight)
+        self.render.setLight(ambientLightNP)
 
         if PERFORMANCE_LIGHTING:
             sun = DirectionalLight("sun")
             sun.setColor((0.75, 0.72, 0.62, 1))
-            sunNP = render.attachNewNode(sun)
+            sunNP = self.render.attachNewNode(sun)
             sunNP.setHpr(-35, -60, 0)
-            render.setLight(sunNP)
+            self.render.setLight(sunNP)
             return
 
         self.spot1 = self.add_spotlight(
@@ -208,7 +208,6 @@ class EnvironmentManager:
             fov=140
         )
 
-
         self.mid_haut = self.add_spotlight(
             name="mid haut",
             color=(0, 0.2, 1, 1),
@@ -217,8 +216,8 @@ class EnvironmentManager:
             fov=140
         )
 
-        self.mid_haut = self.add_spotlight(
-            name="mid haut",
+        self.mid_right = self.add_spotlight(
+            name="mid right",
             color=(0.8, 0.6, 0.2, 1),
             pos=(110, 0, 10),
             target=(110, 0, 0),
@@ -264,15 +263,7 @@ class EnvironmentManager:
             fov=140
         )
         self.spot_caillou_bas_right = self.add_spotlight(
-            name="spot_caillou_right",
-            color=(0, 0.3, 0.9, 1),
-            pos=(30, -9, 6),
-            target=(30, -9, 0),
-            fov=140
-        )
-
-        self.spot_caillou_bas_right = self.add_spotlight(
-            name="spot_caillou_right",
+            name="spot_caillou_bas_right",
             color=(0, 0.3, 0.9, 1),
             pos=(30, -9, 6),
             target=(30, -9, 0),
@@ -433,7 +424,7 @@ class HostCodeUI:
 class MainGame(ShowBase):
     def __init__(self):
         super().__init__(True)
-        self.setFullscren()
+        self.set_fullscreen()
         simplepbr.init(
             msaa_samples=0,
             enable_shadows=False,
@@ -492,7 +483,7 @@ class MainGame(ShowBase):
 
         self.accept("escape", self.menu.toggle)
         self.accept("window-close", self.exit_game)
-        self.accept("enemy-hit", self.reward_enemy_hit)
+        self.accept("enemy-killed", self.handle_enemy_killed)
         self.accept("player-take-damage", self.player.take_damage)
         self.accept("pipe-destroyed", self.trigger_game_over)
 
@@ -611,8 +602,7 @@ class MainGame(ShowBase):
             f"Lance le niveau {self.current_level} depuis le lobby."
         )
 
-        if getattr(self.network, "net", None) is not None and self.network.net.is_host:
-            self.network._broadcast_snapshot(force=True)
+        self._broadcast_network_snapshot()
 
     def return_to_lobby_from_network(self, level_number=None):
         if self.game_completed:
@@ -633,18 +623,14 @@ class MainGame(ShowBase):
         self.player.is_paused = True
         self.player.camera.mouse.showCursor()
 
-        if getattr(self.network, "net", None) is not None and self.network.net.is_host:
-            self.network._broadcast_snapshot(force=True)
+        self._broadcast_network_snapshot()
+
+    def handle_enemy_killed(self):
+        self.vague_manager.enemy_killed()
+        self._broadcast_network_snapshot()
 
     def reward_enemy_hit(self):
-        self.inventory["ressource"] = self.inventory.get("ressource", 0) + 1
-        self.inventory_ui.update()
-        self.popup_ui.show_popup(
-            f"Ennemi touche : ressource +1 ! (Total : {self.inventory['ressource']})"
-        )
-        self.vague_manager.enemy_killed()
-        if getattr(self.network, "net", None) is not None and self.network.net.is_host:
-            self.network._broadcast_snapshot(force=True)
+        self.handle_enemy_killed()
 
     def damage_pipe(self, amount=1):
         if self.is_game_over:
@@ -652,8 +638,7 @@ class MainGame(ShowBase):
 
         self.pipe_base.take_damage(amount)
         self.pipe_health_ui.update()
-        if getattr(self.network, "net", None) is not None and self.network.net.is_host:
-            self.network._broadcast_snapshot(force=True)
+        self._broadcast_network_snapshot()
 
     def trigger_game_over(self):
         if self.is_game_over:
@@ -669,19 +654,28 @@ class MainGame(ShowBase):
     def exit_game(self):
         self.taskMgr.remove("update")
         self.enemies.clear()
-        self.network.exit()
+        if hasattr(self, "network"):
+            self.network.exit()
         self.userExit()
         
-    def setFullscren(self):
+    def _broadcast_network_snapshot(self):
+        net_iface = getattr(self, "network", None)
+        net = getattr(net_iface, "net", None) if net_iface is not None else None
+        if net is not None and net.is_host:
+            net_iface._broadcast_snapshot(force=True)
+
+    def set_fullscreen(self):
         w = self.pipe.getDisplayWidth()
         h = self.pipe.getDisplayHeight()
-
         props = WindowProperties()
         props.setFullscreen(True)
         props.setSize(w, h)
         self.win.requestProperties(props)
-        
+
         load_prc_file_data("", "fullscreen true")
+
+    def setFullscren(self):
+        self.set_fullscreen()
 
     def update(self, task):
         dt = globalClock.getDt()  # pyright: ignore

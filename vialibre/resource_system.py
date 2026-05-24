@@ -362,7 +362,7 @@ class ResourceSystem:
         self.grant_resources(gain)
 
     def grant_resources(self, gain):
-        self.game.inventory["ressource"] += gain
+        self.game.inventory["ressource"] = self.game.inventory.get("ressource", 0) + gain
         self.inventory_ui.update()
 
         self.popup_ui.show_popup(
