@@ -210,34 +210,45 @@ class Structure:
         my_pos = self.np.getPos(self.base.render)
         
         # 1. Récupérer tous les ennemis valides (dans le rayon d'activation)
-        valid_enemies = []
-        for enemy in self.enemy_manager.enemies:
+        best_enemy = None
+        best_distance_sq = None
+        best_key = None
+        radius_sq = self.activation_radius * self.activation_radius
+        enemy_iter = self.enemy_manager.enemies
+        if hasattr(self.enemy_manager, "iter_enemies_in_radius"):
+            enemy_iter = self.enemy_manager.iter_enemies_in_radius(my_pos, self.activation_radius)
+        for enemy in enemy_iter:
+            if enemy.is_dead:
+                continue
             enemy_pos = enemy.node.getPos(self.base.render)
-            dist = (enemy_pos - my_pos).length()
-            
-            if dist <= self.activation_radius:
-                # On stocke un tuple avec (l'ennemi, sa distance, ses PV)
-                valid_enemies.append((enemy, dist, enemy.hp))
+            dx = enemy_pos.x - my_pos.x
+            dy = enemy_pos.y - my_pos.y
+            dist_sq = dx * dx + dy * dy
+
+            if dist_sq > radius_sq:
+                continue
+
+            if self.targeting_mode == "lowest_hp":
+                key = (enemy.hp, dist_sq)
+            else:
+                key = (dist_sq,)
+
+            if best_key is None or key < best_key:
+                best_key = key
+                best_enemy = enemy
+                best_distance_sq = dist_sq
 
         # S'il n'y a personne dans le rayon, on ne fait rien
-        if not valid_enemies:
+        if best_enemy is None:
             return task.cont
 
-        # 2. Choisir la cible selon le mode
-        if self.targeting_mode == "lowest_hp":
-            # On trie d'abord par PV (croissant), puis par distance en cas d'égalité de PV
-            best_target_data = min(valid_enemies, key=lambda x: (x[2], x[1]))
-        else: # "closest" par défaut
-            # On trie uniquement par distance (croissant)
-            best_target_data = min(valid_enemies, key=lambda x: x[1])
-
-        target_enemy = best_target_data[0]
-        min_dist = best_target_data[1]
+        target_enemy = best_enemy
+        min_dist = best_distance_sq if best_distance_sq is not None else 0.0
 
         # 3. S'orienter et tirer sur la cible choisie
         enemy_pos = target_enemy.node.getPos(self.base.render)
         
-        if min_dist > 0.1:
+        if min_dist > 0.01:
             self.np.lookAt(enemy_pos)
             self.np.setHpr(self.np.getH() + 180, 0, 0) 
 

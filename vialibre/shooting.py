@@ -1,15 +1,18 @@
-from panda3d.core import Point3, Vec3
+import os
+
+from panda3d.core import NodePath, Point3, Vec3
 
 
 class Bullet:
     """Cycle de vie et deplacement d'un projectile."""
 
-    def __init__(self, node, direction, speed, life, damage=1):
+    def __init__(self, node, direction, speed, life, damage=1, recycle_callback=None):
         self.node = node
         self.direction = direction
         self.speed = speed
         self.life = life
         self.damage = damage
+        self._recycle_callback = recycle_callback
 
     def update(self, dt):
         self.life -= dt
@@ -22,6 +25,13 @@ class Bullet:
         return True
 
     def destroy(self):
+        if self.node is None or self.node.isEmpty():
+            return
+        if self._recycle_callback is not None:
+            node = self.node
+            self.node = NodePath()
+            self._recycle_callback(node)
+            return
         self.node.removeNode()
 
 
@@ -41,8 +51,27 @@ class ShootingSystem:
         self.was_building_last_frame = False
         self._local_shot_seq = 0
         self._handled_remote_shots = set()
+        self._bullet_pool = []
+        self._bullet_asset = "assets/Bullet.glb" if os.path.exists("assets/Bullet.glb") else "assets/bullet.bam"
 
         self.game.accept("mouse1", self.shoot)
+
+    def _get_bullet_node(self):
+        while self._bullet_pool:
+            node = self._bullet_pool.pop()
+            if not node.isEmpty():
+                node.show()
+                return node
+
+        return self.game.loader.loadModel(self._bullet_asset)
+
+    def _recycle_bullet_node(self, node):
+        if node is None or node.isEmpty():
+            return
+        node.hide()
+        node.detachNode()
+        node.clearTransform()
+        self._bullet_pool.append(node)
 
     def _get_mouse_world_pos(self):
         mw = getattr(self.game, "mouseWatcherNode", None)
@@ -82,7 +111,7 @@ class ShootingSystem:
             return None
         direction.normalize()
 
-        node = self.game.loader.loadModel("assets/bullet.bam")
+        node = self._get_bullet_node()
         node.setScale(self.BULLET_SCALE)
         node.reparentTo(self.game.render)
         node.setPos(origin)
@@ -90,7 +119,7 @@ class ShootingSystem:
         node.setH(node.getH())
         node.setP(node.getP() -45)
 
-        bullet = Bullet(node, direction, speed, life, damage)
+        bullet = Bullet(node, direction, speed, life, damage, self._recycle_bullet_node)
         self.bullets.append(bullet)
         self.game.sound.play("gunshot", (97, 103))
         return bullet
@@ -179,8 +208,8 @@ class ShootingSystem:
         dt = globalClock.getDt()  # pyright: ignore
         self.was_building_last_frame = self.player_sys.build_manager.mode_actif
 
-        surviving_bullets = []
-        for bullet in self.bullets:
+        for index in range(len(self.bullets) - 1, -1, -1):
+            bullet = self.bullets[index]
             old_pos = bullet.node.getPos(self.game.render)
             is_alive = bullet.update(dt)
             new_pos = bullet.node.getPos(self.game.render)
@@ -199,14 +228,18 @@ class ShootingSystem:
 
             if has_hit:
                 bullet.destroy()
+                self.bullets.pop(index)
             elif is_alive:
-                surviving_bullets.append(bullet)
+                continue
             else:
                 bullet.destroy()
-
-        self.bullets = surviving_bullets
+                self.bullets.pop(index)
 
     def clear(self):
         for bullet in self.bullets:
             bullet.destroy()
         self.bullets.clear()
+        for node in self._bullet_pool:
+            if not node.isEmpty():
+                node.removeNode()
+        self._bullet_pool.clear()

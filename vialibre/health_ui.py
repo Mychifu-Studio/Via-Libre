@@ -9,6 +9,7 @@ class PlayerHealthUI:
     def __init__(self, game, player):
         self.game = game
         self.player = player
+        self._last_state = None
 
         parent = self.game.a2dTopLeft
 
@@ -60,6 +61,10 @@ class PlayerHealthUI:
     def update(self):
         hp = max(0, self.player.hp)
         max_hp = max(1, self.player.MAX_HP)
+        state = (hp, max_hp)
+        if state == self._last_state:
+            return
+        self._last_state = state
         ratio = max(0.0, min(1.0, hp / max_hp))
         fill_right = 0.065 + (0.575 - 0.065) * ratio
 
@@ -86,6 +91,7 @@ class PipeHealthUI:
     def __init__(self, game, pipe_base):
         self.game = game
         self.pipe_base = pipe_base
+        self._last_state = None
 
         parent = self.game.a2dTopLeft
 
@@ -137,6 +143,10 @@ class PipeHealthUI:
     def update(self):
         hp = max(0, self.pipe_base.hp)
         max_hp = max(1, self.pipe_base.MAX_HP)
+        state = (hp, max_hp)
+        if state == self._last_state:
+            return
+        self._last_state = state
         ratio = max(0.0, min(1.0, hp / max_hp))
         fill_right = 0.065 + (0.575 - 0.065) * ratio
 
