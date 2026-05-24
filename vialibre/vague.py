@@ -68,8 +68,8 @@ class VagueManager:
                 "ennemi_classique_count": 18,
                 "ennemi_rapide_count": 6,
                 "ennemi_lourd_count": 0,
-                "miniboss_count": 6,
-                "speed": 2.0,
+                "miniboss_count": 0,
+                "speed": 1.3,
                 "max_hp": 6,
             },
             {
@@ -78,8 +78,8 @@ class VagueManager:
                 "ennemi_rapide_count": 12,
                 "ennemi_lourd_count": 0,
                 "miniboss_count": 0,
-                "speed": 2.5,
-                "max_hp": 6,
+                "speed": 2.0,
+                "max_hp": 8,
             },
             {
                 "name": "Vague 3",
@@ -87,8 +87,8 @@ class VagueManager:
                 "ennemi_rapide_count": 12,
                 "ennemi_lourd_count": 12,
                 "miniboss_count": 0,
-                "speed": 3,
-                "max_hp": 6,
+                "speed": 2.6,
+                "max_hp": 10,
             },
             {
                 "name": "Vague 4",
@@ -96,8 +96,8 @@ class VagueManager:
                 "ennemi_rapide_count": 18,
                 "ennemi_lourd_count": 12,
                 "miniboss_count": 0,
-                "speed": 3.5,
-                "max_hp": 7,
+                "speed": 3,
+                "max_hp": 12,
             },
             {
                 "name": "Vague 5",
@@ -105,8 +105,8 @@ class VagueManager:
                 "ennemi_rapide_count": 18,
                 "ennemi_lourd_count": 18,
                 "miniboss_count": 1,
-                "speed": 4.0,
-                "max_hp": 8,
+                "speed": 3.5,
+                "max_hp": 15,
             },
         ]
 
