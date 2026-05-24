@@ -362,7 +362,5 @@ class VagueManager:
                     duration=2.5,
                 )
 
-        # Résolution conflit : finish_game() (HEAD) est la bonne logique ici
-        # car elle gère le cas niveau final vs niveau intermédiaire via finish_level().
         if is_finished and not self.is_finished:
-            self.finish_game()
+            self.finish_level()

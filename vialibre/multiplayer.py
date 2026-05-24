@@ -440,7 +440,7 @@ class NetworkProtocol:
             try:
                 data, source_addr = self.socket.recvfrom(65535)
                 msg = json.loads(data.decode("utf-8"))
-            except (BlockingIOError, OSError, json.JSONDecodeError):
+            except (BlockingIOError, OSError, json.JSONDecodeError, UnicodeDecodeError):
                 break
             if msg.get('type') == 'punch_target' and self.is_host:
                 threading.Thread(target=self._punch_specific, args=(msg['ip'], msg['port']), daemon=True).start()
@@ -514,7 +514,7 @@ class NetworkProtocol:
             self._send_raw({"action": act, "code": self.game_code}, (SIGNALING_IP, SIGNALING_PORT))
         try:
             self.socket.close()
-        except:
+        except OSError:
             pass
 
 

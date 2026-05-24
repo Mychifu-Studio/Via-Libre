@@ -402,7 +402,11 @@ class UpgradeSystem:
         self.is_open = False
         self.frame.hide()
         menu = getattr(self.game, "menu", None)
-        if not getattr(menu, "is_open", False):
+        if (
+            not getattr(menu, "is_open", False)
+            and not getattr(self.game, "is_game_over", False)
+            and not getattr(self.game, "game_completed", False)
+        ):
             self.game.player.is_paused = False
             self.game.player.camera.mouse.centerMouse()
 

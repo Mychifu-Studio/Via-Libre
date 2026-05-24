@@ -60,7 +60,7 @@ class Mouse(DirectObject):
             return
 
         properties = WindowProperties()
-        properties.set_cursor_hidden(True)
+        properties.set_cursor_hidden(False)
         self.base.win.requestProperties(properties)
 
     def centerMouse(self):

@@ -85,7 +85,7 @@ class LobbyManager(DirectObject):
         trigger_root = getattr(self.game, "trigger_collision_root", None)
         parent = trigger_root if trigger_root is not None and not trigger_root.isEmpty() else self.game.render
         self.zone_np = parent.attachNewNode(cnode)
-        self.zone_np.setPos((16, 1.5, 0))
+        self.zone_np.setPos(self.start_pos)
 
         # self.marker = self.game.loader.loadModel("assets/sphere")
         # self.marker.reparentTo(self.game.render)

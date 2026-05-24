@@ -124,32 +124,6 @@ def load_turret(base, np, turret_config=None):
 
 def load_hologram(base, np):
     pivot = base.render.attachNewNode("hologram_pivot")
-
-    try:
-        model = base.loader.loadModel("./assets/arrow.bam")
-        model.setScale(0.1)
-        model.reparentTo(pivot)
-
-        min_bounds, max_bounds = model.getTightBounds()
-        center = (min_bounds + max_bounds) / 2.0
-
-        tweak_x = 0.0
-        tweak_y = -0.4
-        tweak_z = 0.0
-
-        model.setPos(-center[0] + tweak_x, -center[1] + tweak_y, -center[2] + tweak_z)
-        pivot.setHpr(0, -90, 0)
-
-    except Exception as e:
-        print(f"Erreur de chargement : {e}")
-
-    pivot.setPos(0, 0, 0)
-    pivot.reparentTo(np)
-
-    return pivot
-
-def load_hologram(base, np):
-    pivot = base.render.attachNewNode("hologram_pivot")
     
     try:
         model = base.loader.loadModel("./assets/arrow.bam")
@@ -173,8 +147,6 @@ def load_hologram(base, np):
     pivot.reparentTo(np)
 
     return pivot
-
-from panda3d.core import BillboardEffect
 
 class FloatingUI:
     """SRP: Gère uniquement la création et l'affichage d'un texte flottant en 3D."""
@@ -209,6 +181,7 @@ class Structure:
         self.enemy_manager = enemy_manager
         self.config = get_turret_config(turret_type)
         self.turret_type = self.config.key
+        self.is_destroyed = False
 
         parent = getattr(self.base, "structure_root", self.base.render)
         self.np = NodePath("structure_root")
@@ -450,6 +423,10 @@ class Structure:
         return task.cont
 
     def detruire(self):
+        if self.is_destroyed:
+            return
+        self.is_destroyed = True
+
         # Nettoyer la tâche lorsqu'on supprime la tourelle
         self.base.taskMgr.remove(self.task_name)
 
@@ -486,21 +463,18 @@ class Hologram:
         self.np.setHpr(hpr)
 
 class BuildManager(DirectObject):
-    # --- MODIFIÉ : Ajout de enemy_manager en argument ---
     def __init__(self, showbase, player_root, camera, mouse):
         super().__init__()
         self.base = showbase
         self.player_root = player_root
         self.camera = camera
         self.mouse = mouse
-        self.enemy_manager = self.base.enemies # <-- Sauvegarde de la référence
+        self.enemy_manager = getattr(self.base, "enemies", None)
 
         self.mode_actif = False
         self.distance_construction = 2.5
         self.distance_min = 1
         self.rayon_max_construction = 5
-
-        self.cost = TURRET_CONFIGS[DEFAULT_TURRET_TYPE].cost
 
         self.plan_sol = Plane(Vec3(0, 0, 1), Point3(0, 0, 0))
         self.structures = []
@@ -536,6 +510,13 @@ class BuildManager(DirectObject):
             root = self.base.render.attachNewNode("structure_collision_root")
             self.base.structure_root = root
         return root
+
+    def _show_message(self, message):
+        popup_ui = getattr(self.base, "popup_ui", None)
+        if popup_ui is not None and hasattr(popup_ui, "show_popup"):
+            popup_ui.show_popup(message)
+        else:
+            print(message)
 
     def ouvrir_menu_construction(self):
         if not self.mode_actif or self.radial_menu.is_open:
@@ -581,7 +562,7 @@ class BuildManager(DirectObject):
         turret_config = get_turret_config(turret_type)
 
         if self.base.inventory["ressource"] < turret_config.cost:
-            print("Ressources insufisantes !")
+            self._show_message("Ressources insuffisantes !")
             self.basculer_mode()
             return
 
@@ -680,20 +661,6 @@ class BuildManager(DirectObject):
 
     def on_radial_cancel(self):
         pass
-
-    # def valider_construction(self):
-    #     if self.mode_actif and self.base.inventory["ressource"] >= self.cost:
-    #         # --- MODIFIÉ : On passe l'enemy_manager à la nouvelle structure ---
-    #         nouvelle_structure = Structure(
-    #             self.base,
-    #             self.hologramme.get_pos(),
-    #             self.hologramme.get_hpr(),
-    #             self._on_structure_detruite,
-    #             self.enemy_manager
-    #         )
-    #         self.structures.append(nouvelle_structure)
-    #         self.base.inventory["ressource"] -= self.cost
-    #         self.basculer_mode()
 
     def _on_structure_detruite(self, structure):
         if structure in self.structures:
