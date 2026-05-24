@@ -523,7 +523,7 @@ class MainGame(ShowBase):
         global frame
         # === Image avec transparence (logo) ===
         frame = OnscreenImage(
-            image="assets/cadre_Title.png",          # chemin vers ton PNG
+            image="assets/frame.png",          # chemin vers ton PNG
             pos=(0, 0, 0),          # centré en haut de l'écran
             scale=(0.4, 1, 0.8),      # ajuste la taille (x, y, z → width/height)
             parent=self.aspect2d      # ou render2d, mais aspect2d respecte le ratio
