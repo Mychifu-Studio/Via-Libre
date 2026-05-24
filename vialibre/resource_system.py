@@ -29,6 +29,7 @@ class ResourceSystem:
         self.in_trigger = False
         self.current_zone = None
         self.resource_zones = []
+        self.resource_markers = []
 
         # Données de la zone actuelle
         self.current_min_amount = 0
@@ -116,6 +117,7 @@ class ResourceSystem:
         marker.setScale(radius)
         marker.setTransparency(True)
         marker.setAlphaScale(0.25)
+        self.resource_markers.append(marker)
 
         if max_amount <= 2:
             marker.setColor(0.3, 0.9, 0.3, 1)
@@ -130,6 +132,7 @@ class ResourceSystem:
     # GENERATION DES ZONES SUR LES MINERAIS DE DIAMANT
     # =========================================================
     def generate_diamond_ore_zones(self):
+        self.clear_resource_zones()
         zones = self._generate_diamond_ore_zone_definitions()
         if not zones:
             print("Aucune zone de minerai de diamant trouvee pour generer les ressources.")
@@ -146,6 +149,26 @@ class ResourceSystem:
                 amount,
                 amount
             )
+
+    def clear_resource_zones(self):
+        self.cancel_harvest()
+        self.in_trigger = False
+        self.current_zone = None
+        self.current_min_amount = 0
+        self.current_max_amount = 0
+        self.base_harvest_required_time = 0.0
+        self.harvest_required_time = 0.0
+
+        for index, zone_np in enumerate(self.resource_zones):
+            self.game.ignore(f"player-into-trigger_zone_{index}")
+            self.game.ignore(f"player-out-trigger_zone_{index}")
+            zone_np.removeNode()
+
+        for marker in self.resource_markers:
+            marker.removeNode()
+
+        self.resource_zones.clear()
+        self.resource_markers.clear()
 
     def _generate_diamond_ore_zone_definitions(self):
         map_collision = getattr(self.game, "map_collision", None)
@@ -316,6 +339,20 @@ class ResourceSystem:
 
         gain = self.current_max_amount
 
+        net_iface = getattr(self.game, "network", None)
+        is_client = (
+            net_iface is not None
+            and getattr(net_iface, "net", None) is not None
+            and not net_iface.net.is_host
+        )
+        if is_client:
+            net_iface.net.send_msg("harvest_request", {"amount": gain})
+            self.popup_ui.show_popup("Recolte envoyee...")
+            return
+
+        self.grant_resources(gain)
+
+    def grant_resources(self, gain):
         self.game.inventory["ressource"] += gain
         self.inventory_ui.update()
 
@@ -324,8 +361,37 @@ class ResourceSystem:
             f"(Total : {self.game.inventory['ressource']})"
         )
 
+        net_iface = getattr(self.game, "network", None)
+        if net_iface is not None and getattr(net_iface, "net", None) is not None and net_iface.net.is_host:
+            net_iface._broadcast_snapshot(force=True)
+
+        self.schedule_restore_hint()
+
+    def show_network_harvest_result(self, payload):
+        if payload.get("success"):
+            gain = payload.get("amount", 0)
+            total = self.game.inventory.get("ressource", 0)
+            self.popup_ui.show_popup(
+                f"Ressource +{gain} ! "
+                f"(Total : {total})"
+            )
+        else:
+            self.popup_ui.show_popup(payload.get("message", "Recolte refusee."))
+
+        self.schedule_restore_hint()
+
+    def schedule_restore_hint(self):
         self.game.taskMgr.remove("restore_hint")
         self.game.taskMgr.doMethodLater(1.0, self.restore_hint, "restore_hint")
+
+    def is_valid_network_harvest_amount(self, amount):
+        max_amount = 0
+        for zone in self.resource_zones:
+            try:
+                max_amount = max(max_amount, int(zone.getTag("max_amount")))
+            except (TypeError, ValueError):
+                continue
+        return 0 < amount <= max_amount
 
     def restore_hint(self, task):
         if self.in_trigger and self.current_zone is not None:

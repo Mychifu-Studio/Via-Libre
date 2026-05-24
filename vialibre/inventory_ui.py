@@ -6,6 +6,7 @@ from panda3d.core import TextNode
 class InventoryUI:
     def __init__(self, game):
         self.game = game
+        self._last_amount = None
         self.create_inventory_ui()
 
     def _prepare_gui_node(self, node, sort=20):
@@ -59,4 +60,17 @@ class InventoryUI:
 
     def update(self):
         amount = self.game.inventory.get("ressource", 0)
+        if amount == self._last_amount:
+            return
+        self._last_amount = amount
         self.resource_label.setText(f"Ressources : {amount}")
+
+    def set_visible(self, visible):
+        action = "show" if visible else "hide"
+        for node in (
+            self.inventory_bg,
+            self.inventory_title,
+            self.resource_label,
+            self.help_label,
+        ):
+            getattr(node, action)()

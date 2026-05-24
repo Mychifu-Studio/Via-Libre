@@ -9,6 +9,7 @@ class PlayerHealthUI:
     def __init__(self, game, player):
         self.game = game
         self.player = player
+        self._last_state = None
 
         parent = self.game.a2dTopLeft
 
@@ -60,6 +61,10 @@ class PlayerHealthUI:
     def update(self):
         hp = max(0, self.player.hp)
         max_hp = max(1, self.player.MAX_HP)
+        state = (hp, max_hp)
+        if state == self._last_state:
+            return
+        self._last_state = state
         ratio = max(0.0, min(1.0, hp / max_hp))
         fill_right = 0.065 + (0.575 - 0.065) * ratio
 
@@ -74,6 +79,11 @@ class PlayerHealthUI:
         self.bar_fill["frameColor"] = color
         self.bar_fill["frameSize"] = (0.065, fill_right, -0.36, -0.33)
 
+    def set_visible(self, visible):
+        action = "show" if visible else "hide"
+        for node in (self.root, self.label, self.bar_bg, self.bar_fill):
+            getattr(node, action)()
+
 
 class PipeHealthUI:
     """Affiche la barre de vie du tuyau a defendre."""
@@ -81,6 +91,7 @@ class PipeHealthUI:
     def __init__(self, game, pipe_base):
         self.game = game
         self.pipe_base = pipe_base
+        self._last_state = None
 
         parent = self.game.a2dTopLeft
 
@@ -132,6 +143,10 @@ class PipeHealthUI:
     def update(self):
         hp = max(0, self.pipe_base.hp)
         max_hp = max(1, self.pipe_base.MAX_HP)
+        state = (hp, max_hp)
+        if state == self._last_state:
+            return
+        self._last_state = state
         ratio = max(0.0, min(1.0, hp / max_hp))
         fill_right = 0.065 + (0.575 - 0.065) * ratio
 
@@ -145,3 +160,8 @@ class PipeHealthUI:
         self.label.setText(f"Vie tuyau : {hp}/{max_hp}")
         self.bar_fill["frameColor"] = color
         self.bar_fill["frameSize"] = (0.065, fill_right, -0.49, -0.46)
+
+    def set_visible(self, visible):
+        action = "show" if visible else "hide"
+        for node in (self.root, self.label, self.bar_bg, self.bar_fill):
+            getattr(node, action)()

@@ -146,6 +146,7 @@ class MapCollisionManager:
         self.walkable_grid = {}
         self.blocking_triangles = 0
         self.walkable_triangles = 0
+        self.labeled_bounds = {}
         self.resource_points = []
         self._resource_point_cells = set()
         self.campfire_points = []
@@ -219,27 +220,38 @@ class MapCollisionManager:
 
     def find_labeled_bounds(self, *terms):
         normalized_terms = tuple(term.lower() for term in terms)
-        matching_triangles = []
-        seen = set()
+        matching_bounds = [
+            bounds
+            for label, bounds in self.labeled_bounds.items()
+            if any(term in label for term in normalized_terms)
+        ]
 
-        for triangles in self.blocking_grid.values():
-            for triangle in triangles:
-                identity = id(triangle)
-                if identity in seen:
-                    continue
-                seen.add(identity)
+        if not matching_bounds:
+            matching_triangles = []
+            seen = set()
+            for triangles in self.blocking_grid.values():
+                for triangle in triangles:
+                    identity = id(triangle)
+                    if identity in seen:
+                        continue
+                    seen.add(identity)
 
-                label = triangle.label.lower()
-                if any(term in label for term in normalized_terms):
-                    matching_triangles.append(triangle)
+                    label = triangle.label.lower()
+                    if any(term in label for term in normalized_terms):
+                        matching_triangles.append(triangle)
 
-        if not matching_triangles:
-            return None
+            if not matching_triangles:
+                return None
 
-        min_x = min(triangle.min_x for triangle in matching_triangles)
-        max_x = max(triangle.max_x for triangle in matching_triangles)
-        min_y = min(triangle.min_y for triangle in matching_triangles)
-        max_y = max(triangle.max_y for triangle in matching_triangles)
+            min_x = min(triangle.min_x for triangle in matching_triangles)
+            max_x = max(triangle.max_x for triangle in matching_triangles)
+            min_y = min(triangle.min_y for triangle in matching_triangles)
+            max_y = max(triangle.max_y for triangle in matching_triangles)
+        else:
+            min_x = min(bounds["min_x"] for bounds in matching_bounds)
+            max_x = max(bounds["max_x"] for bounds in matching_bounds)
+            min_y = min(bounds["min_y"] for bounds in matching_bounds)
+            max_y = max(bounds["max_y"] for bounds in matching_bounds)
         center = Point3((min_x + max_x) / 2.0, (min_y + max_y) / 2.0, 0)
 
         return {
@@ -333,6 +345,7 @@ class MapCollisionManager:
                             vertices[indices[2]],
                             label,
                         )
+                        self._store_label_bounds(triangle)
                         self._store_triangle(triangle, category)
 
     def _read_vertices(self, geom, transform):
@@ -341,6 +354,23 @@ class MapCollisionManager:
         while not reader.isAtEnd():
             vertices.append(transform.xformPoint(reader.getData3f()))
         return vertices
+
+    def _store_label_bounds(self, triangle):
+        label = triangle.label.lower()
+        bounds = self.labeled_bounds.get(label)
+        if bounds is None:
+            self.labeled_bounds[label] = {
+                "min_x": triangle.min_x,
+                "max_x": triangle.max_x,
+                "min_y": triangle.min_y,
+                "max_y": triangle.max_y,
+            }
+            return
+
+        bounds["min_x"] = min(bounds["min_x"], triangle.min_x)
+        bounds["max_x"] = max(bounds["max_x"], triangle.max_x)
+        bounds["min_y"] = min(bounds["min_y"], triangle.min_y)
+        bounds["max_y"] = max(bounds["max_y"], triangle.max_y)
 
     def _store_triangle(self, triangle, category):
         if category == "resource":
