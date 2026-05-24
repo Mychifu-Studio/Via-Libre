@@ -1352,6 +1352,24 @@ class EnemyManager:
                 return True
         return False
 
+    def damage_enemies_in_radius(self, center_pos, radius, apply_damage=True, damage=1):
+        hit_any = False
+        for enemy in list(self.iter_enemies_in_radius(center_pos, radius)):
+            if enemy.is_dead:
+                continue
+
+            hit_any = True
+            if not apply_damage:
+                continue
+
+            killed = enemy.take_damage(max(1, int(damage)))
+            if killed:
+                self._remove_enemy(enemy)
+                self._grant_enemy_resources(enemy)
+                self.game.messenger.send("enemy-hit")
+
+        return hit_any
+
     def check_player_contact(self, player_pos):
         return self._get_touching_enemy(player_pos) is not None
 
