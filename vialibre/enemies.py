@@ -757,6 +757,14 @@ class WaypointEnemy:
     def has_reached_end(self):
         return self._index >= len(self.waypoints) - 1
 
+    def enters_pipe_between(self, start_pos, end_pos):
+        pipe_base = getattr(self.game, "pipe_base", None)
+        if pipe_base is None:
+            return False
+        if hasattr(pipe_base, "segment_enters"):
+            return pipe_base.segment_enters(start_pos, end_pos)
+        return pipe_base.is_touching(end_pos)
+
     def is_touched_by_segment(self, start_pos, end_pos, hit_radius):
         if self.is_dead:
             return False
@@ -781,6 +789,10 @@ class WaypointEnemy:
 
         target = self.waypoints[next_index]
         current_pos = self.node.getPos(self.game.render)
+        if self.enters_pipe_between(current_pos, current_pos):
+            self._index = len(self.waypoints) - 1
+            return
+
         dx = target.x - current_pos.x
         dy = target.y - current_pos.y
         dist_sq = dx * dx + dy * dy
@@ -796,7 +808,14 @@ class WaypointEnemy:
 
         step = min(self.speed * dt, dist)
         inv_dist = 1.0 / dist
-        self.node.setPos(current_pos.x + dx * inv_dist * step, current_pos.y + dy * inv_dist * step, current_pos.z)
+        next_pos = Vec3(current_pos.x + dx * inv_dist * step, current_pos.y + dy * inv_dist * step, current_pos.z)
+        if self.enters_pipe_between(current_pos, next_pos):
+            self._index = len(self.waypoints) - 1
+            self.node.setPos(next_pos)
+            self._update_health_bar_visibility(dt)
+            return
+
+        self.node.setPos(next_pos)
         self._update_health_bar_visibility(dt)
 
     def destroy(self):
@@ -1247,6 +1266,10 @@ class EnemyManager:
                     enemy.destroy()
                     continue
                 enemy.update(dt)
+                if isinstance(enemy, WaypointEnemy) and enemy.has_reached_end():
+                    self.game.damage_pipe(self._get_enemy_damage(enemy))
+                    self.game.messenger.send("enemy-hit")
+                    enemy.destroy()
 
             self._spatial_dirty = True
 
