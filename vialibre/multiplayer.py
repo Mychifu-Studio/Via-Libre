@@ -101,7 +101,7 @@ class PlayerState:
         )
 
 class EnemyState:
-    def __init__(self, id: str, x: float, y: float, z: float, h: float, hp: int, max_hp: int = 3):
+    def __init__(self, id: str, x: float, y: float, z: float, h: float, hp: int, max_hp: int = 3, enemy_type: str = "classique"):
         self.id = id
         self.x = x
         self.y = y
@@ -109,6 +109,7 @@ class EnemyState:
         self.h = h
         self.hp = hp
         self.max_hp = max_hp
+        self.enemy_type = enemy_type
 
     def to_dict(self) -> Dict[str, Any]:
         return {
@@ -119,6 +120,7 @@ class EnemyState:
             "h": _q(self.h, 1),
             "hp": self.hp,
             "max_hp": self.max_hp,
+            "enemy_type": self.enemy_type,
         }
 
     @staticmethod
@@ -131,6 +133,7 @@ class EnemyState:
             data.get("h", 0.0),
             data.get("hp", 1),
             data.get("max_hp", 3),
+            data.get("enemy_type", data.get("type", "classique")),
         )
 
 class GameState:
@@ -140,8 +143,8 @@ class GameState:
         is_finished: bool,
         team_resources: int,
         game_started: bool = False,
-        pipe_hp: int = 20,
-        pipe_max_hp: int = 20,
+        pipe_hp: int = 25,
+        pipe_max_hp: int = 25,
         is_game_over: bool = False,
         team_max_hp: int = 10,
         team_damage: int = 1,
@@ -191,8 +194,8 @@ class GameState:
             data.get("is_finished", False),
             data.get("team_resources", 0),
             data.get("game_started", False),
-            data.get("pipe_hp", 20),
-            data.get("pipe_max_hp", 20),
+            data.get("pipe_hp", 25),
+            data.get("pipe_max_hp", 25),
             data.get("is_game_over", False),
             data.get("team_max_hp", 10),
             data.get("team_damage", 1),
@@ -796,6 +799,7 @@ class GameNetworkInterface:
                             enemy.node.getH(self.base.render),
                             enemy.hp,
                             getattr(enemy, "max_hp", getattr(enemy, "MAX_HP", 3)),
+                            getattr(enemy, "enemy_type", "classique"),
                         )
                     )
 
@@ -807,8 +811,8 @@ class GameNetworkInterface:
                 is_finished=self.base.vague_manager.is_finished,
                 team_resources=self.base.inventory.get("ressource", 0),
                 game_started=getattr(self.base, "game_started", False),
-                pipe_hp=getattr(pipe_base, "hp", 20),
-                pipe_max_hp=getattr(pipe_base, "MAX_HP", 20),
+                pipe_hp=getattr(pipe_base, "hp", 25),
+                pipe_max_hp=getattr(pipe_base, "MAX_HP", 25),
                 is_game_over=getattr(self.base, "is_game_over", False),
                 team_max_hp=self.local_player.MAX_HP,
                 team_damage=self.local_player.damage,

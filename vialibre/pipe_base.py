@@ -2,7 +2,7 @@ from panda3d.core import Point3, Vec3
 
 
 class PipeBase:
-    MAX_HP = 20
+    MAX_HP = 25
     CONTACT_PADDING = 1.25
     FALLBACK_CONTACT_RADIUS = 3.0
 

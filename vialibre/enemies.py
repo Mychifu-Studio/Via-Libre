@@ -10,38 +10,53 @@ from .utils import powLerp, shortest_angle_lerp
 
 BASE_ENEMY_HP = 10
 BASE_ENEMY_DAMAGE = 1
+BASE_ENEMY_RESOURCE_REWARD = 2
 ENEMY_ANIMATION_NAME = "walk"
 
 ENEMY_TYPE_CLASSIC = "classique"
 ENEMY_TYPE_FAST = "rapide"
 ENEMY_TYPE_HEAVY = "lourd"
+ENEMY_TYPE_MINIBOSS = "miniboss"
 
 ENEMY_TYPE_CONFIGS = {
     ENEMY_TYPE_CLASSIC: {
         "asset": "ennemi_classique.bam",
-        "hp_multiplier": 5.0,
-        "speed_multiplier": 0.6,
-        "damage_multiplier": 1.0,
-        "resource_reward": 2,
+        "hp_multiplier": 1.0,  # à changer pour balance
+        "speed_multiplier": 1.0,  # à changer pour balance
+        "damage_multiplier": 1.0,  # à changer pour balance
+        "objective_damage": 2,  # à changer pour balance
+        "resource_multiplier": 1.0,  # à changer pour balance
         "visual_scale_multiplier": 1.0,
         "color_scale": (1.0, 1.0, 1.0, 1.0),
     },
     ENEMY_TYPE_FAST: {
         "asset": "ennemi_rapide.bam",
-        "hp_multiplier": 3,
-        "speed_multiplier": 0.8,
-        "damage_multiplier": 1.0,
-        "resource_reward": 1,
+        "hp_multiplier": 0.5,  # à changer pour balance
+        "speed_multiplier": 1.5,  # à changer pour balance
+        "damage_multiplier": 1.0,  # à changer pour balance
+        "objective_damage": 1,  # à changer pour balance
+        "resource_multiplier": 1.0,  # à changer pour balance
         "visual_scale_multiplier": 1.0,
         "color_scale": (1.0, 1.0, 1.0, 1.0),
     },
     ENEMY_TYPE_HEAVY: {
         "asset": "ennemi_lourd.bam",
-        "hp_multiplier": 10.0,
-        "speed_multiplier": 0.4,
-        "damage_multiplier": 2.0,
-        "resource_reward": 3,
+        "hp_multiplier": 2.0,  # à changer pour balance
+        "speed_multiplier": 0.6,  # à changer pour balance
+        "damage_multiplier": 2.0,  # à changer pour balance
+        "objective_damage": 3,  # à changer pour balance
+        "resource_multiplier": 2.0,  # à changer pour balance
         "visual_scale_multiplier": 1.0,
+        "color_scale": (1.0, 1.0, 1.0, 1.0),
+    },
+    ENEMY_TYPE_MINIBOSS: {
+        "asset": "miniboss.bam",
+        "hp_multiplier": 10.0,  # a changer pour balance
+        "speed_multiplier": 0.4,  # a changer pour balance
+        "damage_multiplier": 2.0,  # a changer pour balance
+        "objective_damage": 25,  # a changer pour balance
+        "resource_multiplier": 10.0,  # a changer pour balance
+        "visual_scale_multiplier": 1.4,
         "color_scale": (1.0, 1.0, 1.0, 1.0),
     },
 }
@@ -60,10 +75,17 @@ ENEMY_TYPE_ALIASES = {
     "heavy": ENEMY_TYPE_HEAVY,
     "tank": ENEMY_TYPE_HEAVY,
     "lourd": ENEMY_TYPE_HEAVY,
+    "4": ENEMY_TYPE_MINIBOSS,
+    "boss": ENEMY_TYPE_MINIBOSS,
+    "mini_boss": ENEMY_TYPE_MINIBOSS,
+    "miniboss": ENEMY_TYPE_MINIBOSS,
+    "miniboss": ENEMY_TYPE_MINIBOSS,
 }
 
 RANDOM_ENEMY_TYPE_VALUES = {None, "random", "aleatoire"}
-ENEMY_TYPE_CHOICES = tuple(ENEMY_TYPE_CONFIGS.keys())
+ENEMY_TYPE_CHOICES = (ENEMY_TYPE_CLASSIC, ENEMY_TYPE_FAST, ENEMY_TYPE_HEAVY)
+ENEMY_TYPE_SPAWN_ORDER = (ENEMY_TYPE_CLASSIC, ENEMY_TYPE_FAST, ENEMY_TYPE_HEAVY, ENEMY_TYPE_MINIBOSS)
+ENEMY_TYPE_BOSS_ORDER = (ENEMY_TYPE_MINIBOSS,)
 
 HEALTH_BAR_VISIBILITY_INTERVAL = 0.15
 HEALTH_BAR_MAX_DISTANCE_SQ = 55.0 * 55.0
@@ -85,6 +107,11 @@ def get_enemy_type_config(enemy_type):
 def get_enemy_asset_path(asset_name):
     base_dir = os.path.dirname(os.path.abspath(__file__))
     path = os.path.join(base_dir, "../assets", asset_name)
+    if not os.path.exists(path):
+        fallback_asset = "ennemi_lourd.bam" if asset_name == "miniboss.bam" else "ennemi_classique.bam"
+        fallback_path = os.path.join(base_dir, "../assets", fallback_asset)
+        if os.path.exists(fallback_path):
+            return Filename.fromOsSpecific(fallback_path).getFullpath()
     return Filename.fromOsSpecific(path).getFullpath()
 
 
@@ -357,7 +384,8 @@ class DogEnemy:
         base_chase_speed = chase_speed if chase_speed is not None else speed * 1.25
         self.chase_speed = base_chase_speed * speed_multiplier
         self.damage = max(1, int(round(self.BASE_DAMAGE * self.enemy_config["damage_multiplier"])))
-        self.resource_reward = max(0, int(self.enemy_config["resource_reward"]))
+        self.objective_damage = max(1, int(self.enemy_config["objective_damage"]))
+        self.resource_reward = max(0, int(round(BASE_ENEMY_RESOURCE_REWARD * self.enemy_config["resource_multiplier"])))
 
         self.detection_radius = detection_radius
         self.player_node = player_node
@@ -367,8 +395,8 @@ class DogEnemy:
         self.objective_reach_radius = objective_reach_radius
         self.is_dead = False
 
-        type_max_hp = self.MAX_HP * self.enemy_config["hp_multiplier"]
-        self.max_hp = max(1, int(round(max_hp if max_hp is not None else type_max_hp)))
+        base_max_hp = max_hp if max_hp is not None else self.MAX_HP
+        self.max_hp = max(1, int(round(base_max_hp * self.enemy_config["hp_multiplier"])))
         self.hp = self.max_hp
 
         self.is_chasing = False
@@ -667,12 +695,12 @@ class WaypointEnemy:
         self.speed = speed * speed_multiplier
         self.on_finish = on_finish
         self.is_dead = False
-        # max_hp explicite > config hp_multiplier > MAX_HP constant
-        type_max_hp = self.MAX_HP * self.enemy_config["hp_multiplier"]
-        self.max_hp = max(1, int(round(max_hp if max_hp is not None else type_max_hp)))
+        base_max_hp = max_hp if max_hp is not None else self.MAX_HP
+        self.max_hp = max(1, int(round(base_max_hp * self.enemy_config["hp_multiplier"])))
         self.hp = self.max_hp
         self.damage = max(1, int(round(self.BASE_DAMAGE * self.enemy_config["damage_multiplier"])))
-        self.resource_reward = max(0, int(self.enemy_config["resource_reward"]))
+        self.objective_damage = max(1, int(self.enemy_config["objective_damage"]))
+        self.resource_reward = max(0, int(round(BASE_ENEMY_RESOURCE_REWARD * self.enemy_config["resource_multiplier"])))
         self._index = 0
         self.health_bar_fill = None
         self.health_bar_root = None
@@ -833,17 +861,21 @@ class WaypointEnemy:
 class PortalSpawner:
     """File d'attente d'un portail : spawne les ennemis un par un avec un delai."""
 
-    def __init__(self, game, waypoints, count, speed, scale, interval, enemy_type=ENEMY_TYPE_CLASSIC, max_hp=None):
+    def __init__(self, game, waypoints, count, speed, scale, interval, enemy_type=ENEMY_TYPE_CLASSIC, max_hp=None, enemy_types=None):
         self.game       = game
         self.waypoints  = waypoints
         self.speed      = speed
         self.scale      = scale
         self.interval   = interval
-        self.enemy_type = enemy_type
         self.max_hp     = max_hp
-        self.remaining  = count
+        if enemy_types is None:
+            self.enemy_types = [enemy_type] * max(0, int(count))
+        else:
+            self.enemy_types = [normalize_enemy_type(enemy_type) for enemy_type in enemy_types]
+        self._spawn_index = 0
+        self.remaining  = len(self.enemy_types)
         self.timer      = 0.0
-        self.done       = False
+        self.done       = self.remaining <= 0
 
     def update(self, dt):
         if self.done:
@@ -851,15 +883,17 @@ class PortalSpawner:
         self.timer -= dt
         if self.timer > 0:
             return None
+        enemy_type = self.enemy_types[self._spawn_index]
         enemy = WaypointEnemy(
             self.game,
             self.waypoints,
             speed=self.speed,
             scale=self.scale,
-            enemy_type=self.enemy_type,
+            enemy_type=enemy_type,
             max_hp=self.max_hp,
         )
-        self.remaining -= 1
+        self._spawn_index += 1
+        self.remaining = len(self.enemy_types) - self._spawn_index
         self.timer = self.interval if self.remaining > 0 else 0.0
         if self.remaining <= 0:
             self.done = True
@@ -977,6 +1011,60 @@ class EnemyManager:
             return random.choice(ENEMY_TYPE_CHOICES)
         return normalize_enemy_type(enemy_type)
 
+    def _normalise_enemy_counts(self, enemy_counts, portal_count, count_per_portal, enemy_type):
+        if enemy_counts is None:
+            chosen_type = self._choose_enemy_type(enemy_type)
+            return {chosen_type: max(0, int(count_per_portal or 0)) * portal_count}
+
+        counts_by_type = {}
+        for raw_type, raw_count in enemy_counts.items():
+            enemy_type = normalize_enemy_type(raw_type)
+            count = max(0, int(raw_count))
+            counts_by_type[enemy_type] = counts_by_type.get(enemy_type, 0) + count
+        return counts_by_type
+
+    def _distribute_count_by_portal(self, total_count, portal_count):
+        base_count = total_count // portal_count
+        remainder = total_count % portal_count
+        return [
+            base_count + (1 if portal_index < remainder else 0)
+            for portal_index in range(portal_count)
+        ]
+
+    def _interleave_enemy_types(self, counts_by_type):
+        remaining_by_type = {
+            enemy_type: max(0, int(counts_by_type.get(enemy_type, 0)))
+            for enemy_type in ENEMY_TYPE_SPAWN_ORDER
+        }
+        boss_sequence = []
+        for enemy_type in ENEMY_TYPE_BOSS_ORDER:
+            boss_sequence.extend([enemy_type] * remaining_by_type.pop(enemy_type, 0))
+        sequence = []
+
+        while sum(remaining_by_type.values()) > 0:
+            for enemy_type in remaining_by_type:
+                if remaining_by_type[enemy_type] <= 0:
+                    continue
+                sequence.append(enemy_type)
+                remaining_by_type[enemy_type] -= 1
+
+        sequence.extend(boss_sequence)
+        return sequence
+
+    def _build_portal_enemy_sequences(self, enemy_counts, portal_count):
+        counts_by_portal = [dict.fromkeys(ENEMY_TYPE_SPAWN_ORDER, 0) for _ in range(portal_count)]
+
+        for enemy_type in ENEMY_TYPE_SPAWN_ORDER:
+            for portal_index, count in enumerate(
+                self._distribute_count_by_portal(enemy_counts.get(enemy_type, 0), portal_count)
+            ):
+                counts_by_portal[portal_index][enemy_type] = count
+
+        return [
+            self._interleave_enemy_types(portal_counts)
+            for portal_counts in counts_by_portal
+        ]
+
     def spawn_dog(self, start_pos, end_pos, **kwargs):
         allow_blocked_end = kwargs.pop("allow_blocked_end", False)
         enemy_type = self._choose_enemy_type(kwargs.pop("enemy_type", None))
@@ -1053,7 +1141,7 @@ class EnemyManager:
         if enemy.is_dead:
             return
         if hasattr(self.game, "damage_pipe"):
-            self.game.damage_pipe(self._get_enemy_damage(enemy))
+            self.game.damage_pipe(self._get_enemy_objective_damage(enemy))
         if not enemy.is_dead:
             enemy.destroy()
         vague_manager = getattr(self.game, "vague_manager", None)
@@ -1074,30 +1162,52 @@ class EnemyManager:
 
         return start, end
 
-    def spawn_wave(self, portal_paths, count_per_portal, speed=4.0, scale=19, interval=1.5, enemy_type=ENEMY_TYPE_CLASSIC, max_hp=None):
+    def spawn_wave(
+        self,
+        portal_paths,
+        count_per_portal=None,
+        speed=4.0,
+        scale=19,
+        interval=1.5,
+        enemy_type=ENEMY_TYPE_CLASSIC,
+        max_hp=None,
+        enemy_counts=None,
+    ):
         """
         Lance une vague depuis les portails definis dans portal_paths.
         Ajoute dynamiquement la position du tuyau comme dernier waypoint de chaque chemin.
         """
         self._spawners.clear()
 
-        pipe_pos = self._get_pipe_target_pos()
-        chosen_type = self._choose_enemy_type(enemy_type)
-        total_count = count_per_portal * len(portal_paths)
-        self._preload_enemy_type(chosen_type, total_count)
+        portal_count = len(portal_paths)
+        if portal_count <= 0:
+            return 0
 
-        for path in portal_paths:
+        pipe_pos = self._get_pipe_target_pos()
+        counts_by_type = self._normalise_enemy_counts(enemy_counts, portal_count, count_per_portal, enemy_type)
+        total_count = sum(counts_by_type.values())
+        if total_count <= 0:
+            return 0
+
+        for preload_type, count in counts_by_type.items():
+            self._preload_enemy_type(preload_type, count)
+
+        portal_sequences = self._build_portal_enemy_sequences(counts_by_type, portal_count)
+        for path, enemy_sequence in zip(portal_paths, portal_sequences):
+            if not enemy_sequence:
+                continue
             full_path = [Vec3(wp) for wp in path]
             full_path.append(Vec3(pipe_pos.x, pipe_pos.y, 0))
             spawner = PortalSpawner(
                 game       = self.game,
                 waypoints  = full_path,
-                count      = count_per_portal,
+                count      = len(enemy_sequence),
                 speed      = speed,
                 scale      = scale,
                 interval   = interval,
-                enemy_type = chosen_type,
+                enemy_type = enemy_type,
                 max_hp     = max_hp,
+                enemy_types = enemy_sequence,
             )
             self._spawners.append(spawner)
 
@@ -1200,6 +1310,9 @@ class EnemyManager:
     def _get_enemy_damage(self, enemy):
         return max(1, int(getattr(enemy, "damage", self.BASE_DAMAGE_PER_ENEMY)))
 
+    def _get_enemy_objective_damage(self, enemy):
+        return max(1, int(getattr(enemy, "objective_damage", self._get_enemy_damage(enemy))))
+
     def _damage_local_player(self, damage):
         damage = max(1, int(damage))
         if hasattr(self.game, "damage_player"):
@@ -1261,13 +1374,13 @@ class EnemyManager:
                 if enemy.is_dead:
                     continue
                 if isinstance(enemy, WaypointEnemy) and enemy.has_reached_end():
-                    self.game.damage_pipe(self._get_enemy_damage(enemy))
+                    self.game.damage_pipe(self._get_enemy_objective_damage(enemy))
                     self.game.messenger.send("enemy-hit")
                     enemy.destroy()
                     continue
                 enemy.update(dt)
                 if isinstance(enemy, WaypointEnemy) and enemy.has_reached_end():
-                    self.game.damage_pipe(self._get_enemy_damage(enemy))
+                    self.game.damage_pipe(self._get_enemy_objective_damage(enemy))
                     self.game.messenger.send("enemy-hit")
                     enemy.destroy()
 

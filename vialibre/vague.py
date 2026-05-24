@@ -1,6 +1,8 @@
 from direct.gui.DirectGui import DirectLabel, DirectFrame
 from panda3d.core import TextNode, Vec3
 
+from .enemies import ENEMY_TYPE_CLASSIC, ENEMY_TYPE_FAST, ENEMY_TYPE_HEAVY, ENEMY_TYPE_MINIBOSS
+
 
 # ─────────────────────────────────────────────────────────────────────────────
 # Chemins des 6 portails vers le tuyau.
@@ -22,6 +24,12 @@ PORTAL_PATHS = [
 ]
 
 SPAWN_INTERVAL = 1.5   # secondes entre chaque ennemi sur le meme portail
+ENEMY_COUNT_KEYS = (
+    ("ennemi_classique_count", ENEMY_TYPE_CLASSIC),
+    ("ennemi_rapide_count", ENEMY_TYPE_FAST),
+    ("ennemi_lourd_count", ENEMY_TYPE_HEAVY),
+    ("miniboss_count", ENEMY_TYPE_MINIBOSS),
+)
 
 
 class VagueManager:
@@ -57,21 +65,48 @@ class VagueManager:
         self.waves = [
             {
                 "name": "Vague 1",
-                "enemy_count": 24,   # 4 par portail x 6 portails
-                "speed": 4.0,
-                "max_hp": 3,
+                "ennemi_classique_count": 18,
+                "ennemi_rapide_count": 6,
+                "ennemi_lourd_count": 0,
+                "miniboss_count": 6,
+                "speed": 2.0,
+                "max_hp": 6,
             },
             {
                 "name": "Vague 2",
-                "enemy_count": 36,   # 6 par portail
-                "speed": 4.5,
-                "max_hp": 3,
+                "ennemi_classique_count": 24,
+                "ennemi_rapide_count": 12,
+                "ennemi_lourd_count": 0,
+                "miniboss_count": 0,
+                "speed": 2.5,
+                "max_hp": 6,
             },
             {
                 "name": "Vague 3",
-                "enemy_count": 48,   # 8 par portail
-                "speed": 5.0,
-                "max_hp": 3,
+                "ennemi_classique_count": 24,
+                "ennemi_rapide_count": 12,
+                "ennemi_lourd_count": 12,
+                "miniboss_count": 0,
+                "speed": 3,
+                "max_hp": 6,
+            },
+            {
+                "name": "Vague 4",
+                "ennemi_classique_count": 30,
+                "ennemi_rapide_count": 18,
+                "ennemi_lourd_count": 12,
+                "miniboss_count": 0,
+                "speed": 3.5,
+                "max_hp": 7,
+            },
+            {
+                "name": "Vague 5",
+                "ennemi_classique_count": 36,
+                "ennemi_rapide_count": 18,
+                "ennemi_lourd_count": 18,
+                "miniboss_count": 1,
+                "speed": 4.0,
+                "max_hp": 8,
             },
         ]
 
@@ -144,15 +179,33 @@ class VagueManager:
     def _level_index(self):
         return max(0, self.current_level - 1)
 
+    def _round_up_to_portal_multiple(self, count):
+        count = max(0, int(count))
+        portal_count = len(PORTAL_PATHS)
+        if count <= 0 or portal_count <= 0:
+            return 0
+        return ((count + portal_count - 1) // portal_count) * portal_count
+
+    def _wave_enemy_counts(self, wave):
+        return {
+            enemy_type: max(0, int(wave.get(count_key, 0)))
+            for count_key, enemy_type in ENEMY_COUNT_KEYS
+        }
+
+    def _wave_enemy_total(self, wave):
+        return sum(self._wave_enemy_counts(wave).values())
+
     def _scaled_wave(self, wave):
         level_index = self._level_index()
         wave_index = self.current_wave_index
-        return {
+        scaled_wave = {
             **wave,
-            "enemy_count": wave["enemy_count"] + level_index * 3 + level_index * wave_index,
             "speed": wave["speed"] + level_index * 0.45,
             "max_hp": wave["max_hp"] + level_index,
         }
+        extra_classic_count = self._round_up_to_portal_multiple(level_index * 3 + level_index * wave_index)
+        scaled_wave["ennemi_classique_count"] = wave["ennemi_classique_count"] + extra_classic_count
+        return scaled_wave
 
     def _is_host(self):
         net_iface = getattr(self.game, "network", None)
@@ -173,16 +226,16 @@ class VagueManager:
         self.killed_in_current_wave = 0
         self.clear_enemies()
 
-        count_per_portal = wave["enemy_count"] // len(PORTAL_PATHS)
+        enemy_counts = self._wave_enemy_counts(wave)
         spawned_count = self.enemy_manager.spawn_wave(
             portal_paths=PORTAL_PATHS,
-            count_per_portal=count_per_portal,
             speed=wave["speed"],
             scale=1.0,
             interval=SPAWN_INTERVAL,
             max_hp=wave["max_hp"],
+            enemy_counts=enemy_counts,
         )
-        self.current_enemy_target = spawned_count or wave["enemy_count"]
+        self.current_enemy_target = spawned_count or self._wave_enemy_total(wave)
 
         self.show_message(
             f"Niveau {self.current_level}/{self.max_levels} - {wave['name']}\n"
@@ -305,7 +358,7 @@ class VagueManager:
                 wave = self._scaled_wave(self.waves[self.current_wave_index])
                 self.show_message(
                     f"Niveau {self.current_level}/{self.max_levels} - {wave['name']}\n"
-                    f"Elimine {wave['enemy_count']} ennemis !",
+                    f"Elimine {self._wave_enemy_total(wave)} ennemis !",
                     duration=2.5,
                 )
 
