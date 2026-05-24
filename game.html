@@ -22,12 +22,12 @@
             </button>
         </div>
         <ul class="sidebar-nav">
-            <li><a href="index.html" >Le Studio</a></li>
+            <li><a href="index.html">Le Studio</a></li>
             <li><a href="game.html" class="active">Via Libre ! (Le Jeu)</a></li>
-            <li><a href="lore.html" >Univers & Lore</a></li>
+            <li><a href="lore.html">Univers & Lore</a></li>
         </ul>
         <div class="sidebar-footer">
-            <p>&copy; 2026 Mychifu Ent.<br>Tous droits réservés.</p>
+            <p>&copy; 2026 Mychifu Ent.<br>Tous droits r&eacute;serv&eacute;s.</p>
         </div>
     </nav>
 
@@ -35,122 +35,176 @@
         <header class="hero" style="height: 70vh;">
             <img src="img/game_logo.jpg" alt="Via Libre! Logo" class="reveal-scale" style="background-color: #fff; padding: 15px;">
             <div class="reveal" style="margin-top: 2rem;">
-                <span class="tag">Tower Defense</span> 
-                <span class="tag">Roguelite</span> 
-                <span class="tag">Déduction Sociale</span>
+                <span class="tag">Action-d&eacute;fense</span>
+                <span class="tag">Solo & coop</span>
+                <span class="tag">Panda3D</span>
             </div>
-            <p class="reveal" style="margin-top: 1.5rem;">Défendez la révolution. Survivrez-vous aux vagues ennemies... ou à la trahison de vos alliés ?</p>
+            <p class="reveal" style="margin-top: 1.5rem;">Prot&eacute;gez le tuyau, r&eacute;coltez des ressources, posez des tourelles et survivez aux vagues qui montent en pression.</p>
         </header>
 
         <section>
-            <!-- Remplacement du Grid-2 étiré par deux sections empilées et aérées -->
-            <div class="surface reveal-left" style="margin-bottom: 4rem;">
-                <h2 class="section-title">La Boucle de Jeu</h2>
+            <div class="surface reveal-up">
+                <h2 class="section-title reveal-left">La Boucle Jouable</h2>
+                <p><strong>Via Libre !</strong> est un jeu d'action-d&eacute;fense coop&eacute;ratif : l'&eacute;quipe alterne entre le lobby, la pr&eacute;paration du terrain et des vagues d'ennemis qui foncent vers le tuyau &agrave; d&eacute;fendre.</p>
 
-                <p><strong>Via Libre !</strong> n'est pas un simple jeu de placement de tours. Chaque partie est une mission semi-procédurale exigeante, découpée en phases distinctes :</p>
+                <div class="stat-grid reveal">
+                    <div class="stat-card">
+                        <strong>5</strong>
+                        <span>niveaux</span>
+                    </div>
+                    <div class="stat-card">
+                        <strong>5</strong>
+                        <span>vagues par niveau</span>
+                    </div>
+                    <div class="stat-card">
+                        <strong>6</strong>
+                        <span>portails ennemis</span>
+                    </div>
+                    <div class="stat-card">
+                        <strong>4</strong>
+                        <span>types d'ennemis</span>
+                    </div>
+                </div>
 
                 <div class="grid-flex" style="margin-top: 2rem;">
                     <div class="card">
-                        <h3 style="border-bottom:none;">1. Planification</h3>
-                        <p>Les joueurs votent sur la stratégie, dépensent du Métal pour construire des barricades et s'assurent que les munitions sont fabriquées avant l'assaut imminent.</p>
+                        <h3>1. Lobby</h3>
+                        <p>La partie commence dans la boutique avec les PNJ du lobby. Le host lance le niveau depuis la zone de d&eacute;part, et un manuel consultable pr&eacute;sente les bases.</p>
                     </div>
                     <div class="card">
-                        <h3 style="border-bottom:none;">2. Survie</h3>
-                        <p>Les vagues de l'armée du Commandant Vega déferlent en temps réel. Snipers, tanks et unités anti-émeutes forcent l'escouade à s'adapter dynamiquement.</p>
+                        <h3>2. R&eacute;colte</h3>
+                        <p>Des zones de minerai apparaissent sur la carte. En maintenant l'interaction, les joueurs ajoutent une ressource commune &agrave; l'inventaire de l'&eacute;quipe.</p>
                     </div>
                     <div class="card">
-                        <h3 style="border-bottom:none;">3. Investigation</h3>
-                        <p>L'accalmie est trompeuse. Les joueurs gèrent le moral du groupe, tranchent des dilemmes narratifs cruciaux et enquêtent sur les sabotages internes.</p>
+                        <h3>3. Construction</h3>
+                        <p>Le mode construction affiche un hologramme et un menu radial. Les joueurs placent des tourelles, puis peuvent les supprimer directement sur le terrain.</p>
+                    </div>
+                    <div class="card">
+                        <h3>4. D&eacute;fense</h3>
+                        <p>Les ennemis suivent des chemins depuis six portails jusqu'au tuyau. Si sa barre de vie tombe &agrave; z&eacute;ro, l'&eacute;cran de d&eacute;faite s'affiche.</p>
+                    </div>
+                    <div class="card">
+                        <h3>5. Retour</h3>
+                        <p>Une fois les vagues termin&eacute;es, l'&eacute;quipe revient au lobby pour lancer le niveau suivant. Apr&egrave;s le cinqui&egrave;me niveau, l'&eacute;cran de victoire appara&icirc;t.</p>
                     </div>
                 </div>
-            </div>
-
-            <div class="surface reveal-right" style="border-color: #ffb300;">
-                <h2 class="section-title" style="border-color: #ffb300; color: #ffb300;">La Menace de l'Imposteur</h2>
-
-                <div class="text-columns">
-                    <p>À chaque session, le système désigne secrètement l'un des joueurs comme la <em>"Taupe"</em>. L'Imposteur joue un double jeu dangereux avec des objectifs de sabotage dynamiques.</p>
-
-                    <p>Il peut endommager discrètement les barricades, voler des vivres, ou même attirer volontairement les ennemis vers des zones peu défendues par l'équipe.</p>
-                </div>
-
-                <blockquote style="margin: 2rem 0; border-left-color: #ffb300;">
-                    Le Tribunal du Peuple : Exclure un innocent signifie perdre 25% de votre force de frappe, précipitant la chute de la révolution.
-                </blockquote>
             </div>
         </section>
 
         <section>
-            <h2 class="section-title reveal-scale" style="text-align: center; border: none;">L'Arsenal Révolutionnaire</h2>
+            <h2 class="section-title reveal-left" style="text-align: center; border: none;">Fonctionnalit&eacute;s en jeu</h2>
+
+            <div class="grid-flex">
+                <div class="card reveal-scale">
+                    <h3>Solo et multijoueur</h3>
+                    <p>Le jeu fonctionne en solo, en host local, ou via un code de salon. Le host synchronise joueurs, vagues, tirs, constructions, ressources et am&eacute;liorations.</p>
+                </div>
+                <div class="card reveal-scale" style="transition-delay: 0.1s;">
+                    <h3>Tir en temps r&eacute;el</h3>
+                    <p>Le personnage peut viser &agrave; la souris et tirer des projectiles. Les d&eacute;g&acirc;ts sont appliqu&eacute;s par l'h&ocirc;te pour garder une partie coh&eacute;rente en r&eacute;seau.</p>
+                </div>
+                <div class="card reveal-scale" style="transition-delay: 0.2s;">
+                    <h3>Ressource unique</h3>
+                    <p>Le stock de l'&eacute;quipe repose sur une seule ressource, gagn&eacute;e par la r&eacute;colte et par les ennemis vaincus. Elle sert aux achats de combat.</p>
+                </div>
+                <div class="card reveal-scale" style="transition-delay: 0.3s;">
+                    <h3>Am&eacute;liorations</h3>
+                    <p>Au feu de camp, l'&eacute;quipe peut am&eacute;liorer les PV max, les d&eacute;g&acirc;ts de tir et la vitesse de r&eacute;colte. Les bonus sont partag&eacute;s en multijoueur.</p>
+                </div>
+                <div class="card reveal-scale" style="transition-delay: 0.4s;">
+                    <h3>Sant&eacute; et HUD</h3>
+                    <p>L'interface affiche l'inventaire, la vie du joueur, la vie du tuyau, la progression de r&eacute;colte, les messages de vague, le menu pause et les &eacute;crans de fin.</p>
+                </div>
+                <div class="card reveal-scale" style="transition-delay: 0.5s;">
+                    <h3>Collisions de carte</h3>
+                    <p>Les d&eacute;placements du joueur et des ennemis utilisent les collisions de la carte. Les zones de ressources et de feu de camp sont d&eacute;duites du niveau.</p>
+                </div>
+            </div>
+        </section>
+
+        <section>
+            <h2 class="section-title reveal-scale" style="text-align: center; border: none;">Syst&egrave;mes de combat</h2>
 
             <div class="tab-buttons reveal">
-                <button class="tab-btn active" data-tab="classes">Les Classes</button>
-                <button class="tab-btn" data-tab="resources">Économie</button>
-                <button class="tab-btn" data-tab="buildings">Infrastructures</button>
+                <button class="tab-btn active" data-tab="turrets">Tourelles</button>
+                <button class="tab-btn" data-tab="upgrades">Am&eacute;liorations</button>
+                <button class="tab-btn" data-tab="enemies">Ennemis</button>
+                <button class="tab-btn" data-tab="network">R&eacute;seau</button>
             </div>
 
             <div class="surface reveal">
-                <!-- Classes Tab -->
-                <div id="classes" class="tab-content active">
-                    <p style="text-align: center; margin-bottom: 2rem;">Une escouade déséquilibrée est vouée à l'échec.</p>
+                <div id="turrets" class="tab-content active">
+                    <p style="text-align: center; margin-bottom: 2rem;">Trois tourelles sont disponibles dans le menu radial de construction.</p>
                     <div class="grid-flex">
                         <div class="card">
-                            <h3>El Guerrillero</h3>
-                            <p>La force de frappe brute. Spécialiste des armes lourdes capable de bloquer une rue à lui seul. Sa capacité "Baroud d'honneur" le rend invincible quelques secondes.</p>
+                            <h3>Canon</h3>
+                            <p>Tourelle de base &agrave; tir direct. Elle vise l'ennemi le plus proche, inflige 2 d&eacute;g&acirc;ts et couvre le plus grand rayon d'activation.</p>
                         </div>
                         <div class="card">
-                            <h3>El Médico</h3>
-                            <p>Le ciment du groupe. Sans lui, le moral s'effondre. Il utilise la Nourriture pour prodiguer des soins et traite les traumatismes psychologiques de l'escouade.</p>
+                            <h3>Tesla</h3>
+                            <p>Tourelle rapide &agrave; cadence &eacute;lev&eacute;e. Ses tirs font moins de d&eacute;g&acirc;ts, mais touchent une petite zone autour de l'impact.</p>
                         </div>
                         <div class="card">
-                            <h3>El Saboteador</h3>
-                            <p>Expert en pièges et effets de zone. Il peut miner des chemins entiers pour décimer les vagues, mais ses créations coûtent excessivement cher en Métal.</p>
-                        </div>
-                        <div class="card">
-                            <h3>El Agitador</h3>
-                            <p>L'orateur. Il ne fait pas de dégâts directs mais génère de l'Influence massivement pour buffer les alliés et manipuler les événements narratifs à son avantage.</p>
+                            <h3>Bomb</h3>
+                            <p>Tourelle lente et lourde. Elle tire moins souvent, mais inflige 5 d&eacute;g&acirc;ts avec une zone d'effet plus large.</p>
                         </div>
                     </div>
                 </div>
 
-                <!-- Resources Tab -->
-                <div id="resources" class="tab-content">
-                    <p style="text-align: center; margin-bottom: 2rem;">Gérez vos stocks ou mourez de faim.</p>
+                <div id="upgrades" class="tab-content">
+                    <p style="text-align: center; margin-bottom: 2rem;">Les am&eacute;liorations se font pr&egrave;s du feu de camp et consomment la ressource commune.</p>
                     <div class="grid-flex">
                         <div class="card">
-                            <h3>Le Métal</h3>
-                            <p>Récupéré sur les restes ennemis ou dans les ruines, il est fondamental pour bâtir les infrastructures de défense.</p>
+                            <h3>PV max</h3>
+                            <p>Bonus de survie : +2 PV max par niveau, jusqu'au niveau 5.</p>
                         </div>
                         <div class="card">
-                            <h3>Les Munitions</h3>
-                            <p>L'essence de la guerre. Les tours de mitrailleuses en consomment passivement. Une tour vide est une tour morte.</p>
+                            <h3>D&eacute;g&acirc;ts</h3>
+                            <p>Bonus de combat : +1 d&eacute;g&acirc;t par tir, jusqu'au niveau 3.</p>
                         </div>
                         <div class="card">
-                            <h3>La Nourriture</h3>
-                            <p>Maintient la barre de Santé Globale et empêche les malus liés à l'épuisement. Essentielle pour le médecin.</p>
-                        </div>
-                        <div class="card">
-                            <h3>L'Influence</h3>
-                            <p>Sert à voter, à enquêter sur l'Imposteur ou à réussir des jets narratifs complexes lors d'événements aléatoires.</p>
+                            <h3>R&eacute;colte</h3>
+                            <p>Bonus d'outil : -15% de temps de r&eacute;colte par niveau, jusqu'au niveau 4.</p>
                         </div>
                     </div>
                 </div>
 
-                <!-- Buildings Tab -->
-                <div id="buildings" class="tab-content">
-                    <p style="text-align: center; margin-bottom: 2rem;">Transformez les rues de Valparaíso en forteresses.</p>
+                <div id="enemies" class="tab-content">
+                    <p style="text-align: center; margin-bottom: 2rem;">Chaque vague combine plusieurs profils d'ennemis, puis l'intensit&eacute; augmente avec les niveaux.</p>
                     <div class="grid-flex">
                         <div class="card">
-                            <h3>Barricades</h3>
-                            <p>Le rempart de base. Dévie le pathfinding ennemi. Améliorées, elles s'équipent de fils barbelés infligeant des dégâts.</p>
+                            <h3>Classique</h3>
+                            <p>Profil standard : vitesse, points de vie et d&eacute;g&acirc;ts de base.</p>
                         </div>
                         <div class="card">
-                            <h3>Mitrailleuse Lourde</h3>
-                            <p>Un DPS massif et continu. Idéal pour repousser l'infanterie légère, mais inefficace contre les blindés sans amélioration.</p>
+                            <h3>Rapide</h3>
+                            <p>Moins r&eacute;sistant, mais 50% plus rapide. Il met vite la pression sur le tuyau.</p>
                         </div>
                         <div class="card">
-                            <h3>Tour de Propagande</h3>
-                            <p>Diffuse les discours d'Ernesto. Augmente drastiquement le moral des troupes proches et ralentit les unités anti-émeutes.</p>
+                            <h3>Lourd</h3>
+                            <p>Deux fois plus de vie, plus de d&eacute;g&acirc;ts et une meilleure r&eacute;compense en ressource.</p>
+                        </div>
+                        <div class="card">
+                            <h3>Miniboss</h3>
+                            <p>Ennemi de fin de s&eacute;rie : tr&egrave;s r&eacute;sistant, lent, dangereux pour l'objectif et tr&egrave;s rentable &agrave; vaincre.</p>
+                        </div>
+                    </div>
+                </div>
+
+                <div id="network" class="tab-content">
+                    <p style="text-align: center; margin-bottom: 2rem;">Le multijoueur est construit autour d'un host autoritaire.</p>
+                    <div class="grid-flex">
+                        <div class="card">
+                            <h3>Salons</h3>
+                            <p>Le host cr&eacute;e un salon avec un code ou h&eacute;berge localement. Les clients rejoignent via ce code ou l'adresse locale.</p>
+                        </div>
+                        <div class="card">
+                            <h3>Snapshots</h3>
+                            <p>Le host diffuse l'&eacute;tat des joueurs, ennemis, structures, ressources, PV du tuyau et progression de niveau.</p>
+                        </div>
+                        <div class="card">
+                            <h3>Actions valid&eacute;es</h3>
+                            <p>Les tirs, constructions, destructions, r&eacute;coltes et am&eacute;liorations passent par le host avant d'&ecirc;tre appliqu&eacute;s &agrave; l'&eacute;quipe.</p>
                         </div>
                     </div>
                 </div>

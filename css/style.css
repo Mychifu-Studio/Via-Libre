@@ -215,6 +215,42 @@ p {
 
 .grid-flex > .card { width: 300px; flex: 0 0 auto; }
 
+.grid-2 {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 2.5rem;
+    align-items: stretch;
+}
+
+.stat-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+    gap: 1rem;
+    margin: 2.5rem 0;
+}
+
+.stat-card {
+    background-color: var(--bg-card);
+    border: 1px solid #333;
+    border-radius: 8px;
+    padding: 1.5rem 1rem;
+    text-align: center;
+}
+
+.stat-card strong {
+    display: block;
+    color: var(--accent);
+    font-family: 'Oswald', sans-serif;
+    font-size: 3rem;
+    line-height: 1;
+}
+
+.stat-card span {
+    color: var(--text-muted);
+    font-size: 0.95rem;
+    text-transform: uppercase;
+}
+
 /* Cards */
 .card { 
     background: var(--bg-card); 
