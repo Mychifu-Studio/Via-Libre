@@ -434,7 +434,13 @@ class MainGame(ShowBase):
     def __init__(self):
         super().__init__(True)
         self.setFullscren()
-        simplepbr.init()
+        simplepbr.init(
+            msaa_samples=0,
+            enable_shadows=False,
+            max_lights=2,
+            use_emission_maps=False,
+            use_hardware_skinning=True,
+        )
 
         self.disable_mouse()
 
@@ -690,14 +696,15 @@ class MainGame(ShowBase):
         self.player.update(dt)
         self.network.update()
         self.resource_system.update()
-        self.inventory_ui.update()
-        self.player_health_ui.update()
-        self.pipe_health_ui.update()
 
         if not self.game_started:
             if hasattr(self, "lobby"):
                 self.lobby.update()
             return task.cont
+
+        self.inventory_ui.update()
+        self.player_health_ui.update()
+        self.pipe_health_ui.update()
 
         self.upgrade_system.update()
         self.enemies.update(dt)

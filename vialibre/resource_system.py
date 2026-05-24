@@ -47,10 +47,19 @@ class ResourceSystem:
         self.game.coll_handler = CollisionHandlerEvent()
         self.game.coll_handler.addInPattern('%fn-into-%in')
         self.game.coll_handler.addOutPattern('%fn-out-%in')
+        self.trigger_collision_root = self._ensure_trigger_collision_root()
 
         # Inputs
         self.game.accept("e", self.start_harvest)
         self.game.accept("e-up", self.stop_harvest)
+
+    def _ensure_trigger_collision_root(self):
+        root = getattr(self.game, "trigger_collision_root", None)
+        if root is None or root.isEmpty():
+            root = self.game.render.attachNewNode("trigger_collision_root")
+            self.game.trigger_collision_root = root
+        self.trigger_collision_root = root
+        return root
 
     # =========================================================
     # SETUP
@@ -99,7 +108,7 @@ class ResourceSystem:
         cnode.setIntoCollideMask(BitMask32.bit(1))
         cnode.setFromCollideMask(BitMask32.allOff())
 
-        zone_np = self.game.render.attachNewNode(cnode)
+        zone_np = self._ensure_trigger_collision_root().attachNewNode(cnode)
         zone_np.setPos(*pos)
 
         zone_np.setTag("harvest_time", str(harvest_time))
@@ -405,4 +414,5 @@ class ResourceSystem:
     # UPDATE
     # =========================================================
     def update(self):
-        self.game.cTrav.traverse(self.game.render)
+        root = self._ensure_trigger_collision_root()
+        self.game.cTrav.traverse(root)

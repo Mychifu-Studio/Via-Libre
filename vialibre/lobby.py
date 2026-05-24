@@ -82,7 +82,9 @@ class LobbyManager(DirectObject):
         cnode.setIntoCollideMask(BitMask32.bit(1))
         cnode.setFromCollideMask(BitMask32.allOff())
 
-        self.zone_np = self.game.render.attachNewNode(cnode)
+        trigger_root = getattr(self.game, "trigger_collision_root", None)
+        parent = trigger_root if trigger_root is not None and not trigger_root.isEmpty() else self.game.render
+        self.zone_np = parent.attachNewNode(cnode)
         self.zone_np.setPos((16, 1.5, 0))
 
         # self.marker = self.game.loader.loadModel("assets/sphere")

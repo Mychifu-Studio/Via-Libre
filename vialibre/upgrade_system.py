@@ -353,7 +353,9 @@ class UpgradeSystem:
         cnode.setIntoCollideMask(BitMask32.bit(1))
         cnode.setFromCollideMask(BitMask32.allOff())
 
-        zone_np = self.game.render.attachNewNode(cnode)
+        trigger_root = getattr(self.game, "trigger_collision_root", None)
+        parent = trigger_root if trigger_root is not None and not trigger_root.isEmpty() else self.game.render
+        zone_np = parent.attachNewNode(cnode)
         zone_np.setPos(*pos)
         self.campfire_zones.append(zone_np)
 
