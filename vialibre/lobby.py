@@ -6,7 +6,7 @@ from panda3d.core import BitMask32, CollisionNode, CollisionSphere, Point3, Text
 class LobbyManager(DirectObject):
     START_ZONE_NAME = "lobby_start_zone"
     START_RADIUS = 2.2
-    DEFAULT_START_POS = Point3(0, -3.0, 0)
+    DEFAULT_START_POS = Point3(16, 1.5, 0)
     START_LABEL_GROUPS = (
         ("start", "launch", "lobby", "depart", "demarrer"),
         ("button", "switch", "console"),
