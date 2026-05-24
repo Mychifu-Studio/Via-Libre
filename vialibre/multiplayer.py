@@ -6,6 +6,7 @@ import threading
 import urllib.request
 from typing import Dict, Any, Tuple, List, Optional
 from dataclasses import dataclass, field
+from direct.actor.Actor import Actor
 from panda3d.core import Point3, Vec3
 from .utils import powLerp, shortest_angle_lerp
 
@@ -20,6 +21,16 @@ SNAPSHOT_PERIOD = 1.0 / SNAPSHOT_TICK
 INPUT_TICK = 30
 INPUT_PERIOD = 1.0 / INPUT_TICK
 INPUT_KEEPALIVE_PERIOD = 0.15
+PLAYER_IDLE_MODEL = "./assets/Tony_idle.bam"
+PLAYER_RUN_MODEL = "./assets/Tony_run.bam"
+PLAYER_HAND_GUN_MODEL = "./assets/hand_gun.bam"
+PLAYER_HAND_BONES = (
+    "RightHand",
+    "Hand.R",
+    "hand_r",
+    "mixamorig:RightHand",
+    "Bip001 R Hand",
+)
 
 
 def _q(value: float, digits: int = 2) -> float:
@@ -705,6 +716,44 @@ class GameNetworkInterface:
         h = float(auth_h) if auth_h is not None else model.getH(self.base.render)
         return pos, h
 
+    def _attach_remote_player_gun(self, actor):
+        for bone_name in PLAYER_HAND_BONES:
+            joint = actor.exposeJoint(None, "modelRoot", bone_name)
+            if joint.isEmpty():
+                continue
+
+            hand_gun = self.base.loader.loadModel(PLAYER_HAND_GUN_MODEL)
+            hand_gun.reparentTo(joint)
+            hand_gun.setScale(0.40)
+            hand_gun.setPos(0, 0, 0)
+            hand_gun.setHpr(0, -90, 0)
+            hand_gun.hide()
+            return hand_gun
+
+        return None
+
+    def _set_remote_player_anim(self, model, anim_name: str) -> None:
+        if self._get_python_tag(model, "current_anim") == anim_name:
+            return
+
+        actor = self._get_python_tag(model, "actor", None)
+        if actor is None or actor.isEmpty():
+            return
+
+        try:
+            actor.loop(anim_name)
+        except Exception:
+            return
+
+        model.setPythonTag("current_anim", anim_name)
+        hand_gun = self._get_python_tag(model, "hand_gun", None)
+        if hand_gun is None or hand_gun.isEmpty():
+            return
+        if anim_name == "run":
+            hand_gun.show()
+        else:
+            hand_gun.hide()
+
     def _apply_authoritative_correction(self, payload: dict):
         server_pos = None
         server_h = None
@@ -874,14 +923,35 @@ class GameNetworkInterface:
     def _spawn_player(self, name: str):
         if self.net is not None and (name in self.other_players or name == self.net.player_name):
             return
-        model = self.base.loader.loadModel('./assets/dog.bam')
-        model.reparentTo(self.base.render)
+
+        model = self.base.render.attachNewNode(f"remote_player_{name}")
+        model_node = model.attachNewNode("player-model")
+        actor = Actor(
+            PLAYER_IDLE_MODEL,
+            {
+                "idle": PLAYER_IDLE_MODEL,
+                "run": PLAYER_RUN_MODEL,
+            },
+        )
+        actor.reparentTo(model_node)
+        actor.setScale(0.4)
+        actor.setH(180)
+        actor.setZ(0)
+        actor.loop("idle")
+        model.setPythonTag("actor", actor)
+        model.setPythonTag("current_anim", "idle")
+        hand_gun = self._attach_remote_player_gun(actor)
+        if hand_gun is not None:
+            model.setPythonTag("hand_gun", hand_gun)
+
         self._sync_new_remote_player_to_team(model)
         self.other_players[name] = model
         print(f"SYSTEM : {name} a rejoint la partie.")
-
     def _despawn_player(self, name: str):
         if name in self.other_players:
+            actor = self._get_python_tag(self.other_players[name], "actor", None)
+            if actor is not None and hasattr(actor, "cleanup"):
+                actor.cleanup()
             self.other_players[name].removeNode()
             del self.other_players[name]
             if self.net is not None and hasattr(self.net, "last_processed_seq_by_client"):
@@ -1220,6 +1290,7 @@ class GameNetworkInterface:
             for pid, model in self.other_players.items():
                 t_pos = model.getPythonTag("target_pos")
                 t_h = model.getPythonTag("target_h")
+                is_moving = False
                 if t_pos is not None:
                     curr_pos = model.getPos(self.base.render)
                     new_x = powLerp(curr_pos.x, t_pos[0], dt, 0.1)
@@ -1228,10 +1299,12 @@ class GameNetworkInterface:
                     if (Point3(*t_pos) - curr_pos).length() > 5.0:
                         new_x, new_y, new_z = t_pos
                     model.setPos(self.base.render, new_x, new_y, new_z)
+                    is_moving = (Point3(new_x, new_y, new_z) - curr_pos).lengthSquared() > 0.0004
                 if t_h is not None:
                     curr_h = model.getH(self.base.render)
                     new_h = shortest_angle_lerp(curr_h, t_h, dt, 0.1)
                     model.setH(self.base.render, new_h)
+                self._set_remote_player_anim(model, "run" if is_moving else "idle")
 
         if self.is_solo or self.net is None:
             return
