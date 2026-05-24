@@ -1,28 +1,34 @@
-from setuptools import setup
+from setuptools import setup, find_packages
 
 setup(
-    name='MultiplayerDemo',
+    name='ViaLibre',
+    version='1.0.0',
+    description='¡Via Libre! est un Action Tower Defense prenant place dans la povince de Valparaiso.',
+    author='Mychifu Studio',
+    packages=find_packages(exclude=('tests',)),
+    include_package_data=True,
+    install_requires=[
+        'panda3d',
+    ],
     options={
         'build_apps': {
-            'console_apps': {
-                'MultiplayerDemo': 'main.py'
+            'gui_apps': {
+                'ViaLibre': 'main.py',
             },
 
             'include_patterns': [
-                'assets/*/*',
-                'assets/*'
+                'assets/**',
+                'vialibre/**',
+                '*.png',
+                '*.jpg',
+                '*.ogg',
+                '*.wav',
+                '*.egg',
+                '*.bam',
+                '*.txt',
+                '*.json',
             ],
 
-            # Force l'inclusion des modules locaux du projet
-            # 'include_modules': {
-            #     '*': [
-            #         'vialibre/*/*',
-            #         'vialibre/*',
-            #         'websocket',
-            #     ]
-            # },
-
-            # Exclut les modules optionnels introuvables de websocket-client
             'exclude_modules': {
                 '*': [
                     'python_socks._errors',
@@ -33,7 +39,7 @@ setup(
                     '_bootlocale',
                     '_posixsubprocess',
                     'grp',
-                    '_scproxy',  # Module macOS, inutile sur Windows
+                    '_scproxy',
                 ]
             },
 
@@ -45,12 +51,17 @@ setup(
             'platforms': [
                 'win_amd64',
             ],
+            
+            'log_filename': '$USER_APPDATA/ViaLibre/log/output.log',
+            'log_append': False,
         },
 
         'bdist_apps': {
             'installers': {
-                'win_amd64': 'zip'
+                'win_amd64': 'zip',
             },
         },
-    }
+    },
+
+    zip_safe=False,
 )
