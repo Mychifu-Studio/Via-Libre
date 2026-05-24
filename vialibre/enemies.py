@@ -18,8 +18,7 @@ ENEMY_TYPE_HEAVY = "lourd"
 
 ENEMY_TYPE_CONFIGS = {
     ENEMY_TYPE_CLASSIC: {
-        "asset": "dog.bam",
-        "high_detail_asset": "ennemi_classique.bam",
+        "asset": "ennemi_classique.bam",
         "hp_multiplier": 5.0,
         "speed_multiplier": 0.6,
         "damage_multiplier": 1.0,
@@ -28,24 +27,22 @@ ENEMY_TYPE_CONFIGS = {
         "color_scale": (1.0, 1.0, 1.0, 1.0),
     },
     ENEMY_TYPE_FAST: {
-        "asset": "dog.bam",
-        "high_detail_asset": "ennemi_rapide.bam",
+        "asset": "ennemi_rapide.bam",
         "hp_multiplier": 3,
         "speed_multiplier": 0.8,
         "damage_multiplier": 1.0,
         "resource_reward": 1,
-        "visual_scale_multiplier": 0.9,
-        "color_scale": (0.65, 1.0, 1.0, 1.0),
+        "visual_scale_multiplier": 1.0,
+        "color_scale": (1.0, 1.0, 1.0, 1.0),
     },
     ENEMY_TYPE_HEAVY: {
-        "asset": "dog.bam",
-        "high_detail_asset": "ennemi_lourd.bam",
+        "asset": "ennemi_lourd.bam",
         "hp_multiplier": 10.0,
         "speed_multiplier": 0.4,
         "damage_multiplier": 2.0,
         "resource_reward": 3,
-        "visual_scale_multiplier": 1.25,
-        "color_scale": (1.0, 0.7, 0.55, 1.0),
+        "visual_scale_multiplier": 1.0,
+        "color_scale": (1.0, 1.0, 1.0, 1.0),
     },
 }
 
@@ -93,8 +90,7 @@ def get_enemy_asset_path(asset_name):
 
 def load_enemy_actor(game, asset_name):
     path = get_enemy_asset_path(asset_name)
-    game_loader = getattr(game, "loader", None)
-    actor = game_loader.loadModel(path) if game_loader is not None else Actor(path)
+    actor = Actor(path)
     try:
         if ENEMY_ANIMATION_NAME not in actor.getAnimNames():
             actor.loadAnims({ENEMY_ANIMATION_NAME: path})
@@ -110,12 +106,31 @@ class EnemyActorPool:
     def __init__(self, game):
         self.game = game
         self._available = {}
+        self._templates = {}
+
+    def _get_template(self, asset_name):
+        template = self._templates.get(asset_name)
+        if template is not None and not template.isEmpty():
+            return template
+
+        template = load_enemy_actor(self.game, asset_name)
+        template.show()
+        template.loop(ENEMY_ANIMATION_NAME)
+        template.detachNode()
+        self._templates[asset_name] = template
+        return template
+
+    def _create_instance(self, asset_name):
+        root = NodePath(f"enemy-{asset_name}")
+        template = self._get_template(asset_name)
+        template.instanceTo(root)
+        return root
 
     def preload(self, asset_name, count):
         bucket = self._available.setdefault(asset_name, [])
         missing = max(0, int(count) - len(bucket))
         for _ in range(missing):
-            actor = load_enemy_actor(self.game, asset_name)
+            actor = self._create_instance(asset_name)
             actor.hide()
             actor.detachNode()
             bucket.append(actor)
@@ -133,7 +148,7 @@ class EnemyActorPool:
             except Exception:
                 pass
             return actor
-        return load_enemy_actor(self.game, asset_name)
+        return self._create_instance(asset_name)
 
     def release(self, asset_name, actor):
         if actor is None or actor.isEmpty():
@@ -153,6 +168,10 @@ class EnemyActorPool:
                     actor.cleanup()
                 actor.removeNode()
         self._available.clear()
+        for template in self._templates.values():
+            if not template.isEmpty():
+                template.removeNode()
+        self._templates.clear()
 
 
 def get_enemy_actor_pool(game):
