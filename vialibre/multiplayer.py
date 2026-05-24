@@ -207,7 +207,7 @@ class GameState:
         )
 
 class StructureState:
-    def __init__(self, id: str, x: float, y: float, z: float, h: float, p: float, r: float):
+    def __init__(self, id: str, x: float, y: float, z: float, h: float, p: float, r: float, turret_type: str = "canon"):
         self.id = id
         self.x = x
         self.y = y
@@ -215,13 +215,32 @@ class StructureState:
         self.h = h
         self.p = p
         self.r = r
+        self.turret_type = turret_type
 
     def to_dict(self) -> Dict[str, Any]:
-        return {"id": self.id, "x": _q(self.x), "y": _q(self.y), "z": _q(self.z), "h": _q(self.h, 1), "p": _q(self.p, 1), "r": _q(self.r, 1)}
+        return {
+            "id": self.id,
+            "x": _q(self.x),
+            "y": _q(self.y),
+            "z": _q(self.z),
+            "h": _q(self.h, 1),
+            "p": _q(self.p, 1),
+            "r": _q(self.r, 1),
+            "turret_type": self.turret_type,
+        }
 
     @staticmethod
     def from_dict(data: Dict[str, Any]) -> "StructureState":
-        return StructureState(data["id"], data["x"], data["y"], data["z"], data.get("h", 0.0), data.get("p", 0.0), data.get("r", 0.0))
+        return StructureState(
+            data["id"],
+            data["x"],
+            data["y"],
+            data["z"],
+            data.get("h", 0.0),
+            data.get("p", 0.0),
+            data.get("r", 0.0),
+            data.get("turret_type", "canon"),
+        )
 
 
 @dataclass
@@ -829,7 +848,18 @@ class GameNetworkInterface:
                 if hasattr(struct, 'id'):
                     pos = struct.np.getPos(self.base.render)
                     hpr = struct.np.getHpr(self.base.render)
-                    structures.append(StructureState(struct.id, pos.x, pos.y, pos.z, hpr.x, hpr.y, hpr.z))
+                    structures.append(
+                        StructureState(
+                            struct.id,
+                            pos.x,
+                            pos.y,
+                            pos.z,
+                            hpr.x,
+                            hpr.y,
+                            hpr.z,
+                            getattr(struct, "turret_type", "canon"),
+                        )
+                    )
 
         snapshot = Snapshot(tick=self.tick, players=players, enemies=enemies, game_state=game_state, structures=structures).to_dict()
         if not include_static:
@@ -1233,19 +1263,31 @@ class GameNetworkInterface:
             elif kind == 'turret_shoot':
                 if not self.net.is_host and hasattr(self.local_player, 'build_manager'):
                     struct_id = payload.get('struct_id')
+                    start_pos = payload.get('start_pos')
                     target_pos = payload.get('target_pos')
                     for struct in self.local_player.build_manager.structures:
                         if hasattr(struct, 'id') and struct.id == struct_id:
-                            # Visual tracer on client
-                            start_pos_visuel = Point3(struct.np.getX(), struct.np.getY(), struct.np.getZ() + 1.2) + struct.offset_turret
+                            if start_pos:
+                                start_pos_visuel = Point3(start_pos['x'], start_pos['y'], start_pos['z'])
+                            else:
+                                start_pos_visuel = Point3(struct.np.getX(), struct.np.getY(), struct.np.getZ() + 1.2) + struct.offset_turret
                             target_pos_visuel = Point3(target_pos['x'], target_pos['y'], target_pos['z'])
-                            struct.create_tracer_effect(start_pos_visuel, target_pos_visuel)
+                            if hasattr(struct, "_aim_at"):
+                                struct._aim_at(target_pos_visuel)
+                            if hasattr(struct, "create_projectile_effect"):
+                                struct.create_projectile_effect(start_pos_visuel, target_pos_visuel)
+                            else:
+                                struct.create_tracer_effect(start_pos_visuel, target_pos_visuel)
                             break
             elif kind == 'build_request':
                 if self.net.is_host and hasattr(self.local_player, 'build_manager'):
                     pos = Point3(payload['x'], payload['y'], payload['z'])
                     hpr = Vec3(payload['h'], payload['p'], payload['r'])
-                    success = self.local_player.build_manager.host_create_structure(pos, hpr)
+                    success = self.local_player.build_manager.host_create_structure(
+                        pos,
+                        hpr,
+                        turret_type=payload.get('turret_type', 'canon'),
+                    )
                     self._send_direct_result(
                         "build_result",
                         {

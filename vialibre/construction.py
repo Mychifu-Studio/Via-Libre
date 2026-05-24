@@ -1,39 +1,126 @@
 # construction.py
+import math
+from dataclasses import dataclass
+
 from panda3d.core import TransparencyAttrib, Vec3, Point3, Plane, NodePath
 from panda3d.core import CollisionNode, CollisionBox, TextNode
 from panda3d.core import LineSegs
-from direct.interval.IntervalGlobal import Sequence, LerpPosInterval, Func
+from direct.interval.IntervalGlobal import Sequence, LerpPosInterval, Func, Wait
 from direct.showbase.DirectObject import DirectObject
 
 from vialibre.radialMenu import RadialMenu
 
-def load_turret(base, np):
-    pivot = base.render.attachNewNode("turret_pivot")
+
+@dataclass(frozen=True)
+class TurretConfig:
+    key: str
+    display_name: str
+    cost: int
+    damage: int
+    static_model: str
+    moving_model: str
+    ammo_model: str
+    menu_icon: str
+    activation_radius: float
+    fire_rate: float
+    hit_radius: float
+    area_radius: float
+    projectile_speed: float
+    ammo_scale: float = 1.0
+    heading_offset: float = 180.0
+    impact_color: tuple[float, float, float, float] = (1.0, 0.8, 0.2, 1.0)
+
+
+DEFAULT_TURRET_TYPE = "canon"
+TURRET_CONFIGS = {
+    "canon": TurretConfig(
+        key="canon",
+        display_name="Canon",
+        cost=15,
+        damage=2,
+        static_model="./assets/Turrets/Canon_static.bam",
+        moving_model="./assets/Turrets/Canon_moving.bam",
+        ammo_model="./assets/Turrets/Canon_ammo.bam",
+        menu_icon="./assets/Turrets/canon.png",
+        activation_radius=15.0,
+        fire_rate=1.0,
+        hit_radius=1.0,
+        area_radius=0.0,
+        projectile_speed=85.0,
+        impact_color=(1.0, 0.74, 0.22, 1.0),
+    ),
+    "tesla": TurretConfig(
+        key="tesla",
+        display_name="Tesla",
+        cost=25,
+        damage=1,
+        static_model="./assets/Turrets/Tesla_static.bam",
+        moving_model="./assets/Turrets/Tesla_moving.bam",
+        ammo_model="./assets/Turrets/Tesla_ammo.bam",
+        menu_icon="./assets/Turrets/tesla.png",
+        activation_radius=14.0,
+        fire_rate=0.35,
+        hit_radius=0.7,
+        area_radius=0.7,
+        projectile_speed=130.0,
+        impact_color=(0.35, 0.85, 1.0, 1.0),
+    ),
+    "bomb": TurretConfig(
+        key="bomb",
+        display_name="Bomb",
+        cost=50,
+        damage=5,
+        static_model="./assets/Turrets/Bomb_static.bam",
+        moving_model="./assets/Turrets/Bomb_moving.bam",
+        ammo_model="./assets/Turrets/Bomb_ammo.bam",
+        menu_icon="./assets/Turrets/bomb.png",
+        activation_radius=13.0,
+        fire_rate=2.2,
+        hit_radius=0.8,
+        area_radius=1.4,
+        projectile_speed=65.0,
+        impact_color=(1.0, 0.35, 0.12, 1.0),
+    ),
+}
+RADIAL_TURRET_ORDER = ("canon", "tesla", "bomb")
+
+
+def get_turret_config(turret_type):
+    key = str(turret_type or DEFAULT_TURRET_TYPE).strip().lower()
+    return TURRET_CONFIGS.get(key, TURRET_CONFIGS[DEFAULT_TURRET_TYPE])
+
+
+def _safe_tight_bounds(node):
+    bounds = node.getTightBounds()
+    if bounds is None or bounds[0] is None or bounds[1] is None:
+        return Point3(-0.5, -0.5, 0.0), Point3(0.5, 0.5, 1.5)
+    return bounds
+
+
+def load_turret(base, np, turret_config=None):
+    config = turret_config or get_turret_config(DEFAULT_TURRET_TYPE)
+    root = np.attachNewNode(f"{config.key}_turret")
+    moving_pivot = root.attachNewNode(f"{config.key}_moving_pivot")
+
+    static_model = NodePath()
+    moving_model = NodePath()
 
     try:
-        model = base.loader.loadModel("./assets/Turrets/Crossbow.obj")
-        model.reparentTo(pivot)
-
-        texture = base.loader.loadTexture("./assets/Turrets/Crossbow.png")
-        model.setTexture(texture, 1)
-
-        min_bounds, max_bounds = model.getTightBounds()
-        center = (min_bounds + max_bounds) / 2.0
-
-        tweak_x = 0.0
-        tweak_y = 1.0
-        tweak_z = 0.0
-
-        model.setPos(-center[0] + tweak_x, -center[1] + tweak_y, -center[2] + tweak_z)
-        pivot.setHpr(0, 90, 0)
-
+        static_model = base.loader.loadModel(config.static_model)
+        static_model.reparentTo(root)
     except Exception as e:
-        print(f"Erreur de chargement : {e}")
+        print(f"Erreur de chargement {config.static_model} : {e}")
 
-    pivot.setPos(0, 0, 0)
-    pivot.reparentTo(np)
+    try:
+        moving_model = base.loader.loadModel(config.moving_model)
+        moving_model.reparentTo(moving_pivot)
+    except Exception as e:
+        print(f"Erreur de chargement {config.moving_model} : {e}")
 
-    return pivot
+    root.setPythonTag("turret_aim_node", moving_pivot)
+    root.setPythonTag("turret_static_node", static_model)
+    root.setPythonTag("turret_moving_node", moving_model)
+    return root
 
 def load_hologram(base, np):
     pivot = base.render.attachNewNode("hologram_pivot")
@@ -115,11 +202,13 @@ class FloatingUI:
 
 class Structure:
     """SRP: Gère la représentation d'une structure placée dans le monde et son comportement."""
-    def __init__(self, base, position, rotation, on_destroy_callback, enemy_manager=None, struct_id=None):
+    def __init__(self, base, position, rotation, on_destroy_callback, enemy_manager=None, struct_id=None, turret_type=DEFAULT_TURRET_TYPE):
         self.base = base
         self.id = struct_id or f"struct_{id(self)}"
         self.on_destroy_callback = on_destroy_callback
         self.enemy_manager = enemy_manager
+        self.config = get_turret_config(turret_type)
+        self.turret_type = self.config.key
 
         parent = getattr(self.base, "structure_root", self.base.render)
         self.np = NodePath("structure_root")
@@ -127,9 +216,10 @@ class Structure:
         self.np.setPos(position)
         self.np.setHpr(rotation)
 
-        self.model = load_turret(self.base, self.np)
+        self.model = load_turret(self.base, self.np, self.config)
+        self.aim_node = self.model.getPythonTag("turret_aim_node")
 
-        min_point, max_point = self.model.getTightBounds()
+        min_point, max_point = _safe_tight_bounds(self.model)
         c_box = CollisionBox(min_point, max_point)
         col_node = CollisionNode('structure_col')
         col_node.addSolid(c_box)
@@ -140,12 +230,15 @@ class Structure:
         self.ui = FloatingUI(self.base, self.np, "Supprimer [Clic]")
 
         # --- NOUVEAU : Paramètres de combat ---
-        self.activation_radius = 15.0  # Distance à partir de laquelle on vise/tire
-        self.fire_rate = 1.0           # Temps en secondes entre chaque tir
+        self.activation_radius = self.config.activation_radius  # Distance a partir de laquelle on vise/tire
+        self.fire_rate = self.config.fire_rate                  # Temps en secondes entre chaque tir
+        self.damage = self.config.damage
+        self.hit_radius = self.config.hit_radius
+        self.area_radius = self.config.area_radius
         self.time_since_last_shot = 0.0
 
         # Options possibles: "closest" (plus proche) ou "lowest_hp" (moins de PV)
-        self.targeting_mode = "lowest_hp"
+        self.targeting_mode = "closest"
 
         self.offset_turret = Vec3(0, 0, 0.5)
         self.offset_enemies = Vec3(0, 0, 0)
@@ -160,11 +253,10 @@ class Structure:
             return True
         return net_iface.net.is_host
 
-    def create_tracer_effect(self, start_pos, target_pos):
-        # 1. Création de la forme du tracer
+    def _create_fallback_tracer(self, start_pos, target_pos):
         lines = LineSegs()
         lines.setThickness(4.0)
-        lines.setColor(1.0, 0.8, 0.2, 1.0) # Couleur jaune-orangée
+        lines.setColor(*self.config.impact_color)
 
         direction = target_pos - start_pos
         distance = direction.length()
@@ -172,31 +264,114 @@ class Structure:
             return
 
         direction.normalize()
-        # Le tracer est un petit segment (max 1.5 unité de long)
         tracer_length = min(1.5, distance)
 
         lines.moveTo(0, 0, 0)
         lines.drawTo(direction * tracer_length)
 
-        # 2. Ajout du tracer dans le monde
         tracer_np = self.base.render.attachNewNode(lines.create())
         tracer_np.setPos(start_pos)
-        tracer_np.setLightOff() # Rend le tracer lumineux même sans lumière dynamique
+        tracer_np.setLightOff()
 
-        # 3. Animation
-        speed = 120.0 # Vitesse de déplacement très rapide
-        duration = distance / speed
-
-        # Sequence exécute les actions l'une après l'autre :
-        # - Déplace le tracer de A vers B
-        # - Puis appelle une fonction pour le supprimer
-        seq = Sequence(
+        duration = max(0.03, distance / self.config.projectile_speed)
+        Sequence(
             LerpPosInterval(tracer_np, duration, target_pos, startPos=start_pos),
-            Func(tracer_np.removeNode)
-        )
-        seq.start()
+            Func(tracer_np.removeNode),
+        ).start()
+
+    def _create_area_impact_effect(self, target_pos):
+        if self.area_radius <= 0:
+            return
+
+        lines = LineSegs()
+        lines.setThickness(2.0)
+        lines.setColor(*self.config.impact_color)
+
+        segments = 28
+        for i in range(segments + 1):
+            angle = (math.tau * i) / segments
+            point = Vec3(
+                math.cos(angle) * self.area_radius,
+                math.sin(angle) * self.area_radius,
+                0.05,
+            )
+            if i == 0:
+                lines.moveTo(point)
+            else:
+                lines.drawTo(point)
+
+        ring_np = self.base.render.attachNewNode(lines.create())
+        ring_np.setPos(target_pos)
+        ring_np.setLightOff()
+        Sequence(Wait(0.18), Func(ring_np.removeNode)).start()
+
+    def create_projectile_effect(self, start_pos, target_pos):
+        direction = target_pos - start_pos
+        distance = direction.length()
+        if distance < 0.1:
+            return
+
+        duration = max(0.03, distance / self.config.projectile_speed)
+        projectile_np = None
+
+        try:
+            projectile_np = self.base.loader.loadModel(self.config.ammo_model)
+        except Exception as e:
+            print(f"Erreur de chargement {self.config.ammo_model} : {e}")
+
+        if projectile_np is None or projectile_np.isEmpty():
+            self._create_fallback_tracer(start_pos, target_pos)
+        else:
+            projectile_np.reparentTo(self.base.render)
+            projectile_np.setPos(start_pos)
+            projectile_np.setScale(self.config.ammo_scale)
+            projectile_np.lookAt(target_pos)
+            projectile_np.setLightOff()
+
+            Sequence(
+                LerpPosInterval(projectile_np, duration, target_pos, startPos=start_pos),
+                Func(projectile_np.removeNode),
+            ).start()
+
+        if self.area_radius > 0:
+            Sequence(Wait(duration), Func(self._create_area_impact_effect, target_pos)).start()
+
         self.base.sound.play("turret")
         self.base.sound.play("turret_reload")
+
+    def create_tracer_effect(self, start_pos, target_pos):
+        self.create_projectile_effect(start_pos, target_pos)
+
+    def _aim_at(self, enemy_pos):
+        if self.aim_node is None or self.aim_node.isEmpty():
+            return
+
+        pivot_pos = self.aim_node.getPos(self.base.render)
+        dx = enemy_pos.x - pivot_pos.x
+        dy = enemy_pos.y - pivot_pos.y
+        if dx * dx + dy * dy <= 0.0001:
+            return
+
+        world_heading = math.degrees(math.atan2(-dx, dy))
+        parent_heading = self.aim_node.getParent().getH(self.base.render)
+        self.aim_node.setH(world_heading - parent_heading + self.config.heading_offset)
+        self.aim_node.setP(0)
+        self.aim_node.setR(0)
+
+    def _apply_turret_damage(self, start_pos, target_pos):
+        if self.area_radius > 0 and hasattr(self.enemy_manager, "damage_enemies_in_radius"):
+            return self.enemy_manager.damage_enemies_in_radius(
+                target_pos,
+                self.area_radius,
+                damage=self.damage,
+            )
+
+        return self.enemy_manager.check_projectile_hit(
+            start_pos,
+            target_pos,
+            hit_radius=self.hit_radius,
+            damage=self.damage,
+        )
 
     def update_task(self, task):
         dt = task.time - getattr(task, 'last_time', task.time)
@@ -250,8 +425,7 @@ class Structure:
         enemy_pos = target_enemy.node.getPos(self.base.render)
         
         if min_dist > 0.01:
-            self.np.lookAt(enemy_pos)
-            self.np.setHpr(self.np.getH() + 180, 0, 0) 
+            self._aim_at(enemy_pos)
 
         self.time_since_last_shot += dt
         if self.time_since_last_shot >= self.fire_rate:
@@ -260,14 +434,16 @@ class Structure:
             start_pos_visuel = Point3(my_pos.x, my_pos.y, my_pos.z + 1.2) + self.offset_turret
             target_pos_visuel = Point3(enemy_pos.x, enemy_pos.y, enemy_pos.z + 0.5) + self.offset_enemies
 
-            self.create_tracer_effect(start_pos_visuel, target_pos_visuel)
+            self.create_projectile_effect(start_pos_visuel, target_pos_visuel)
 
             # Application des degats
-            self.enemy_manager.check_projectile_hit(my_pos, enemy_pos, hit_radius=1.0)
+            self._apply_turret_damage(my_pos, enemy_pos)
 
             if getattr(self.base, 'network', None) and getattr(self.base.network, 'net', None) and self.base.network.net.is_host:
                 self.base.network.net.broadcast_msg('turret_shoot', {
                     'struct_id': self.id,
+                    'turret_type': self.turret_type,
+                    'start_pos': {'x': start_pos_visuel.x, 'y': start_pos_visuel.y, 'z': start_pos_visuel.z},
                     'target_pos': {'x': target_pos_visuel.x, 'y': target_pos_visuel.y, 'z': target_pos_visuel.z}
                 })
 
@@ -324,7 +500,7 @@ class BuildManager(DirectObject):
         self.distance_min = 1
         self.rayon_max_construction = 5
 
-        self.cost = 5
+        self.cost = TURRET_CONFIGS[DEFAULT_TURRET_TYPE].cost
 
         self.plan_sol = Plane(Vec3(0, 0, 1), Point3(0, 0, 0))
         self.structures = []
@@ -339,10 +515,8 @@ class BuildManager(DirectObject):
             mouse=self.mouse,
             name="Tourelles",
             options=[
-                ("5 Ressources", "./assets/Turrets/turret.png"),
-                ("5 Ressources", "./assets/Turrets/turret.png"),
-                ("5 Ressources", "./assets/Turrets/turret.png"),
-                ("5 Ressources", "./assets/Turrets/turret.png"),
+                (f"{TURRET_CONFIGS[key].cost} Ressources", TURRET_CONFIGS[key].menu_icon)
+                for key in RADIAL_TURRET_ORDER
             ],
             open_event="mouse1",       # Maintien du clic gauche
             close_event="mouse1-up",   # Relâchement du clic gauche
@@ -350,6 +524,11 @@ class BuildManager(DirectObject):
             on_select=self.on_radial_select,
             on_cancel=self.on_radial_cancel
         )
+
+    def _turret_type_for_index(self, index):
+        if index < 0 or index >= len(RADIAL_TURRET_ORDER):
+            return DEFAULT_TURRET_TYPE
+        return RADIAL_TURRET_ORDER[index]
 
     def _ensure_structure_root(self):
         root = getattr(self.base, "structure_root", None)
@@ -398,7 +577,10 @@ class BuildManager(DirectObject):
         if not self.mode_actif:
             return
 
-        if self.base.inventory["ressource"] < self.cost:
+        turret_type = self._turret_type_for_index(index)
+        turret_config = get_turret_config(turret_type)
+
+        if self.base.inventory["ressource"] < turret_config.cost:
             print("Ressources insufisantes !")
             self.basculer_mode()
             return
@@ -412,24 +594,27 @@ class BuildManager(DirectObject):
         if is_client:
             net_iface.net.send_msg('build_request', {
                 'x': pos.x, 'y': pos.y, 'z': pos.z,
-                'h': hpr.x, 'p': hpr.y, 'r': hpr.z
+                'h': hpr.x, 'p': hpr.y, 'r': hpr.z,
+                'turret_type': turret_type,
             })
         else:
-            self.host_create_structure(pos, hpr)
+            self.host_create_structure(pos, hpr, turret_type=turret_type)
 
         self.basculer_mode()
 
-    def host_create_structure(self, pos, hpr, struct_id=None):
-        if self.base.inventory["ressource"] < self.cost:
+    def host_create_structure(self, pos, hpr, struct_id=None, turret_type=DEFAULT_TURRET_TYPE):
+        turret_config = get_turret_config(turret_type)
+        if self.base.inventory["ressource"] < turret_config.cost:
             return False
         nouvelle_structure = Structure(
             self.base, pos, hpr,
             self._on_structure_detruite,
             self.enemy_manager,
             struct_id=struct_id,
+            turret_type=turret_config.key,
         )
         self.structures.append(nouvelle_structure)
-        self.base.inventory["ressource"] -= self.cost
+        self.base.inventory["ressource"] -= turret_config.cost
         if hasattr(self.base, 'inventory_ui'):
             self.base.inventory_ui.update()
         net_iface = getattr(self.base, 'network', None)
@@ -467,7 +652,12 @@ class BuildManager(DirectObject):
         for s_data in structures_data:
             sid = s_data['id']
             known_ids.add(sid)
+            turret_type = get_turret_config(s_data.get('turret_type', DEFAULT_TURRET_TYPE)).key
             existing = next((s for s in self.structures if s.id == sid), None)
+            if existing and getattr(existing, "turret_type", DEFAULT_TURRET_TYPE) != turret_type:
+                existing.detruire()
+                existing = None
+
             if existing:
                 existing.np.setPos(s_data['x'], s_data['y'], s_data['z'])
                 existing.np.setHpr(s_data.get('h', 0.0), s_data.get('p', 0.0), s_data.get('r', 0.0))
@@ -478,7 +668,8 @@ class BuildManager(DirectObject):
                     Vec3(s_data['h'], s_data['p'], s_data['r']),
                     self._on_structure_detruite,
                     self.enemy_manager,
-                    struct_id=sid
+                    struct_id=sid,
+                    turret_type=turret_type,
                 )
                 self.structures.append(struct)
 
