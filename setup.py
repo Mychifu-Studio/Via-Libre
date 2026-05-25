@@ -27,6 +27,10 @@ setup(
                 '*.bam',
                 '*.txt',
                 '*.json',
+                'assets/Tony_run.bam',
+                'assets/Shop.bam',
+                'assets/quest_guy.bam',
+                'assets/bartender.bam',
             ],
 
             'exclude_modules': {
