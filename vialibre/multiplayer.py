@@ -41,6 +41,11 @@ def get_local_ip() -> str:
     try:
         s.connect(("8.8.8.8", 80))
         return s.getsockname()[0]
+    except OSError:
+        try:
+            return socket.gethostbyname(socket.gethostname())
+        except OSError:
+            return "127.0.0.1"
     finally:
         s.close()
 
@@ -50,6 +55,41 @@ def get_public_ip() -> str:
         return urllib.request.urlopen("https://api.ipify.org", timeout=2).read().decode()
     except Exception:
         return "0.0.0.0"
+
+
+def _clean_join_arg(value) -> Optional[str]:
+    if value is None:
+        return None
+    cleaned = str(value).strip()
+    return cleaned or None
+
+
+def _cli_join_arg(argv: List[str]) -> Optional[str]:
+    if "--join" not in argv:
+        return None
+    idx = argv.index("--join")
+    if idx + 1 >= len(argv):
+        return None
+    return _clean_join_arg(argv[idx + 1])
+
+
+def _looks_like_lan_target(value: Optional[str]) -> bool:
+    if not value:
+        return False
+    host = value.rsplit(":", 1)[0].strip().lower()
+    if host in {"localhost", "127.0.0.1"}:
+        return True
+    try:
+        ip = socket.inet_aton(host)
+    except OSError:
+        return False
+    first, second = ip[0], ip[1]
+    return (
+        first == 10
+        or first == 127
+        or (first == 172 and 16 <= second <= 31)
+        or (first == 192 and second == 168)
+    )
 
 
 class PlayerState:
@@ -289,11 +329,18 @@ class NetworkProtocol:
         self.player_name = player_name
         self.is_host = is_host
         self.is_local = is_local
-        self.join_arg = join_code
+        self.join_arg = _clean_join_arg(join_code)
         self.target_ip = None
         self.target_port = None
         self.socket = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
-        self.socket.bind(("0.0.0.0", 5555 if (is_host and is_local) else 0))
+        bind_port = 5555 if is_host else 0
+        try:
+            self.socket.bind(("0.0.0.0", bind_port))
+        except OSError:
+            if not is_host or is_local:
+                raise
+            print("SYSTEM : Port 5555 indisponible, hébergement LAN désactivé.")
+            self.socket.bind(("0.0.0.0", 0))
         self.socket.setblocking(True)
         self._lock = threading.Lock()
         self.clients: Dict[tuple, str] = {}
@@ -365,9 +412,9 @@ class NetworkProtocol:
         self.connected = True
 
     def _setup_as_local_client(self):
-        print(f"SYSTEM : Connexion locale à {self.join_arg}:5555...")
-        self.target_ip = self.join_arg
+        self.target_ip = self.join_arg or "127.0.0.1"
         self.target_port = 5555
+        print(f"SYSTEM : Connexion locale à {self.target_ip}:5555...")
         threading.Thread(target=self._punch_lan_thread, daemon=True).start()
 
     def _setup_as_host(self):
@@ -375,6 +422,11 @@ class NetworkProtocol:
         self._send_raw({"action": "host", "localIp": self.local_ip, "localPort": self.socket.getsockname()[1]}, (SIGNALING_IP, SIGNALING_PORT))
         resp = self._recv_blocking()
         if not resp or resp.get('type') != 'hosted':
+            if self.socket.getsockname()[1] == 5555:
+                print("SYSTEM : Serveur de salon inaccessible. Basculement en LAN.")
+                self.is_local = True
+                self._setup_as_local_host()
+                return
             sys.exit("SYSTEM : Impossible de créer le salon.")
         self.game_code = resp['code']
         self.connected = True
@@ -382,6 +434,8 @@ class NetworkProtocol:
         print(f"SYSTEM : MULTIJOUEUR ACTIF. CODE -> {self.game_code}")
 
     def _setup_as_client(self):
+        if not self.join_arg:
+            sys.exit("SYSTEM : ERREUR - Aucun code de salon fourni.")
         self.game_code = self.join_arg.upper()
         self._send_raw({"action": "join", "code": self.game_code}, (SIGNALING_IP, SIGNALING_PORT))
         resp = self._recv_blocking()
@@ -536,13 +590,11 @@ class GameNetworkInterface:
     def __init__(self, base):
         self.base = base
         self.local_player = base.player
-        is_host = base.is_host
-        is_local = "--local" in sys.argv
-        join_arg = None
-        if "--join" in sys.argv:
-            idx = sys.argv.index("--join")
-            if idx + 1 < len(sys.argv):
-                join_arg = sys.argv[idx + 1]
+        is_host = bool(getattr(base, "is_host", "--host" in sys.argv))
+        join_arg = _cli_join_arg(sys.argv) or _clean_join_arg(getattr(base, "code", None))
+        is_local = bool(getattr(base, "is_local", False)) or "--local" in sys.argv
+        if not is_host and _looks_like_lan_target(join_arg):
+            is_local = True
         self.is_solo = not (is_host or is_local or join_arg)
         player_name = "Host" if is_host else f"Player_{id(self.base) % 1000}"
         self.net = None if self.is_solo else NetworkProtocol(player_name, is_host, is_local, join_arg)
