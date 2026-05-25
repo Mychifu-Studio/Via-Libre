@@ -12,7 +12,7 @@ from .characters import DEFAULT_CHARACTER_ID, get_character_definition, normaliz
 from .utils import powLerp, shortest_angle_lerp
 
 
-SIGNALING_IP = "141.253.121.76"
+SIGNALING_IP = "141.253.121.76" 
 SIGNALING_PORT = 8080
 PUNCH_ATTEMPTS = 10
 PUNCH_INTERVAL = 0.2

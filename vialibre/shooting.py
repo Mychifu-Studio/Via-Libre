@@ -52,7 +52,7 @@ class ShootingSystem:
         self._local_shot_seq = 0
         self._handled_remote_shots = set()
         self._bullet_pool = []
-        self._bullet_asset = "assets/Bullet.glb" if os.path.exists("assets/Bullet.glb") else "assets/bullet.bam"
+        self._bullet_asset = "assets/bullet.bam"
 
         self.game.accept("mouse1", self.shoot)
 
