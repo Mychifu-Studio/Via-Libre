@@ -47,6 +47,7 @@ class EnvironmentManager:
     GAME_MAP = ("assets/Jungle3.bam", -90)
     BARTENDER_CANDIDATES = ("assets/bartender.bam", "assets/bartender.bam")
     QUEST_GUY_CANDIDATES = ("assets/quest_guy.bam", "assets/quest_guy.bam")
+    TUTO_GUY_CANDIDATES = ("assets/tuto_guy.bam", "assets/tuto_guy.bam")
 
     def __init__(self, render):
         self.render = render
@@ -161,6 +162,14 @@ class EnvironmentManager:
             pos=(16, 1.5, 0.05),
             scale=0.83,
             heading=-90,
+        )
+
+        self._load_lobby_character(
+            "tuto_guy",
+            self.TUTO_GUY_CANDIDATES,
+            pos=(4, 8, 0.1),
+            scale=1.2,
+            heading=35,
         )
 
     def _clear_lobby_characters(self):

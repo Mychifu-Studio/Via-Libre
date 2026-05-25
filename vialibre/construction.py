@@ -38,7 +38,7 @@ TURRET_CONFIGS = {
     "canon": TurretConfig(
         key="canon",
         display_name="Canon",
-        cost=0,#15,
+        cost=15,
         damage=2,
         static_model="./assets/Turrets/Canon_static.bam",
         moving_model="./assets/Turrets/Canon_moving.bam",
@@ -56,7 +56,7 @@ TURRET_CONFIGS = {
     "tesla": TurretConfig(
         key="tesla",
         display_name="Tesla",
-        cost=0,#25,
+        cost=35,
         damage=1,
         static_model="./assets/Turrets/Tesla_static.bam",
         moving_model="./assets/Turrets/Tesla_moving.bam",
@@ -74,8 +74,8 @@ TURRET_CONFIGS = {
     "bomb": TurretConfig(
         key="bomb",
         display_name="Bomb",
-        cost=0,#50,
-        damage=5,
+        cost=75,
+        damage=7,
         static_model="./assets/Turrets/Bomb_static.bam",
         moving_model="./assets/Turrets/Bomb_moving.bam",
         ammo_model="./assets/Turrets/Bomb_ammo.bam",
