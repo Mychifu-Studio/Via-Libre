@@ -45,7 +45,7 @@ load_prc_file_data(
     "client-sleep 0.001\n"
     "framebuffer-multisample 0\n"
     "multisamples 0\n"
-    # "load-file-type p3assimp\n" 
+    # "load-file-type p3assimp\n"
 )
 
 GAME_SPAWN_POS = (0, 0, 0)
@@ -466,12 +466,12 @@ class MainGame(ShowBase):
         )
 
         self.disable_mouse()
-        
+
         global bg
         font = loader.loadFont('assets/Impact.ttf')
-        
-        
-        
+
+
+
         # Créer une image de fond
         bg_tex = loader.loadTexture("assets/intro.png")  # fichier image
         cm = CardMaker("bg")
@@ -489,7 +489,7 @@ class MainGame(ShowBase):
             parent=base.aspect2d      # ou render2d, mais aspect2d respecte le ratio
         )
         logo.setTransparency(TransparencyAttrib.MAlpha)  # active la transparence
-        
+
         self.btn_style = {
             "scale": 0.1,
             "frameColor": (1, 1, 1, 0),  # fond transparent
@@ -501,7 +501,7 @@ class MainGame(ShowBase):
             # "textProperties": "outline_text"  # si ta police supporte setOutline
             "text_shadowOffset": (0.05, 0.05),  # légère décalage
         }
-        
+
         # Boutons
         btn_jouer = DirectButton(
             text="Jouer",
@@ -531,19 +531,19 @@ class MainGame(ShowBase):
         if logo:
             logo.removeNode()
             logo = None
-            
+
         # global bg
         # if bg:
         #     bg.removeNode()
         #     bg = None
-            
+
         global widgets
 
         # On supprime tous les widgets GUI
         for w in widgets:
             w.destroy()
         widgets.clear()
-        
+
         global frame
         # === Image avec transparence (logo) ===
         frame = OnscreenImage(
@@ -553,7 +553,7 @@ class MainGame(ShowBase):
             parent=self.aspect2d      # ou render2d, mais aspect2d respecte le ratio
         )
         frame.setTransparency(TransparencyAttrib.MAlpha)  # active la transparence
-        
+
         btn_host = DirectButton(
             text="Host",
             pos=LVecBase3f(0, 0, 0.1),
@@ -567,7 +567,7 @@ class MainGame(ShowBase):
             command=self.join,
             **self.btn_style
         )
-        
+
         self.entry = DirectEntry(
             text="",
             scale=0.1,
@@ -577,55 +577,55 @@ class MainGame(ShowBase):
             pos=LVecBase3f(-0.25, 0, -0.3),  # à gauche de l'écran
             focusInCommand=lambda: self.entry.set("")  # efface le placeholder au focus
         )
-        
+
         widgets.extend([btn_host, btn_join, self.entry])
-        
+
     def host(self):
         self.is_host = True
-        
+
         global frame
         frame.removeNode()
-        
+
         global widgets
 
         # On supprime tous les widgets GUI
         for w in widgets:
             w.destroy()
         widgets.clear()
-        
+
         global bg
         if bg:
             bg.removeNode()
             bg = None
-            
+
         self.initialize()
-        
+
     def join(self):
         self.code = self.entry.get()
         if not self.code:
             return
-        
+
         global frame
         frame.removeNode()
-        
+
         self.is_host = False
-        
+
         global widgets
 
         # On supprime tous les widgets GUI
         for w in widgets:
             w.destroy()
         widgets.clear()
-        
+
         global bg
         if bg:
             bg.removeNode()
             bg = None
-            
+
         self.initialize()
 
     def initialize(self):
-        
+
         props = WindowProperties()
         props.setCursorHidden(True)
         if hasattr(self.win, "requestProperties"):
@@ -848,7 +848,7 @@ class MainGame(ShowBase):
         if hasattr(self, "network"):
             self.network.exit()
         self.userExit()
-        
+
     def _broadcast_network_snapshot(self):
         net_iface = getattr(self, "network", None)
         net = getattr(net_iface, "net", None) if net_iface is not None else None
