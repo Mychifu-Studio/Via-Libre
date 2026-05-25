@@ -543,6 +543,12 @@ class GameNetworkInterface:
             idx = sys.argv.index("--join")
             if idx + 1 < len(sys.argv):
                 join_arg = sys.argv[idx + 1]
+        if join_arg is None and not is_host:
+            join_arg = getattr(base, "code", None)
+            if isinstance(join_arg, str):
+                join_arg = join_arg.strip()
+            if not join_arg:
+                join_arg = None
         self.is_solo = not (is_host or is_local or join_arg)
         player_name = "Host" if is_host else f"Player_{id(self.base) % 1000}"
         self.net = None if self.is_solo else NetworkProtocol(player_name, is_host, is_local, join_arg)
@@ -730,6 +736,14 @@ class GameNetworkInterface:
 
         h = float(auth_h) if auth_h is not None else model.getH(self.base.render)
         return pos, h
+
+    def _spawn_position_for_current_state(self) -> Point3:
+        if not getattr(self.base, "game_started", False):
+            lobby = getattr(self.base, "lobby", None)
+            start_pos = getattr(lobby, "start_pos", None)
+            if start_pos is not None:
+                return Point3(start_pos)
+        return Point3(0, 0, 0)
 
     def _create_remote_actor(self, character_id: str):
         character = get_character_definition(character_id)
@@ -1011,6 +1025,12 @@ class GameNetworkInterface:
             return
 
         model = self.base.render.attachNewNode(f"remote_player_{name}")
+        spawn_pos = self._spawn_position_for_current_state()
+        model.setPos(self.base.render, spawn_pos)
+        model.setPythonTag("auth_pos", (spawn_pos.x, spawn_pos.y, spawn_pos.z))
+        model.setPythonTag("target_pos", (spawn_pos.x, spawn_pos.y, spawn_pos.z))
+        model.setPythonTag("auth_h", 0.0)
+        model.setPythonTag("target_h", 0.0)
         model_node = model.attachNewNode("player-model")
         actor, character = self._create_remote_actor(character_id)
         actor.reparentTo(model_node)
@@ -1112,7 +1132,13 @@ class GameNetworkInterface:
 
     def _apply_snapshot(self, payload: dict):
         self.tick = payload.get('tick', self.tick)
-        if self.net is not None and not self.net.is_host:
+        is_client = self.net is not None and not self.net.is_host
+        if is_client:
+            g_data = payload.get('game_state')
+            if g_data:
+                self._apply_game_state_snapshot(g_data)
+
+        if is_client:
             self.last_processed_seq = payload.get('last_processed_seq', -1)
             self._apply_authoritative_correction(payload)
         known_players = set()
@@ -1145,17 +1171,13 @@ class GameNetworkInterface:
             if name not in known_players:
                 self._despawn_player(name)
 
-        if not self.net.is_host:
-            g_data = payload.get('game_state')
-            if g_data:
-                self._apply_game_state_snapshot(g_data)
-
+        if is_client:
             e_data = payload.get('enemies', [])
-            if hasattr(self.base, 'enemies'):
+            if getattr(self.base, "game_started", False) and hasattr(self.base, 'enemies'):
                 self.base.enemies.sync_from_snapshot(e_data)
 
             s_data = payload.get('structures')
-            if s_data is not None and hasattr(self.local_player, 'build_manager'):
+            if getattr(self.base, "game_started", False) and s_data is not None and hasattr(self.local_player, 'build_manager'):
                 self.local_player.build_manager.sync_from_snapshot(s_data)
 
     def _authoritative_damage_for(self, sender_id: str, fallback: int = 1) -> int:
@@ -1396,7 +1418,7 @@ class GameNetworkInterface:
             payload = msg.get('payload', {})
             sender_id = msg['sender_id']
             if kind == '_peer_connected':
-                if self.net.is_host:
+                if self.net.is_host and sender_id not in ("Connecting...", "unknown"):
                     self._spawn_player(sender_id)
                     self._broadcast_snapshot(force=True)
             elif kind == 'game_start':

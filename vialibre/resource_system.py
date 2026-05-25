@@ -69,10 +69,10 @@ class ResourceSystem:
         Ajoute une sphère de collision au joueur.
         """
         player_np = (
-            getattr(player, "node", None)
+            getattr(player, "player", None)
+            or getattr(player, "node", None)
             or getattr(player, "model", None)
             or getattr(player, "actor", None)
-            or getattr(player, "player", None)
         )
 
         if player_np is None:

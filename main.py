@@ -661,6 +661,7 @@ class MainGame(ShowBase):
 
         self.vague_manager = VagueManager(self, self.enemies)
         self.lobby = LobbyManager(self)
+        self._place_local_player_at_lobby_start()
         self.set_game_hud_visible(False)
 
         self.accept("escape", self.menu.toggle)
@@ -706,6 +707,31 @@ class MainGame(ShowBase):
         self.player_health_ui.set_visible(visible)
         self.pipe_health_ui.set_visible(visible)
 
+    def _place_local_player_at_lobby_start(self):
+        lobby = getattr(self, "lobby", None)
+        if lobby is None or not hasattr(lobby, "start_pos"):
+            return
+
+        self.player.map_collision = self.map_collision
+        self.player.player.setPos(lobby.start_pos)
+        self.player.movementVector.set(0, 0, 0)
+        self.player.lastMovement.set(0, 0, 0)
+        self.player.is_paused = False
+        self.player.camera.mouse.centerMouse()
+
+    def _place_remote_players_at(self, pos):
+        net_iface = getattr(self, "network", None)
+        for model in getattr(net_iface, "other_players", {}).values():
+            if hasattr(pos, "x"):
+                model.setPos(pos)
+            else:
+                model.setPos(*pos)
+            world_pos = model.getPos(self.render)
+            model.setPythonTag("auth_pos", (world_pos.x, world_pos.y, world_pos.z))
+            model.setPythonTag("target_pos", (world_pos.x, world_pos.y, world_pos.z))
+            model.setPythonTag("auth_h", model.getH(self.render))
+            model.setPythonTag("target_h", model.getH(self.render))
+
     def prepare_game_level(self):
         self.clear_level_objects()
         self.environment.load_game_map()
@@ -725,9 +751,7 @@ class MainGame(ShowBase):
         self.resource_system.generate_diamond_ore_zones()
         self.upgrade_system.generate_campfire_zones()
 
-        net_iface = getattr(self, "network", None)
-        for model in getattr(net_iface, "other_players", {}).values():
-            model.setPos(*GAME_SPAWN_POS)
+        self._place_remote_players_at(GAME_SPAWN_POS)
 
     def clear_level_objects(self):
         self.enemies.clear()
@@ -754,17 +778,10 @@ class MainGame(ShowBase):
 
         self.environment.load_lobby_map()
         self.map_collision = MapCollisionManager(self.render, self.environment.jungle)
-        self.player.map_collision = self.map_collision
         self.lobby = LobbyManager(self)
-        self.player.player.setPos(self.lobby.start_pos)
-        self.player.movementVector.set(0, 0, 0)
-        self.player.lastMovement.set(0, 0, 0)
-        self.player.is_paused = False
-        self.player.camera.mouse.centerMouse()
+        self._place_local_player_at_lobby_start()
 
-        net_iface = getattr(self, "network", None)
-        for model in getattr(net_iface, "other_players", {}).values():
-            model.setPos(self.lobby.start_pos)
+        self._place_remote_players_at(self.lobby.start_pos)
 
         if popup_text:
             self.popup_ui.show_popup(popup_text, duration=3.0)
