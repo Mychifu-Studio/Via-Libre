@@ -27,6 +27,16 @@ setup(
                 'assets/*/*.ogg',
                 'assets/*/*.wav',
                 'vialibre/**',
+                'assets/Tony_run.bam',
+                'assets/Shop.bam',
+                'assets/quest_guy.bam',
+                'assets/bartender.bam',
+                'assets/Teresa_idle1.bam',
+                'assets/Teresa_run.bam',
+                'assets/Bob_Idle.bam',
+                'assets/Bob_run.bam',
+                'assets/Alfred_idle.bam',
+                'assets/Alfred_run.bam',
             ],
 
             'exclude_modules': {
