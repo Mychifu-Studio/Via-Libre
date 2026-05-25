@@ -1,4 +1,19 @@
 import os
+import site
+
+
+def _add_local_venv_site_packages():
+    venv_site_packages = os.path.join(
+        os.path.dirname(os.path.abspath(__file__)),
+        ".venv",
+        "Lib",
+        "site-packages",
+    )
+    if os.path.isdir(venv_site_packages):
+        site.addsitedir(venv_site_packages)
+
+
+_add_local_venv_site_packages()
 
 from direct.gui.DirectGui import DirectButton, DirectFrame, DirectLabel
 from direct.showbase.ShowBase import ShowBase
