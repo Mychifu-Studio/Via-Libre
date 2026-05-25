@@ -1,5 +1,5 @@
 from dataclasses import dataclass
-from typing import Dict, Tuple
+from typing import Dict, Optional, Tuple
 
 
 @dataclass(frozen=True)
@@ -8,6 +8,9 @@ class CharacterDefinition:
     display_name: str
     idle_model: str
     run_model: str
+    actor_model: Optional[str] = None
+    idle_anim: str = "idle"
+    run_anim: str = "run"
     scale: float = 0.4
     heading: float = 180.0
     z_offset: float = 0.0
@@ -19,7 +22,10 @@ CHARACTERS: Tuple[CharacterDefinition, ...] = (
         display_name="Alfred",
         idle_model="assets/Alfred_idle.bam",
         run_model="assets/Alfred_run.bam",
-        scale=0.585,
+        actor_model="assets/Alfred_run.bam",
+        idle_anim="Armature|mixamo.com|Layer0",
+        run_anim="mixamo.com",
+        scale=0.522,
     ),
     CharacterDefinition(
         id="tony",
@@ -39,7 +45,10 @@ CHARACTERS: Tuple[CharacterDefinition, ...] = (
         display_name="Bob",
         idle_model="assets/Bob_Idle.bam",
         run_model="assets/Bob_run.bam",
-        scale=1.033,
+        actor_model="assets/Bob_run.bam",
+        idle_anim="Armature|mixamo.com|Layer0",
+        run_anim="mixamo.com",
+        scale=0.612,
     ),
 )
 

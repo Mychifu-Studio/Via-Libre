@@ -36,6 +36,7 @@ class Player(DirectObject):
         self.right_hand = None
         self.hand_gun = None
         self.current_anim = "idle"
+        self.anim_by_state = {"idle": "idle", "run": "run"}
         self.selected_character_id = DEFAULT_CHARACTER_ID
         self.set_character(DEFAULT_CHARACTER_ID, announce=False)
 
@@ -135,25 +136,32 @@ class Player(DirectObject):
         next_anim = self.current_anim if self.current_anim in ("idle", "run") else "idle"
 
         self._cleanup_model()
-        self.model = Actor(
-            character.idle_model,
-            {
-                "idle": character.idle_model,
-                "run": character.run_model,
-            },
-        )
+        if character.actor_model:
+            self.model = Actor(character.actor_model)
+        else:
+            self.model = Actor(
+                character.idle_model,
+                {
+                    "idle": character.idle_model,
+                    "run": character.run_model,
+                },
+            )
         self.model.reparentTo(self.modelNode)
         self.model.setScale(character.scale)
         self.model.setH(character.heading)
         self.model.setZ(character.z_offset)
+        self.anim_by_state = {
+            "idle": character.idle_anim,
+            "run": character.run_anim,
+        }
         self.selected_character_id = character.id
 
         self._attach_hand_gun()
 
         # Preload animations to avoid a hitch when the player first moves.
-        self.model.loop("run")
+        self.model.loop(self.anim_by_state["run"])
         self.model.stop()
-        self.model.pose("idle", 0)
+        self.model.pose(self.anim_by_state["idle"], 0)
 
         if self.hand_gun:
             self.hand_gun.show()
@@ -171,8 +179,9 @@ class Player(DirectObject):
         if self.model is None:
             return
 
+        actor_anim_name = self.anim_by_state.get(anim_name, anim_name)
         if self.current_anim != anim_name:
-            self.model.loop(anim_name)
+            self.model.loop(actor_anim_name)
             self.current_anim = anim_name
 
         if self.hand_gun is not None:

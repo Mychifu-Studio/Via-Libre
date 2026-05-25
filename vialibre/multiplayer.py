@@ -733,17 +733,20 @@ class GameNetworkInterface:
 
     def _create_remote_actor(self, character_id: str):
         character = get_character_definition(character_id)
-        actor = Actor(
-            character.idle_model,
-            {
-                "idle": character.idle_model,
-                "run": character.run_model,
-            },
-        )
+        if character.actor_model:
+            actor = Actor(character.actor_model)
+        else:
+            actor = Actor(
+                character.idle_model,
+                {
+                    "idle": character.idle_model,
+                    "run": character.run_model,
+                },
+            )
         actor.setScale(character.scale)
         actor.setH(character.heading)
         actor.setZ(character.z_offset)
-        actor.loop("idle")
+        actor.loop(character.idle_anim)
         return actor, character
 
     def _cleanup_remote_actor(self, model) -> None:
@@ -780,6 +783,7 @@ class GameNetworkInterface:
         actor.reparentTo(model_node)
         model.setPythonTag("actor", actor)
         model.setPythonTag("character_id", character.id)
+        model.setPythonTag("anim_by_state", {"idle": character.idle_anim, "run": character.run_anim})
         model.setPythonTag("current_anim", None)
 
         hand_gun = self._attach_remote_player_gun(actor)
@@ -812,8 +816,10 @@ class GameNetworkInterface:
         if actor is None or actor.isEmpty():
             return
 
+        anim_by_state = self._get_python_tag(model, "anim_by_state", {})
+        actor_anim_name = anim_by_state.get(anim_name, anim_name) if isinstance(anim_by_state, dict) else anim_name
         try:
-            actor.loop(anim_name)
+            actor.loop(actor_anim_name)
         except Exception:
             return
 
@@ -1011,6 +1017,7 @@ class GameNetworkInterface:
         model.setPythonTag("model_node", model_node)
         model.setPythonTag("actor", actor)
         model.setPythonTag("character_id", character.id)
+        model.setPythonTag("anim_by_state", {"idle": character.idle_anim, "run": character.run_anim})
         model.setPythonTag("current_anim", "idle")
         hand_gun = self._attach_remote_player_gun(actor)
         if hand_gun is not None:
