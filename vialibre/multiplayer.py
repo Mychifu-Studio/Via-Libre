@@ -533,7 +533,7 @@ class GameNetworkInterface:
     def __init__(self, base):
         self.base = base
         self.local_player = base.player
-        is_host = "--host" in sys.argv
+        is_host = base.is_host
         is_local = "--local" in sys.argv
         join_arg = None
         if "--join" in sys.argv:

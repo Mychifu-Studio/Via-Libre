@@ -27,10 +27,10 @@ class Player(DirectObject):
         self.modelNode = self.player.attachNewNode('player-model')
 
         self.model = Actor(
-            './assets/Tony_idle.bam',
+            'assets/Tony_idle.bam',
             {
-                'idle': './assets/Tony_idle.bam',
-                'run': './assets/Tony_run.bam',
+                'idle': 'assets/Tony_idle.bam',
+                'run': 'assets/Tony_run.bam',
             }
         )
         self.model.reparentTo(self.modelNode)
