@@ -1,19 +1,4 @@
 import os
-import site
-
-
-def _add_local_venv_site_packages():
-    venv_site_packages = os.path.join(
-        os.path.dirname(os.path.abspath(__file__)),
-        ".venv",
-        "Lib",
-        "site-packages",
-    )
-    if os.path.isdir(venv_site_packages):
-        site.addsitedir(venv_site_packages)
-
-
-_add_local_venv_site_packages()
 
 from direct.gui.DirectGui import DirectButton, DirectFrame, DirectLabel
 from direct.showbase.ShowBase import ShowBase
@@ -526,6 +511,10 @@ class MainGame(ShowBase):
         # On ajoute tous les widgets à la liste
         widgets.extend([btn_jouer, btn_options, btn_quitter])
 
+        self.sound = SoundEngine(self)
+        self.sound.stopALL()
+        self.sound.loop('title')
+
     def menu2(self):
         global logo
         if logo:
@@ -645,7 +634,6 @@ class MainGame(ShowBase):
         self.shooting = ShootingSystem(game=self, player=self.player)
         self.network = GameNetworkInterface(self)
         self.host_code_ui = HostCodeUI(self)
-        self.sound = SoundEngine(self)
 
         self.inventory = {"ressource": 0}
         self.inventory_ui = InventoryUI(self)
@@ -703,6 +691,7 @@ class MainGame(ShowBase):
             f"Niveau {self.current_level}/{self.max_levels} commence !",
             duration=2.5,
         )
+        self.player.player.setPos(0, 0, 0.25)
         # self.sound.loop("kawaii")
 
     def set_current_level(self, level_number):

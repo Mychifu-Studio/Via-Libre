@@ -10,13 +10,14 @@ class SoundEngine:
         self.sfxs = {}
         self.loops = {}
         self.songs = {}
+        self.songsPlaying = []
         
         # self.addSong("pigstep", "assets/music/pigstep.flac")
         # self.setVol("pigstep", .1) # Le master est très LOUD
         # self.loop("pigstep")
         
-        self.addSong("kawaii", "assets/music/digicoooore_loop.ogg")
-        # self.loop("kawaii")
+        self.addSong("win", "assets/music/win.mp3")
+        self.addSong("title", "assets/music/title_screen.mp3")
         
         self.addSFX("gunshot", "assets/SFX/gunshot.wav")
         self.addSFX("turret", "assets/SFX/turret_fire.wav")
@@ -96,6 +97,7 @@ class SoundEngine:
         if name in self.songs:
             self.songs[name].setLoop(True)
             self.songs[name].play()
+            self.songsPlaying.append(name)
             
     def stop(self, name: str):
         if name in self.songs:
@@ -113,3 +115,7 @@ class SoundEngine:
 
         for sfx in valid:
             self.sfxs[sfx].stop()
+
+    def stopALL(self):
+        for song in self.songsPlaying:
+            self.stop(song)

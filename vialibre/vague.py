@@ -329,6 +329,8 @@ class VagueManager:
         self.clear_enemies()
         self.wave_panel.hide()
         self.final_screen.hide()
+        self.game.sound.stopALL()
+        self.game.sound.loop('win')
 
     def clear_enemies(self):
         self.enemy_manager.clear()
