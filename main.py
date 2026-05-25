@@ -1,4 +1,19 @@
 import os
+import site
+
+
+def _add_local_venv_site_packages():
+    venv_site_packages = os.path.join(
+        os.path.dirname(os.path.abspath(__file__)),
+        ".venv",
+        "Lib",
+        "site-packages",
+    )
+    if os.path.isdir(venv_site_packages):
+        site.addsitedir(venv_site_packages)
+
+
+_add_local_venv_site_packages()
 
 from direct.gui.DirectGui import DirectButton, DirectFrame, DirectLabel
 from direct.showbase.ShowBase import ShowBase
@@ -45,8 +60,8 @@ class EnvironmentManager:
         ("assets/Jungle3.bam", -90),
     )
     GAME_MAP = ("assets/Jungle3.bam", -90)
-    BARTENDER_CANDIDATES = ("assets/bartender.bam", "assets/bartender.bam")
-    QUEST_GUY_CANDIDATES = ("assets/quest_guy.bam", "assets/quest_guy.bam")
+    BARTENDER_CANDIDATES = ("assets/bartender.bam", "assets/Bartender1.glb", "assets/Bartender.glb")
+    QUEST_GUY_CANDIDATES = ("assets/quest_guy.bam", "assets/Fredi.glb")
 
     def __init__(self, render):
         self.render = render

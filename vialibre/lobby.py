@@ -1,6 +1,6 @@
 from direct.gui.DirectGui import DirectButton, DirectFrame, DirectLabel
 from direct.showbase.DirectObject import DirectObject
-from panda3d.core import BitMask32, CollisionNode, CollisionSphere, Point3, TextNode
+from panda3d.core import BitMask32, CollisionNode, CollisionSphere, Point3, TextNode, Vec3
 
 from vialibre.characters import CHARACTERS, get_character_definition
 
@@ -278,10 +278,21 @@ class LobbyManager(DirectObject):
             self.game.popup_ui.show_popup("Seul le host peut lancer la partie.")
             return
 
-        if not self.player_inside_start_zone:
+        if not self.player_inside_start_zone and not self._is_player_near_start_zone():
             return
 
         self.game.start_game()
+
+    def _is_player_near_start_zone(self):
+        player = getattr(self.game, "player", None)
+        player_np = getattr(player, "player", None)
+        if player_np is None:
+            return False
+
+        player_pos = player_np.getPos(self.zone_np.getParent())
+        offset = player_pos - self.zone_np.getPos()
+        flat_offset = Vec3(offset.x, offset.y, 0)
+        return flat_offset.lengthSquared() <= self.START_RADIUS * self.START_RADIUS
 
     def update(self):
         if not self.is_active:

@@ -19,6 +19,7 @@ CHARACTERS: Tuple[CharacterDefinition, ...] = (
         display_name="Alfred",
         idle_model="assets/Alfred_idle.bam",
         run_model="assets/Alfred_run.bam",
+        scale=0.585,
     ),
     CharacterDefinition(
         id="tony",
@@ -31,12 +32,14 @@ CHARACTERS: Tuple[CharacterDefinition, ...] = (
         display_name="Teresa",
         idle_model="assets/Teresa_idle1.bam",
         run_model="assets/Teresa_run.bam",
+        scale=0.913,
     ),
     CharacterDefinition(
         id="bob",
         display_name="Bob",
         idle_model="assets/Bob_Idle.bam",
         run_model="assets/Bob_run.bam",
+        scale=1.033,
     ),
 )
 
