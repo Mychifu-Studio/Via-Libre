@@ -308,7 +308,7 @@ class LobbyManager(DirectObject):
             hint = "Les 5 niveaux sont termines."
         elif self._is_local_host():
             status = f"Lobby - {level_text} - {players} joueur{plural} connecte{plural}"
-            hint = "Va sur le point de depart et appuie sur E pour lancer."
+            hint = "Va sur le point de depart et appuie sur E pour lancer.\n Appuie sur M pour affichier le Tutoriel"
         else:
             status = f"Lobby - {level_text} - {players} joueur{plural} connecte{plural}"
             hint = "En attente du host."
