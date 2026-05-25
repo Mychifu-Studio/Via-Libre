@@ -7,4 +7,4 @@ if not exist .\assets\Teresa_idle1.bam gltf2bam.exe .\assets\Teresa_idle1.glb .\
 if not exist .\assets\Bob_Idle.bam gltf2bam.exe .\assets\Bob_Idle.glb .\assets\Bob_Idle.bam
 if not exist .\assets\Bob_run.bam gltf2bam.exe .\assets\Bob_run.glb .\assets\Bob_run.bam
 if not exist .\assets\Alfred_idle.bam gltf2bam.exe .\assets\Alfred_idle.glb .\assets\Alfred_idle.bam
-if not exist .\assets\Alfred_run.bam gltf2bam.exe .\assets\lfred_run.glb .\assets\Alfred_run.bam
+if not exist .\assets\Alfred_run.bam gltf2bam.exe .\assets\Alfred_run.glb .\assets\Alfred_run.bam

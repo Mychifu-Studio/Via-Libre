@@ -8,6 +8,7 @@ from typing import Dict, Any, Tuple, List, Optional
 from dataclasses import dataclass, field
 from direct.actor.Actor import Actor
 from panda3d.core import Point3, Vec3
+from .characters import DEFAULT_CHARACTER_ID, get_character_definition, normalize_character_id
 from .utils import powLerp, shortest_angle_lerp
 
 
@@ -21,8 +22,6 @@ SNAPSHOT_PERIOD = 1.0 / SNAPSHOT_TICK
 INPUT_TICK = 30
 INPUT_PERIOD = 1.0 / INPUT_TICK
 INPUT_KEEPALIVE_PERIOD = 0.15
-PLAYER_IDLE_MODEL = "./assets/Tony_idle.bam"
-PLAYER_RUN_MODEL = "./assets/Tony_run.bam"
 PLAYER_HAND_GUN_MODEL = "./assets/hand_gun.bam"
 PLAYER_HAND_BONES = (
     "RightHand",
@@ -67,6 +66,7 @@ class PlayerState:
         damage: int = 1,
         harvest_time_multiplier: float = 1.0,
         upgrade_levels: Optional[Dict[str, int]] = None,
+        character_id: str = DEFAULT_CHARACTER_ID,
     ):
         self.id = id
         self.username = username
@@ -79,6 +79,7 @@ class PlayerState:
         self.damage = damage
         self.harvest_time_multiplier = harvest_time_multiplier
         self.upgrade_levels = upgrade_levels or {}
+        self.character_id = normalize_character_id(character_id)
 
     def to_dict(self) -> Dict[str, Any]:
         return {
@@ -93,6 +94,7 @@ class PlayerState:
             "damage": self.damage,
             "harvest_time_multiplier": _q(self.harvest_time_multiplier, 3),
             "upgrade_levels": self.upgrade_levels,
+            "character_id": self.character_id,
         }
 
     @staticmethod
@@ -109,6 +111,7 @@ class PlayerState:
             data.get("damage", 1),
             data.get("harvest_time_multiplier", 1.0),
             data.get("upgrade_levels", {}),
+            data.get("character_id", DEFAULT_CHARACTER_ID),
         )
 
 class EnemyState:
@@ -563,6 +566,17 @@ class GameNetworkInterface:
         if self.net is not None:
             self.net.start()
 
+    def set_local_character(self, character_id: str) -> None:
+        character_id = normalize_character_id(character_id)
+        if self.net is None:
+            return
+
+        if self.net.is_host:
+            self._broadcast_snapshot(force=True)
+            return
+
+        self.net.send_msg("character_select", {"character_id": character_id})
+
     def broadcast_game_start(self):
         if self.net is None or not self.net.is_host:
             return
@@ -647,6 +661,7 @@ class GameNetworkInterface:
             "damage": int(self._get_python_tag(model, "damage", 1)),
             "harvest_time_multiplier": float(self._get_python_tag(model, "harvest_time_multiplier", 1.0)),
             "upgrade_levels": levels,
+            "character_id": self._get_python_tag(model, "character_id", DEFAULT_CHARACTER_ID),
         }
 
     def _apply_local_player_stats(self, data: Dict[str, Any]) -> None:
@@ -715,6 +730,63 @@ class GameNetworkInterface:
 
         h = float(auth_h) if auth_h is not None else model.getH(self.base.render)
         return pos, h
+
+    def _create_remote_actor(self, character_id: str):
+        character = get_character_definition(character_id)
+        actor = Actor(
+            character.idle_model,
+            {
+                "idle": character.idle_model,
+                "run": character.run_model,
+            },
+        )
+        actor.setScale(character.scale)
+        actor.setH(character.heading)
+        actor.setZ(character.z_offset)
+        actor.loop("idle")
+        return actor, character
+
+    def _cleanup_remote_actor(self, model) -> None:
+        hand_gun = self._get_python_tag(model, "hand_gun", None)
+        if hand_gun is not None and not hand_gun.isEmpty():
+            hand_gun.removeNode()
+        if hasattr(model, "clearPythonTag"):
+            model.clearPythonTag("hand_gun")
+
+        actor = self._get_python_tag(model, "actor", None)
+        if actor is None:
+            return
+
+        cleanup = getattr(actor, "cleanup", None)
+        if callable(cleanup):
+            cleanup()
+        if not actor.isEmpty():
+            actor.removeNode()
+
+    def _apply_remote_character(self, model, character_id: str) -> None:
+        character_id = normalize_character_id(character_id)
+        if self._get_python_tag(model, "character_id", DEFAULT_CHARACTER_ID) == character_id:
+            return
+
+        model_node = self._get_python_tag(model, "model_node", None)
+        if model_node is None or model_node.isEmpty():
+            model_node = model.attachNewNode("player-model")
+            model.setPythonTag("model_node", model_node)
+
+        previous_anim = self._get_python_tag(model, "current_anim", "idle")
+        self._cleanup_remote_actor(model)
+
+        actor, character = self._create_remote_actor(character_id)
+        actor.reparentTo(model_node)
+        model.setPythonTag("actor", actor)
+        model.setPythonTag("character_id", character.id)
+        model.setPythonTag("current_anim", None)
+
+        hand_gun = self._attach_remote_player_gun(actor)
+        if hand_gun is not None:
+            model.setPythonTag("hand_gun", hand_gun)
+
+        self._set_remote_player_anim(model, previous_anim if previous_anim in ("idle", "run") else "idle")
 
     def _attach_remote_player_gun(self, actor):
         for bone_name in PLAYER_HAND_BONES:
@@ -792,7 +864,13 @@ class GameNetworkInterface:
         if now - self.last_input_send_time < INPUT_PERIOD:
             return
         seq = self._next_input_seq()
-        raw_input = {'x': _q(pos.x), 'y': _q(pos.y), 'z': _q(pos.z), 'h': _q(h, 1)}
+        raw_input = {
+            'x': _q(pos.x),
+            'y': _q(pos.y),
+            'z': _q(pos.z),
+            'h': _q(h, 1),
+            'character_id': getattr(self.local_player, "selected_character_id", DEFAULT_CHARACTER_ID),
+        }
         self.input_history.append(seq)
         if len(self.input_history) > INPUT_TICK * 2:
             self.input_history = self.input_history[-INPUT_TICK * 2:]
@@ -832,6 +910,7 @@ class GameNetworkInterface:
                 self.local_player.damage,
                 self.local_player.harvest_time_multiplier,
                 self._local_upgrade_levels(),
+                getattr(self.local_player, "selected_character_id", DEFAULT_CHARACTER_ID),
             )
         ]
         for name, model in self.other_players.items():
@@ -850,6 +929,7 @@ class GameNetworkInterface:
                     payload["damage"],
                     payload["harvest_time_multiplier"],
                     payload["upgrade_levels"],
+                    payload["character_id"],
                 )
             )
 
@@ -920,25 +1000,17 @@ class GameNetworkInterface:
                 player_data.pop("upgrade_levels", None)
         return snapshot
 
-    def _spawn_player(self, name: str):
+    def _spawn_player(self, name: str, character_id: str = DEFAULT_CHARACTER_ID):
         if self.net is not None and (name in self.other_players or name == self.net.player_name):
             return
 
         model = self.base.render.attachNewNode(f"remote_player_{name}")
         model_node = model.attachNewNode("player-model")
-        actor = Actor(
-            PLAYER_IDLE_MODEL,
-            {
-                "idle": PLAYER_IDLE_MODEL,
-                "run": PLAYER_RUN_MODEL,
-            },
-        )
+        actor, character = self._create_remote_actor(character_id)
         actor.reparentTo(model_node)
-        actor.setScale(0.4)
-        actor.setH(180)
-        actor.setZ(0)
-        actor.loop("idle")
+        model.setPythonTag("model_node", model_node)
         model.setPythonTag("actor", actor)
+        model.setPythonTag("character_id", character.id)
         model.setPythonTag("current_anim", "idle")
         hand_gun = self._attach_remote_player_gun(actor)
         if hand_gun is not None:
@@ -947,11 +1019,10 @@ class GameNetworkInterface:
         self._sync_new_remote_player_to_team(model)
         self.other_players[name] = model
         print(f"SYSTEM : {name} a rejoint la partie.")
+
     def _despawn_player(self, name: str):
         if name in self.other_players:
-            actor = self._get_python_tag(self.other_players[name], "actor", None)
-            if actor is not None and hasattr(actor, "cleanup"):
-                actor.cleanup()
+            self._cleanup_remote_actor(self.other_players[name])
             self.other_players[name].removeNode()
             del self.other_players[name]
             if self.net is not None and hasattr(self.net, "last_processed_seq_by_client"):
@@ -962,6 +1033,8 @@ class GameNetworkInterface:
         if self.net is None or not self.net.is_host or sender_id not in self.other_players:
             return
         model = self.other_players[sender_id]
+        if "character_id" in payload:
+            self._apply_remote_character(model, payload.get("character_id"))
         pos = (payload['x'], payload['y'], payload['z'])
         h = payload.get('h', 0.0)
         model.setPythonTag("auth_pos", pos)
@@ -1045,8 +1118,10 @@ class GameNetworkInterface:
                 self._apply_local_player_stats(p_data)
                 continue
             if pid not in self.other_players:
-                self._spawn_player(pid)
+                self._spawn_player(pid, p_data.get("character_id", DEFAULT_CHARACTER_ID))
             model = self.other_players[pid]
+            if "character_id" in p_data:
+                self._apply_remote_character(model, p_data.get("character_id"))
             model.setPythonTag("target_pos", (p_data['x'], p_data['y'], p_data['z']))
             model.setPythonTag("target_h", p_data.get('h', 0.0))
             if 'hp' in p_data:
@@ -1326,6 +1401,15 @@ class GameNetworkInterface:
                 self._apply_snapshot(payload)
             elif kind == 'input':
                 self._apply_input(sender_id, payload)
+            elif kind == 'character_select':
+                if self.net.is_host:
+                    character_id = payload.get("character_id", DEFAULT_CHARACTER_ID)
+                    if sender_id not in self.other_players and sender_id not in ("Connecting...", "unknown"):
+                        self._spawn_player(sender_id, character_id)
+                    model = self.other_players.get(sender_id)
+                    if model is not None:
+                        self._apply_remote_character(model, character_id)
+                        self._broadcast_snapshot(force=True)
             elif kind == 'shoot_request':
                 if self.net.is_host and hasattr(self.base, 'shooting'):
                     payload = self._authoritative_shot_payload(sender_id, payload)
