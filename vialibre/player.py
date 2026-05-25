@@ -244,5 +244,3 @@ class Player(DirectObject):
 
     def updateKeyMap(self, key, value):
         self.keyMap[key] = value
-        if key == 'ctrl' and not value:
-            self.camera.mouse.centerMouse()
