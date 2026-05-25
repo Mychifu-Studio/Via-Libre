@@ -1,4 +1,10 @@
-gltf2bam.exe .\assets\Shop.glb .\assets\Shop.bam
-gltf2bam.exe .\assets\Tony.glb .\assets\Tony_run.bam
-gltf2bam.exe .\assets\Bartender1.glb .\assets\bartender.bam
-gltf2bam.exe .\assets\Fredi.glb .\assets\quest_guy.bam    
+if not exist .\assets\Shop.bam gltf2bam.exe .\assets\Shop.glb .\assets\Shop.bam
+if not exist .\assets\Tony_run.bam gltf2bam.exe .\assets\Tony.glb .\assets\Tony_run.bam
+if not exist .\assets\bartender.bam gltf2bam.exe .\assets\Bartender1.glb .\assets\bartender.bam
+if not exist .\assets\quest_guy.bam gltf2bam.exe .\assets\Fredi.glb .\assets\quest_guy.bam    
+if not exist .\assets\Teresa_run.bam gltf2bam.exe .\assets\Teresa_run.glb .\assets\Teresa_run.bam
+if not exist .\assets\Teresa_idle1.bam gltf2bam.exe .\assets\Teresa_idle1.glb .\assets\Teresa_idle1.bam
+if not exist .\assets\Bob_Idle.bam gltf2bam.exe .\assets\Bob_Idle.glb .\assets\Bob_Idle.bam
+if not exist .\assets\Bob_run.bam gltf2bam.exe .\assets\Bob_run.glb .\assets\Bob_run.bam
+if not exist .\assets\Alfred_idle.bam gltf2bam.exe .\assets\Alfred_idle.glb .\assets\Alfred_idle.bam
+if not exist .\assets\Alfred_run.bam gltf2bam.exe .\assets\Alfred_run.glb .\assets\Alfred_run.bam

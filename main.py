@@ -1,4 +1,19 @@
 import os
+import site
+
+
+def _add_local_venv_site_packages():
+    venv_site_packages = os.path.join(
+        os.path.dirname(os.path.abspath(__file__)),
+        ".venv",
+        "Lib",
+        "site-packages",
+    )
+    if os.path.isdir(venv_site_packages):
+        site.addsitedir(venv_site_packages)
+
+
+_add_local_venv_site_packages()
 
 from direct.gui.DirectGui import DirectButton, DirectFrame, DirectLabel
 from direct.showbase.ShowBase import ShowBase
@@ -30,7 +45,7 @@ load_prc_file_data(
     "client-sleep 0.001\n"
     "framebuffer-multisample 0\n"
     "multisamples 0\n"
-    "load-file-type p3assimp\n"
+    # "load-file-type p3assimp\n"
 )
 
 GAME_SPAWN_POS = (0, 0, 0)
@@ -42,13 +57,12 @@ class EnvironmentManager:
 
     LOBBY_MAP_CANDIDATES = (
         ("assets/Shop.bam", 0),
-        ("assets/shop.bam", 0),
-        ("assets/Shop.glb", 0),
         ("assets/Jungle3.bam", -90),
     )
     GAME_MAP = ("assets/Jungle3.bam", -90)
-    BARTENDER_CANDIDATES = ("assets/bartender.bam", "assets/Bartender1.glb")
-    QUEST_GUY_CANDIDATES = ("assets/quest_guy.bam", "assets/Fredi.glb")
+    BARTENDER_CANDIDATES = ("assets/bartender.bam", "assets/bartender.bam")
+    QUEST_GUY_CANDIDATES = ("assets/quest_guy.bam", "assets/quest_guy.bam")
+    TUTO_GUY_CANDIDATES = ("assets/tuto_guy.bam", "assets/tuto_guy.bam")
 
     def __init__(self, render):
         self.render = render
@@ -163,6 +177,14 @@ class EnvironmentManager:
             pos=(16, 1.5, 0.05),
             scale=0.83,
             heading=-90,
+        )
+
+        self._load_lobby_character(
+            "tuto_guy",
+            self.TUTO_GUY_CANDIDATES,
+            pos=(4, 8, 0.1),
+            scale=1.2,
+            heading=35,
         )
 
     def _clear_lobby_characters(self):
@@ -421,6 +443,16 @@ class HostCodeUI:
         self.label.setDepthTest(False)
 
 
+from direct.showbase.ShowBase import ShowBase
+from direct.gui.DirectGui import DirectEntry, DirectButton
+from panda3d.core import LVecBase3f
+from panda3d.core import CardMaker
+from direct.gui.OnscreenImage import OnscreenImage
+from panda3d.core import TransparencyAttrib
+from panda3d.core import TextProperties, TextPropertiesManager, LColor
+
+widgets = []  # Liste globale qui contient tous les widgets à détruire
+
 class MainGame(ShowBase):
     def __init__(self):
         super().__init__(True)
@@ -434,6 +466,165 @@ class MainGame(ShowBase):
         )
 
         self.disable_mouse()
+
+        global bg
+        font = loader.loadFont('assets/Impact.ttf')
+
+
+
+        # Créer une image de fond
+        bg_tex = loader.loadTexture("assets/intro.png")  # fichier image
+        cm = CardMaker("bg")
+        cm.setFrameFullscreenQuad()
+        bg = render2d.attachNewNode(cm.generate())
+        bg.setTexture(bg_tex)
+        bg.setBin("background", 0)
+
+        global logo
+        # === Image avec transparence (logo) ===
+        logo = OnscreenImage(
+            image="assets/Titre.png",          # chemin vers ton PNG
+            pos=(0, 0, 0.6),          # centré en haut de l'écran
+            scale=(0.8, 1, 0.4),      # ajuste la taille (x, y, z → width/height)
+            parent=base.aspect2d      # ou render2d, mais aspect2d respecte le ratio
+        )
+        logo.setTransparency(TransparencyAttrib.MAlpha)  # active la transparence
+
+        self.btn_style = {
+            "scale": 0.1,
+            "frameColor": (1, 1, 1, 0),  # fond transparent
+            "relief": None,
+            "text_font": font,
+            # "text_shadow": (0.05, 0.05),  # texte blanc avec ombre légère (optionnel)
+            "text_fg": (1, 1, 1, 1),      # texte principal en blanc
+            "text_shadow": (0, 0, 0, 1),  # ombre noire → effet d’outline simple
+            # "textProperties": "outline_text"  # si ta police supporte setOutline
+            "text_shadowOffset": (0.05, 0.05),  # légère décalage
+        }
+
+        # Boutons
+        btn_jouer = DirectButton(
+            text="Jouer",
+            pos=LVecBase3f(0, 0, 0.1),
+            command=self.menu2,
+            **self.btn_style
+        )
+
+        btn_options = DirectButton(
+            text="Options",
+            pos=LVecBase3f(0, 0, -0.1),
+            **self.btn_style
+        )
+
+        btn_quitter = DirectButton(
+            text="Quitter",
+            pos=LVecBase3f(0, 0, -0.3),
+            command=self.exit_game,
+            **self.btn_style
+        )
+
+        # On ajoute tous les widgets à la liste
+        widgets.extend([btn_jouer, btn_options, btn_quitter])
+
+    def menu2(self):
+        global logo
+        if logo:
+            logo.removeNode()
+            logo = None
+
+        # global bg
+        # if bg:
+        #     bg.removeNode()
+        #     bg = None
+
+        global widgets
+
+        # On supprime tous les widgets GUI
+        for w in widgets:
+            w.destroy()
+        widgets.clear()
+
+        global frame
+        # === Image avec transparence (logo) ===
+        frame = OnscreenImage(
+            image="assets/frame.png",          # chemin vers ton PNG
+            pos=(0, 0, 0),          # centré en haut de l'écran
+            scale=(0.4, 1, 0.8),      # ajuste la taille (x, y, z → width/height)
+            parent=self.aspect2d      # ou render2d, mais aspect2d respecte le ratio
+        )
+        frame.setTransparency(TransparencyAttrib.MAlpha)  # active la transparence
+
+        btn_host = DirectButton(
+            text="Host",
+            pos=LVecBase3f(0, 0, 0.1),
+            command=self.host,
+            **self.btn_style
+        )
+
+        btn_join = DirectButton(
+            text="Join",
+            pos=LVecBase3f(0, 0, -0.1),
+            command=self.join,
+            **self.btn_style
+        )
+
+        self.entry = DirectEntry(
+            text="",
+            scale=0.1,
+            initialText="CODE",
+            width=5,
+            numLines=1,
+            pos=LVecBase3f(-0.25, 0, -0.3),  # à gauche de l'écran
+            focusInCommand=lambda: self.entry.set("")  # efface le placeholder au focus
+        )
+
+        widgets.extend([btn_host, btn_join, self.entry])
+
+    def host(self):
+        self.is_host = True
+
+        global frame
+        frame.removeNode()
+
+        global widgets
+
+        # On supprime tous les widgets GUI
+        for w in widgets:
+            w.destroy()
+        widgets.clear()
+
+        global bg
+        if bg:
+            bg.removeNode()
+            bg = None
+
+        self.initialize()
+
+    def join(self):
+        self.code = self.entry.get()
+        if not self.code:
+            return
+
+        global frame
+        frame.removeNode()
+
+        self.is_host = False
+
+        global widgets
+
+        # On supprime tous les widgets GUI
+        for w in widgets:
+            w.destroy()
+        widgets.clear()
+
+        global bg
+        if bg:
+            bg.removeNode()
+            bg = None
+
+        self.initialize()
+
+    def initialize(self):
 
         props = WindowProperties()
         props.setCursorHidden(True)
@@ -657,7 +848,7 @@ class MainGame(ShowBase):
         if hasattr(self, "network"):
             self.network.exit()
         self.userExit()
-        
+
     def _broadcast_network_snapshot(self):
         net_iface = getattr(self, "network", None)
         net = getattr(net_iface, "net", None) if net_iface is not None else None

@@ -1,9 +1,19 @@
 import os
 
-from direct.gui.DirectGui import DirectFrame, DirectLabel
+from direct.gui.DirectGui import DirectButton, DirectFrame, DirectLabel
 from direct.gui.OnscreenImage import OnscreenImage
 from direct.showbase.DirectObject import DirectObject
-from panda3d.core import BitMask32, CollisionNode, CollisionSphere, Point3, TextNode, TransparencyAttrib
+from panda3d.core import (
+    BitMask32,
+    CollisionNode,
+    CollisionSphere,
+    Point3,
+    TextNode,
+    TransparencyAttrib,
+    Vec3,
+)
+
+from vialibre.characters import CHARACTERS, get_character_definition
 
 
 class LobbyManual:
@@ -114,6 +124,7 @@ class LobbyManual:
         self.hide()
         for page in self.pages:
             page.destroy()
+        self.pages = []
         self.root.destroy()
 
 
@@ -133,6 +144,8 @@ class LobbyManager(DirectObject):
         self.is_active = True
         self.player_inside_start_zone = False
         self.last_status_text = None
+        self.last_character_id = None
+        self.character_buttons = {}
 
         self.start_pos = self._find_start_position()
         self._create_ui()
@@ -141,10 +154,12 @@ class LobbyManager(DirectObject):
 
         self.accept("e", self.try_start_game)
         self.accept("m", self.toggle_manual)
-        self.accept("arrow_right", self.next_manual_page)
-        self.accept("arrow_down", self.next_manual_page)
-        self.accept("arrow_left", self.previous_manual_page)
+        self.accept("arrow_left", self.previous_action)
+        self.accept("arrow_right", self.next_action)
         self.accept("arrow_up", self.previous_manual_page)
+        self.accept("arrow_down", self.next_manual_page)
+        for index, character in enumerate(CHARACTERS, start=1):
+            self.accept(str(index), self.select_character, [character.id])
         self.accept(f"player-into-{self.START_ZONE_NAME}", self.on_start_zone_enter)
         self.accept(f"player-out-{self.START_ZONE_NAME}", self.on_start_zone_exit)
 
@@ -195,6 +210,56 @@ class LobbyManager(DirectObject):
             text_wordwrap=38,
         )
         self._prepare_gui_node(self.hint_label, 93)
+
+        self.character_panel = DirectFrame(
+            parent=self.game.aspect2d,
+            frameColor=(0.018, 0.018, 0.018, 0.82),
+            frameSize=(-0.98, 0.98, -0.15, 0.15),
+            pos=(0, 0, -0.78),
+        )
+        self._prepare_gui_node(self.character_panel, 92)
+
+        self.character_title = DirectLabel(
+            parent=self.character_panel,
+            text="Choisis ton personnage",
+            scale=0.04,
+            pos=(0, 0, 0.08),
+            frameColor=(0, 0, 0, 0),
+            text_fg=(1, 0.94, 0.62, 1),
+            text_align=TextNode.ACenter,
+        )
+        self._prepare_gui_node(self.character_title, 93)
+
+        self.character_label = DirectLabel(
+            parent=self.character_panel,
+            text="",
+            scale=0.034,
+            pos=(0, 0, -0.108),
+            frameColor=(0, 0, 0, 0),
+            text_fg=(1, 1, 1, 1),
+            text_align=TextNode.ACenter,
+        )
+        self._prepare_gui_node(self.character_label, 93)
+
+        start_x = -0.54
+        spacing = 0.36
+        for index, character in enumerate(CHARACTERS, start=1):
+            button = DirectButton(
+                parent=self.character_panel,
+                text=f"{index}. {character.display_name}",
+                scale=0.043,
+                pos=(start_x + (index - 1) * spacing, 0, -0.02),
+                pad=(0.28, 0.11),
+                frameColor=(0.16, 0.16, 0.16, 0.95),
+                text_fg=(1, 1, 1, 1),
+                relief=1,
+                command=self.select_character,
+                extraArgs=[character.id],
+            )
+            self._prepare_gui_node(button, 94)
+            self.character_buttons[character.id] = button
+
+        self._refresh_character_ui()
 
     def _create_start_zone(self):
         cnode = CollisionNode(self.START_ZONE_NAME)
@@ -252,6 +317,68 @@ class LobbyManager(DirectObject):
             return "Jeu termine"
         return f"Lancer {self._level_text().lower()}"
 
+    def _selected_character_id(self):
+        player = getattr(self.game, "player", None)
+        return getattr(player, "selected_character_id", CHARACTERS[0].id)
+
+    def _manual_is_visible(self):
+        return getattr(getattr(self, "manual", None), "visible", False)
+
+    def _refresh_character_ui(self):
+        selected_id = self._selected_character_id()
+        if selected_id == self.last_character_id:
+            return
+
+        selected = get_character_definition(selected_id)
+        self.character_label["text"] = f"Selection : {selected.display_name}  |  1-4 ou fleches"
+        for character in CHARACTERS:
+            button = self.character_buttons.get(character.id)
+            if button is None:
+                continue
+            if character.id == selected.id:
+                button["frameColor"] = (0.82, 0.55, 0.14, 1)
+                button["text_fg"] = (0.08, 0.06, 0.03, 1)
+            else:
+                button["frameColor"] = (0.16, 0.16, 0.16, 0.95)
+                button["text_fg"] = (1, 1, 1, 1)
+
+        self.last_character_id = selected.id
+
+    def select_character(self, character_id):
+        if not self.is_active or getattr(self.game, "game_started", False) or self._manual_is_visible():
+            return
+
+        player = getattr(self.game, "player", None)
+        if player is None or not hasattr(player, "set_character"):
+            return
+
+        selected_id = player.set_character(character_id)
+        self.last_character_id = None
+        self._refresh_character_ui()
+
+        selected = get_character_definition(selected_id)
+        popup_ui = getattr(self.game, "popup_ui", None)
+        if popup_ui is not None:
+            popup_ui.show_popup(f"Personnage selectionne : {selected.display_name}.", duration=1.6)
+
+    def select_previous_character(self):
+        self._select_character_offset(-1)
+
+    def select_next_character(self):
+        self._select_character_offset(1)
+
+    def _select_character_offset(self, offset):
+        if not self.is_active or self._manual_is_visible():
+            return
+
+        current_id = self._selected_character_id()
+        ids = [character.id for character in CHARACTERS]
+        try:
+            current_index = ids.index(current_id)
+        except ValueError:
+            current_index = 0
+        self.select_character(ids[(current_index + offset) % len(ids)])
+
     def on_start_zone_enter(self, entry):
         if not self.is_active:
             return
@@ -273,7 +400,7 @@ class LobbyManager(DirectObject):
         if not self.is_active or getattr(self.game, "game_started", False):
             return
 
-        if self.manual.visible:
+        if self._manual_is_visible():
             return
 
         if getattr(self.game, "game_completed", False):
@@ -284,7 +411,7 @@ class LobbyManager(DirectObject):
             self.game.popup_ui.show_popup("Seul le host peut lancer la partie.")
             return
 
-        if not self.player_inside_start_zone:
+        if not self.player_inside_start_zone and not self._is_player_near_start_zone():
             return
 
         self.game.start_game()
@@ -296,8 +423,22 @@ class LobbyManager(DirectObject):
         self.manual.toggle()
         if self.manual.visible:
             self.panel.hide()
+            self.character_panel.hide()
         else:
             self.panel.show()
+            self.character_panel.show()
+
+    def next_action(self):
+        if self._manual_is_visible():
+            self.next_manual_page()
+        else:
+            self.select_next_character()
+
+    def previous_action(self):
+        if self._manual_is_visible():
+            self.previous_manual_page()
+        else:
+            self.select_previous_character()
 
     def next_manual_page(self):
         if self.is_active:
@@ -307,9 +448,22 @@ class LobbyManager(DirectObject):
         if self.is_active:
             self.manual.previous_page()
 
+    def _is_player_near_start_zone(self):
+        player = getattr(self.game, "player", None)
+        player_np = getattr(player, "player", None)
+        if player_np is None:
+            return False
+
+        player_pos = player_np.getPos(self.zone_np.getParent())
+        offset = player_pos - self.zone_np.getPos()
+        flat_offset = Vec3(offset.x, offset.y, 0)
+        return flat_offset.lengthSquared() <= self.START_RADIUS * self.START_RADIUS
+
     def update(self):
         if not self.is_active:
             return
+
+        self._refresh_character_ui()
 
         players = self._connected_player_count()
         plural = "s" if players > 1 else ""
@@ -342,6 +496,7 @@ class LobbyManager(DirectObject):
         self.player_inside_start_zone = False
 
         self.panel.hide()
+        self.character_panel.hide()
         self.manual.destroy()
         self.zone_np.removeNode()
         # self.marker.removeNode()
@@ -350,9 +505,11 @@ class LobbyManager(DirectObject):
 
         self.ignore("e")
         self.ignore("m")
-        self.ignore("arrow_right")
-        self.ignore("arrow_down")
         self.ignore("arrow_left")
+        self.ignore("arrow_right")
         self.ignore("arrow_up")
+        self.ignore("arrow_down")
+        for index, _character in enumerate(CHARACTERS, start=1):
+            self.ignore(str(index))
         self.ignore(f"player-into-{self.START_ZONE_NAME}")
         self.ignore(f"player-out-{self.START_ZONE_NAME}")

@@ -104,18 +104,10 @@ def get_enemy_type_config(enemy_type):
 
 
 def get_enemy_asset_path(asset_name):
-    base_dir = os.path.dirname(os.path.abspath(__file__))
-    path = os.path.join(base_dir, "../assets", asset_name)
-    if not os.path.exists(path):
-        fallback_asset = "ennemi_lourd.bam" if asset_name == "miniboss.bam" else "ennemi_classique.bam"
-        fallback_path = os.path.join(base_dir, "../assets", fallback_asset)
-        if os.path.exists(fallback_path):
-            return Filename.fromOsSpecific(fallback_path).getFullpath()
-    return Filename.fromOsSpecific(path).getFullpath()
-
+    ...
 
 def load_enemy_actor(game, asset_name):
-    path = get_enemy_asset_path(asset_name)
+    path = "assets/"+asset_name
     actor = Actor(path)
     try:
         if ENEMY_ANIMATION_NAME not in actor.getAnimNames():
